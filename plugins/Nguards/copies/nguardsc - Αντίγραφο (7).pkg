@@ -1,0 +1,715 @@
+/* Nguards Plugin - DMS - Sep 2014 - by stereobit */
+
+
+typeof Class = S ;;
+
+defcom CscoreS=scoreS I;;
+
+var iDefaultScaleFactorMin       = 80;;
+var iDefaultScaleFactorMax       = 200;;
+var iDefaultScaleFactorIncrement = 10;;
+var iDefaultFramerate            = 30;;   
+
+var _log=1;;
+var debug=1;;
+
+fun _echo(x,s)= 
+ if (_log==1) then
+ (
+   _DMSevent this "hear" strcat strcat ">> " x "\n" nil;
+ )else nil;; 
+
+fun lcat(p, q)=
+  if p==nil then
+    q
+  else
+    (hd p)::lcat (tl p) q;;
+
+/*fetch anchor objects list, non position anchor elements are the guard objects*/ 
+fun HSObjList(l)=
+ if l==nil then
+  nil
+ else let l->[a nl] in
+ (
+  match a with
+   (objAnchor [H3d_Obj H3d_Mat AnchorName i] ->
+     [[H3d_Obj (M3getFather session H3d_Obj) 1 H3d_Mat AnchorName i] (HSObjList nl)])
+  |( _ -> 
+     (HSObjList nl))
+ );; 
+ 
+/*fetch anchor positions list, rest elements are the guard area positions*/ 
+fun HSPosList(l)=
+ if l==nil then
+  nil
+ else let l->[a nl] in
+ (
+  match a with
+   (posAnchor [AnchorName pos ang] ->
+     [[pos ang AnchorName] (HSPosList nl)])
+  |( _ -> 
+     (HSPosList nl))
+ );;  
+ 
+fun copyNobject(p, obj, mat, father, objname, adjustYrot, adjustYpos, sourceY) = 
+  if p==nil then 
+    nil
+  else 
+    let hd p -> [pos ang posname] in
+    let pos -> [x y z] in	
+	let ang -> [a b c] in	
+	let if (sourceY!=nil) then sourceY else (y+adjustYpos) -> ypos in	
+	//let M3objName session obj -> objname2 in
+	//let M3getObj session objname2 -> myobj in
+	let M3copyObj session obj -> nobj in
+	(
+	  //_echo strcatn "NsourceY.............:"::objname::","::(itoa ypos)::nil
+	  //_echo strcatn "Nobject:"::objname::","::(itoa x)::","::(itoa y)::","::(itoa z)::nil
+	  M3link session nobj shell; /*father...not a copy*/	  
+	  M3setObjVec session nobj [x ypos z];
+	  M3setObjAng session nobj [(a+adjustYrot) b c];
+	  
+	  [nobj (M3getObjScale session nobj)]::(copyNobject tl p obj mat father objname adjustYrot adjustYpos sourceY)
+	);;   
+ 
+/*copy main object at anchor positions, make list of n objects*/ 
+fun makeNobjects(o, sourceY, minDistance) = 
+  let (HSObjList ObAnchor o) -> l in
+  if l==nil then
+    nil
+  else let hd l -> [monObj objFather _ monMat name _] in /*exclude first element = main*/
+  (
+    let if (sourceY>0) then 
+	  ( let M3getObjVec session monObj -> [_ sy _] in	sy ) /*120, -60!!!*/
+	else 
+	  nil -> ssy in
+	  
+    let atoi hd UgetParam ObUi o "adjustYrot" -> ayRot in 
+    let atoi hd UgetParam ObUi o "adjustYpos" -> ayPos in 	
+	let (HSPosList ObAnchor o) -> p in
+    copyNobject p monObj monMat objFather name ayRot ayPos ssy
+  );;     
+
+fun deleteNobject(obj)=  
+  M3unLink session obj;;
+
+/*check if points has not taken */  
+fun checkNpoints(l)= 
+  if l==nil then 
+    0
+  else
+    let hd l -> [obj x _] in
+	(if (obj==nil) then nil else if x>0 then 1 else checkNpoints tl l);;
+	
+/*points has taken (local score)*/  
+fun sumNpoints(l, sum)= 
+  if l==nil then 
+    sum
+  else
+    let hd l -> [_ x _] in
+	(if x==0 then sumNpoints (tl l) (sum+1) else sumNpoints (tl l) sum);;	
+
+/*points has taken (ob score) server ask*/ 	
+fun sumNallPoints(name) = 
+  if name==nil then
+    nil
+  else  
+   _DMSsend this CscoreS [name];; 
+   
+/*server reply*/   
+fun __score(s) =
+  _DMSevent this strcat Class ".Score" s nil; /*class instance .score here*/
+  0;;   
+  
+  
+  
+/*************** area obj route **********************/	
+
+fun routeMoveObj2(z)=
+   let z -> [lastFrame currentFrame _ x interpolateFlag flagPosAng adjustYpos tick] in
+   let hd x -> [o sz l] in
+   let o -> [h _ _ _] in
+   let (sz * tick / lastFrame) -> i in
+      if interpolateFlag then                /* trajectory with interpolation */
+         let (mod (sz * tick) lastFrame) -> kq in
+         let (lastFrame - kq) -> kp in
+         let (endlist l i) -> [p [q _]] in
+         let p -> [_ [xp yp zp] [ap bp cp] [aq2 bq2 cq2]] in
+         let q -> [_ [xq yq zq] _ _] in
+         (
+            M3setObjVec session h [(xp*kp+xq*kq)/lastFrame ((yp*kp+yq*kq)/lastFrame)+adjustYpos (zp*kp+zq*kq)/lastFrame];
+            if flagPosAng then 
+               M3setObjAng session h [(ap*kp+aq2*kq)/lastFrame (bp*kp+bq2*kq)/lastFrame (cp*kp+cq2*kq)/lastFrame]
+            else
+               nil;
+         )
+      else                                   /* trajectory without interpolation */
+         let (nth_list l i) -> [_ vec ang _] in
+		 let vec -> [vx vy vz] in		 
+         (
+            M3setObjVec session h [vx (vy+adjustYpos) vz]; //vec;
+            if flagPosAng then 
+               M3setObjAng session h ang 
+            else 
+               nil;
+         );;
+
+fun routeMoveObj(x, z)=
+   let z -> [lastFrame currentFrame _ _ interpolateFlag flagPosAng adjustYpos _] in
+   let x -> [o sz l] in
+   let o -> [h _ _ _] in
+   let (sz * currentFrame / lastFrame) -> i in
+      if interpolateFlag then                /* trajectory with interpolation */
+         let (mod (sz * currentFrame) lastFrame) -> kq in
+         let (lastFrame - kq) -> kp in
+         let (endlist l i) -> [p [q _]] in
+         let p -> [_ [xp yp zp] [ap bp cp] [aq2 bq2 cq2]] in
+         let q -> [_ [xq yq zq] _ _] in
+         (
+            M3setObjVec session h [(xp*kp+xq*kq)/lastFrame ((yp*kp+yq*kq)/lastFrame)+adjustYpos (zp*kp+zq*kq)/lastFrame];
+            if flagPosAng then 
+               M3setObjAng session h [(ap*kp+aq2*kq)/lastFrame (bp*kp+bq2*kq)/lastFrame (cp*kp+cq2*kq)/lastFrame]
+            else
+               nil;
+         )
+      else                                   /* trajectory without interpolation */
+         let (nth_list l i) -> [_ vec ang _] in
+		 let vec -> [vx vy vz] in		 
+         (
+            M3setObjVec session h [vx (vy+adjustYpos) vz]; //vec;
+            if flagPosAng then 
+               M3setObjAng session h ang 
+            else 
+               nil;
+         );;
+		 
+fun OptSingleAngle(p, q) =
+   let (abs (q - p)) -> path1 in
+   let (abs (q + 65536 - p)) -> path2 in
+   let (abs (q - 65536 - p)) -> path3 in
+   let min path1 min path2 path3 -> minpath in
+      if (minpath == path1) then
+         q
+      else if (minpath == path2) then
+         (q + 65536)
+      else
+         (q - 65536);;	  
+	  
+fun OptimizeDestinationOrientation(ap, aq, bp, bq, cp, cq) =
+   [(OptSingleAngle ap aq) (OptSingleAngle bp bq) (OptSingleAngle cp cq)];;
+
+fun PrepareOptimization2(src) =
+   if ((tl src) == nil) then
+      let hd src -> p in
+         match p with
+         (posAnchor [posp [xp yp zp] [ap bp cp]] -> [posp [xp yp zp] [ap bp cp] [nil nil nil]]::nil)
+   else
+      let hd src -> p in
+      let hd tl src -> q in
+         match p with
+         (posAnchor [posp [xp yp zp] [ap bp cp]] -> match q with 
+            (posAnchor [_ _ [aq bq cq]] -> let OptimizeDestinationOrientation ap aq bp bq cp cq -> [aq2 bq2 cq2] in
+                    [posp [xp yp zp] [ap bp cp] [aq2 bq2 cq2]]::(PrepareOptimization2 tl src))
+         );;
+
+fun PrepareOptimization(src) =
+   let hd src -> [o sz l] in
+      [o sz (PrepareOptimization2 l)]::nil;;	  
+	  
+fun PrepAnchor(l)=
+   if (l == nil) then 
+      [nil nil]
+   else 
+      let l->[a n] in
+      let PrepAnchor n ->[lp lo] in
+         match a with
+        (objAnchor o -> [nil [o (sizelist lp)-1 lp]::lo]) |
+        (posAnchor _ -> [a::lp lo]);;	  
+	  
+fun makeGuardPlan(o) = 
+
+   let PrepAnchor ObAnchor o -> [_ l] in
+   let PrepareOptimization l -> lOptimized in
+   lOptimized;;	    
+  
+  
+  
+/******************** misc ***********************/  
+  
+fun objPath(obj, goto) =
+  let M3getObjVec session obj -> [x y z] in
+  let goto -> [gx gy gz] in
+  //....
+  0;;  
+  
+fun objPathR(source) =
+  let source -> [x y z] in
+  //....
+  0;;   
+
+  
+/*check if avatar is moving */
+fun avatarMoving(avposlist) =
+  if avposlist==nil then
+    0
+  else
+    let avposlist -> [a b] in
+    let a -> [x1 y1 z1] in
+    let b -> [x2 y2 z2] in
+	(
+	  if (x1==x2) && (y1==y2) && (z1==z2) then
+	    0
+	  else
+        1
+    );;	
+
+/*find if into points of interest*/
+fun inArea(p, distance, obPos) =  	
+  if (p==nil) then
+    nil
+  else 
+    let hd p ->	[point _] in	
+	let point -> [px py pz] in
+    let obPos -> [x y z] in	
+	let x-px -> dx in
+	let y-py -> dy in	
+	let z-pz -> dz in
+	if (abs dx < distance) && (abs dy < distance) && (abs dz < distance) then
+	  //(dx+dy+dz/3)
+	  [dx dy dz]
+    else
+      inArea tl p distance obPos;;	
+	  
+	
+/*face to avatar */
+fun objTarget(obj, adjustY)=
+    let M3calcPosRef session obj shell   -> [src _]  in
+    let M3calcPosRef session (ObGetMain owner) shell -> [dst _]  in
+    let M3angularTarget src dst        -> [an _ _] in
+    let M3getObjAng session obj        -> [_ b c]  in
+	
+    let if (adjustY!=nil) then (an+adjustY) else an -> anY in	
+    M3setObjAng session obj [anY b c];
+	0;;  
+		
+  
+/************************** scale *********************/ 
+
+fun setScaleFactor(p) =
+   let p -> [iSFMin iSFMax iSFInc iSCur iFRate iTick iAccum] in
+   let _tickcount -> iCurTick in
+   let (iCurTick - iTick) -> iTimeLapse in
+   let ((iTimeLapse * iFRate) / 1000) -> iFCount in
+   let (mod (iTimeLapse * iFRate) 1000) -> iFAccum in   
+   ( 
+      set iAccum = iAccum + iFAccum;
+      if (iAccum >= 1000) then
+      (
+         set iFCount = iFCount + 1;
+         set iAccum = iAccum - 1000;
+         0;
+      )
+      else
+         0;
+      if (iFCount >= 1) then
+         let 0 -> i in
+         (
+            while (i < iFCount) do
+            (
+               set iSCur = iSCur + iSFInc ;
+               if (iSCur >= iSFMax) then
+               (
+                  set iSCur = iSFMax;
+                  set iSFInc = -iSFInc;
+                  0;
+               )
+               else if (iSCur <= iSFMin) then
+               (
+                  set iSCur = iSFMin;
+                  set iSFInc = -iSFInc;
+                 0;
+               )
+               else
+                  0;      
+               set i = i + 1;
+            );
+            mutate p <- [_ _ iSFInc iSCur _ iCurTick iAccum];
+            0;
+         )
+      else
+         0;
+   );;
+   
+fun scaleobj(elt, p)=
+  let elt -> [obj s _] in
+  let p -> [_ _ _ iSCur _ _ _] in
+  M3setObjScale session obj ((iSCur * s) / 100);;   
+  
+/************************** moves *********************/   
+	
+fun move0(o,obj,apos,rotation,d,into,attackDist,targetDist,adjustYr) =
+  let apos -> [x y z] in
+  let M3getObjVec session obj -> [ox oy oz] in  
+  let M3getObjAng session obj -> [oa ob oc] in 
+  let rotation -> [ora orb orc] in
+  let if (into!=nil) then into else [0 0 0] -> [inx iny inz] in		  
+  ( 	
+	objTarget obj adjustYr;
+	  
+	//collision detection
+	//let inboxTesting coll session obj [x y z] -> [_ [bx by bz]] in
+	//M3setObjVec session obj [bx by bz];	  
+	  
+	M3setObjVec session obj [x oy z];
+	M3setObjAng session obj [ora ob oc]; /*target and angle conflict effect */ 	
+	  
+	/* abuse avatar !!!*/
+	/*if (ora>2000) then
+	  M3setObjVec session M3getFather session (ObGetMain owner) [x+(inx/2) y z+(inz/2)]
+	else	
+	  0;*/
+		
+	_DMSevent this strcat (ObName o) ".inArea" nil nil;	
+	0
+  );;
+	
+fun move1(o,obj,apos,rotation,d,into,attackDist,targetDist,adjustYr) =
+  let apos -> [x y z] in
+  let M3getObjVec session obj -> [ox oy oz] in  
+  let M3getObjAng session obj -> [oa ob oc] in 
+  let rotation -> [ora orb orc] in
+  let if (into!=nil) then into else [0 0 0] -> [inx iny inz] in	   
+  ( 	  
+    let if (x+(inx/2)<attackDist) then x+(inx/2) else ox -> tx in
+	let if (z+(inz/2)<attackDist) then z+(inz/2) else oz -> tz in
+	
+	//collision detection
+	//let inboxTesting coll session obj [tx oy tz] -> [_ [bx by bz]] in
+	//M3setObjVec session obj [bx by bz];
+	
+	M3setObjVec session obj [tx oy tz]; //[x+(inx/2) oy z+(inz/2)];
+	M3setObjAng session obj [ora ob oc];  
+	  
+	objTarget obj adjustYr;
+	_DMSevent this strcat (ObName o) ".inArea" nil nil;	
+	0
+  );;
+	
+
+fun moveobj(x, v) =
+  let v -> [rotation phase area plan deletion adjustYr attackDist targetDist avposlist o] in
+  let x -> [obj _ _] in 
+  let avposlist -> [avatarpos avatarprevpos] in	
+  let plan -> [sz _ _ planList _ _ _ tick] in
+  (
+    let phase -> [p1 p2 p3] in 
+	let avatarMoving avposlist -> avMove in
+	
+	let if (p3==1) then avatarprevpos 
+	               else avatarpos -> avpos in	/*select prev or now av pos*/
+  
+    //M3rotateObjExt session obj rotation;	 
+	//objTarget obj adjustYr;	
+	//_echo strcat "Rotation................" itoa ora
+	
+    /*check distance */	 	
+	let inArea area attackDist avatarpos -> into in /*differencial d */
+	let M3distance session obj (M3getFather session (ObGetMain owner)) -> d in	  
+    if (d < attackDist) then // || (into != nil) then 	
+	(
+	  if (into!=nil) then
+	  (
+	    if p1==0 then
+	      move0 o obj avpos rotation d into attackDist targetDist adjustYr
+	    else
+          move1 o obj avpos rotation d into attackDist targetDist adjustYr 
+	  )
+	  else if (p2==0) && (sz>1) then /* positions greater that 1*/	
+	    //apply_on_list planList @routeMoveObj plan
+		routeMoveObj2 plan
+	  else
+        objTarget obj adjustYr;	  
+	)
+    else if (d < targetDist) then
+    (
+      //M3setObjVec session obj [ox oy oz];
+	  objTarget obj adjustYr; /*just target*/
+	  0
+    )	
+    else
+    (
+      if (p2==0) && (sz>1) then /* positions greater that 1*/	
+	    //apply_on_list planList @routeMoveObj plan
+		routeMoveObj2 plan
+	  else
+	    0
+	)  
+  );;
+
+fun cbPlay(o,v,l)=
+  let v -> [framerate tick angx angxaccum angy angyaccum angz angzaccum unlink adjustYr adjustYp attackDist targetDist area plan scale avposlist ra rb rc p1 p2 p3] in  
+  let avposlist -> [prevpos _] in
+  let checkNpoints l -> points in
+  
+  if (points > 0) then	 
+  (
+   //_DMSevent this strcat (ObName o) ".nScore" itoa (sumNpoints l 0) nil; 
+   if tick == nil then
+     set tick = _tickcount
+   else
+     nil;
+   let _tickcount -> currenttick in
+   let ((currenttick - tick) * framerate) -> timeframe in
+   let 0 -> a in
+   let 0 -> b in
+   let 0 -> c in
+   ( 
+     if angx == nil then
+       nil
+     else
+       let (timeframe * angx) -> xtimeframe in
+     let mod xtimeframe 1000 -> xaccum in  
+     ( 
+      set b = (xtimeframe / 1000);
+      set angxaccum = angxaccum + xaccum;
+        if xaccum >= 1000 then
+        (
+          set b = b + 1;
+          set angxaccum = angxaccum - 1000		  
+        )
+        else
+          nil;
+     );
+     
+     if angy == nil then
+       nil 
+     else                   
+       let (timeframe * angy) -> ytimeframe in
+     let mod ytimeframe 1000 -> yaccum in  
+     (
+       set a = (ytimeframe / 1000);
+       set angyaccum = angyaccum + yaccum;
+         if yaccum >= 1000 then
+         (
+            set a = a + 1;
+            set angyaccum = angyaccum - 1000			
+         )
+         else
+           nil;
+     );
+
+     if angz == nil then
+       nil
+     else 
+       let (timeframe * angz) -> ztimeframe in
+     let mod ztimeframe 1000 -> zaccum in 	 
+     (
+       set c = (ztimeframe / 1000);
+       set angzaccum = angzaccum + zaccum;
+         if zaccum >= 1000 then
+         (
+           set c = c + 1;
+           set angzaccum = angzaccum - 1000
+         )
+         else
+           nil; 
+     ); 
+	 
+ 	 if (debug==1) then
+	 (	 
+	   let strcatn (itoa p1)::"\n"::(itoa p2)::"\n"::(itoa p3)::nil -> params in
+	   //let strcatn (itoa ra)::"\n"::(itoa rb)::"\n"::(itoa rc)::nil -> params in	   
+       _DMSevent this strcat (ObName o) ".nPlay" params nil;	 
+	   0
+	 )
+     else nil;	 	 
+	 
+	 
+	 /*main time tick*/
+	 let ((currenttick - tick) * 1) -> mytimeframe in
+     let (mod mytimeframe 1000) -> accum in   
+     let (mytimeframe / 1000) -> deltaFrame in
+	 /*route plan */
+     let plan -> [lastFrame currentFrame accumulator planList _ _ _ tick] in		 
+	 let 0 -> tack in
+	 let 0 -> tock in
+	 /*avatar now pos*/
+     let M3getObjVec session M3getFather session (ObGetMain owner) -> nowpos in 	
+     /*set time params */	 
+	 let if ra>65536 then (set p1=!p1; if tick<lastFrame then set tick=tick+1 else set tick=1; 0) else ra+a -> aR in
+	 let if rb>65536 then (set p2=!p2; set tack=tack+1; 0) else rb+b -> bR in
+	 let if rc>65536 then (set p3=!p3; set tock=tock+1; 0) else rc+c -> cR in	 
+	 (
+	   /*intarchange new last avatar pos*/
+	   mutate avposlist <- [nowpos prevpos];
+       /*update object params */	   
+       mutate v <- [_ currenttick _ angxaccum _ angyaccum _ angzaccum _ _ _ _ _ _ _ _ avposlist aR bR cR p1 p2 p3];
+	 
+	   /* plan object route */
+       set accumulator = accumulator + accum;
+       if (accumulator > 1000) then
+       (
+          set deltaFrame = deltaFrame + 1; 
+          set accumulator = accumulator - 1000;
+       )
+       else
+          nil;	   
+       if ((currentFrame + deltaFrame) < (lastFrame - 1)) then
+	   (
+         mutate plan <- [_ (currentFrame + deltaFrame) accumulator _ _ _ _ tick];
+		 //apply_on_list planList @routeMoveObj plan;
+         apply_on_list l @moveobj [[a b c] [p1 p2 p3] area plan unlink adjustYr attackDist targetDist avposlist o];			 
+		 0
+	   )	 
+       else 
+	   (
+	     mutate plan <- [_ (lastFrame - 1) _ _ _ _ _ tick];
+	     //apply_on_list planList @routeMoveObj plan;
+         apply_on_list l @moveobj [[a b c] [p1 p2 p3] area plan unlink adjustYr attackDist targetDist avposlist o];		 
+		 mutate plan <- [_ 0 0 _ _ _ _ tick]; 
+		 0
+	   );	 
+	 
+	   /*move object */
+       //let [[a b c] [p1 p2 p3] area plan unlink adjustYr attackDist targetDist avposlist o] -> mparams in		
+	   //apply_on_list l @moveobj mparams;
+	 
+	   /*scale object */
+	   if (scale!=nil) then
+	   (
+         setScaleFactor scale;
+         apply_on_list l @scaleobj scale	 
+	   )
+       else 	 
+         0
+	 )	 
+   )
+  )
+  else if (points==0) then
+  ( /*send message once disable list, message*/
+    _DMSevent this strcat (ObName o) ".npointend" nil nil;
+	//set l = nil;
+	mutate hd l <- [nil _ _]; /*disable list, first obj -> nil*/
+	0
+  )
+  else  
+    nil;; /*disabled n list*/
+  
+
+
+/*******************************************************************************
+ Get3dGuards() - Retrieving the guard objects
+ l -> [Anchor r1]  : List of objects linked to the instance
+   <- [[H3d I] r1] : List of 3D objects with their original scale
+*******************************************************************************/
+fun Get3dGuards(l) =
+   if (l == nil) then
+      nil
+   else
+      match hd l with
+      (objAnchor [h _ _ _] -> [h (M3getObjScale session h) 1]::(Get3dGuards (tl l))) |
+      (_ -> Get3dGuards (tl l));;
+	  
+/*fetch 1st element = guard obj*/	  
+fun GetGuard(l) = 	  
+   if (l == nil) then
+      nil
+   else
+      let Get3dGuards l -> g in  
+	  (hd g)::nil;;  	  
+	  
+/*fetch all anchor positions and objects list*/ 
+fun GetGuardArea(l)=
+   if l==nil then
+      nil
+   else
+      match hd l with
+      (posAnchor [_ pos _] -> [pos 0]::(GetGuardArea tl l)) |
+	  (objAnchor [h _ _ _] -> [(M3getObjVec session h) 0]::(GetGuardArea tl l));;
+      //(_ -> GetGuardArea tl l);;  
+	  
+/*exclude 1st element = guard obj*/	  
+fun GetArea(l) = 	  
+   if l==nil then
+      nil
+   else 
+   (set l = tl l; GetGuardArea l);;   
+	  
+fun start(o) =
+   let atoi hd UgetParam ObUi o "targetCheck" -> targetDist in 
+   let atoi hd UgetParam ObUi o "attackCheck" -> attackDist in 
+   let atoi hd UgetParam ObUi o "removeObj" -> unlink in /*remove at point*/
+   //let hd UgetParam ObUi o "itemName" -> itemname in /*must have item_ to count as item into diary inventory or scs event param*/
+   
+   let hd UgetParam ObUi o "isScale" -> sc in 
+   let if (nil != sc) then atoi sc else 0 -> isScale in
+   let hd UgetParam ObUi o "isRotation" -> rc in 
+   let if (nil != rc) then atoi rc else 0 -> isRotate in 
+   let hd UgetParam ObUi o "sourceY" -> sy in 
+   let if (nil != sy) then atoi sy else 0 -> sourceY in  /*adjust Y as source obj - same level*/  
+
+   let atoi hd UgetParam ObUi o "angX" -> angx in
+   let atoi hd UgetParam ObUi o "angY" -> angy in
+   let atoi hd UgetParam ObUi o "angZ" -> angz in   
+   
+   let atoi hd UgetParam ObUi o "adjustYrot" -> ayRot in 
+   let atoi hd UgetParam ObUi o "adjustYpos" -> ayPos in 	   
+
+   let hd UgetParam ObUi o "ScaleFactorMin" -> sMin in 
+   let if (nil != sMin) then atoi sMin else iDefaultScaleFactorMin -> iSFMin in
+   let hd UgetParam ObUi o "ScaleFactorMax" -> sMax in 
+   let if (nil != sMax) then atoi sMax else iDefaultScaleFactorMax -> iSFMax in
+   let hd UgetParam ObUi o "ScaleFactorIncrement" -> sInc in 
+   let if (nil != sInc) then atoi sInc else iDefaultScaleFactorIncrement -> iSFInc in
+   let hd UgetParam ObUi o "Framerate" -> sFra in 
+   let if (nil != sFra) then atoi sFra else iDefaultFramerate -> iFRate in
+   
+   let [[0 0 0] [0 0 0]] -> avposlist in /*avatar now prev pos */
+   
+   //let Get3dGuards (ObAnchor o) -> guards in /*guard objects*/
+   let GetGuard (ObAnchor o) -> guard in /*guard one objects*/
+   let GetArea ObAnchor o -> area in /*guard area*/
+   let makeGuardPlan o -> plan in
+   //_echo strcat "AREA_" itoa (sizelist area)
+   let [(sizelist area) 0 0 plan 0 0 ayPos 1] -> masterPlan in
+   (
+      let if (isScale==1) then [iSFMin iSFMax iSFInc ((iSFMin + iSFMax) / 2) iFRate _tickcount 0] else nil -> scaling in /*scale */		
+	  ObCbAnim o mkfun2 mkfun3 @cbPlay guard [iFRate nil angx 0 angy 0 angz 0 unlink ayRot ayPos attackDist targetDist area masterPlan scaling avposlist 0 0 0 0 0 0] ;
+	  0
+   );;  	  
+	  
+	  
+fun activate(o,from,action,param,reply,l)=  
+ 
+   if !strcmp action (strcatn (ObName o)::".start"::nil) then 
+   (  
+     start o;
+  	 _DMSevent this strcat (ObName o) ".started" nil nil; 
+     0 	 
+   )	   
+   else 
+     nil;;   
+
+
+/*******************************************************************************
+ cbNewOb() - Standard newOb function
+ o -> Ob : New Ob
+   <- I  : Not used
+*******************************************************************************/   
+fun cbNewOb(o) =
+
+   ObRegisterAction o (strcatn (ObName o)::".start"::nil) mkfun6 @activate nil;
+   0;;
+
+
+/*******************************************************************************
+ IniPlug() - Standard IniPlug function
+ file -> S : .plug plugin file
+      <- I : Not used
+*******************************************************************************/
+fun IniPlug(file) =
+   set Class = getInfo strextr _getpack _checkpack file "name" ;
+   PlugRegister Class @cbNewOb nil ;
+   0;;
+
+ 

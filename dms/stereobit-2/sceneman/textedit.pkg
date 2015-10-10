@@ -1,0 +1,53 @@
+/* Text Editor - juil.97 - par Sylvain Huet */
+
+typeof Font=ObjFont;;
+
+struct TextEdit=
+ [chText:Chn,winText:ObjWin,bannerText:ObjText,textText:ObjText,
+  okText:ObjButton,cancelText:ObjButton,endText:fun [S] I]mkText;;
+
+fun _ok(x,b)=
+ let _GETtext b.textText -> s in
+ (_DSwindow b.winText;
+  exec b.endText with [s]);;
+
+fun _cancel(x,b)=
+ _DSwindow b.winText;
+ exec b.endText with [nil];;
+
+fun _destroy(x,b)=
+ exec b.endText with [nil];;
+
+fun _resizeT(a,b,x,y)=
+ if (y<100) then nil else
+ (_SIZEtext b.bannerText x-10 20 5 5;
+  _SIZEtext b.textText x-10 y-60 5 30;
+  _SIZEbutton b.okText 40 20 5 y-25;
+  _SIZEbutton b.cancelText 40 20 50 y-25)
+;;
+
+fun iniText(ch,father,w,h,title,txt,end,file)=
+ set Font= if Font!=nil then Font else _CRfont ch 14 0 0 "arial";
+ let _CRwindow ch father nil nil w h WN_MENU+WN_MINBOX+WN_SIZEBOX title -> win in
+ let _CRtext ch win 5 5 w-10 20 ET_BORDER txt -> banner in
+ let _CReditText ch win 5 30 w-10 h-60 ET_DOWN+ET_HSCROLL+ET_VSCROLL file -> text in
+/* loc( let _CRbutton ch win 5 h-25 40 20 0 "Ok" -> ok in ) */
+ let _CRbutton ch win 5 h-25 40 20 0 "Ok" -> ok in
+/* loc( let _CRbutton ch win 50 h-25 40 20 0 "Cancel" -> cancel in ) */
+ let _CRbutton ch win 50 h-25 40 20 0 "Cancel" -> cancel in
+ let mkText [ch win banner text ok cancel end] -> b in
+ (_CBwinDestroy win @_destroy b;
+  _CBwinSize win @_resizeT b;
+  _AFFfontText banner Font;
+  _AFFfontText text Font;
+  _AFFfontButton _CBbutton ok @_ok b Font;
+  _AFFfontButton _CBbutton cancel @_cancel b Font;
+  b
+ );;
+
+fun _destroyevent(s)=_fooS s;_closemachine;;
+
+fun main()=
+/* loc( iniText _channel nil 300 300 "Text Editor" "Example" @_destroyevent ) */
+ iniText _channel nil 300 300 (_locEditor "480-TEXTED-texteditor" nil) (_locEditor "481-TEXTED-example" nil) @_destroyevent
+  _getpack _checkpack "custom.txt";;

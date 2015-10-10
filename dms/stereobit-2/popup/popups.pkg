@@ -1,0 +1,71 @@
+/* popup 24-7-2014 stereobit */
+
+typeof port = S;;    
+typeof speed = S;;    
+typeof bytesize = S;;    
+typeof parity = S;;    
+typeof stopbits = S;;    
+typeof lastchar = S;; 
+typeof refresh = S;; 
+
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (iniPath)::fname::nil -> file in
+    let strcatn (itoa _DMStime)::":"::s::nil -> line in
+   
+	let _appendpack line _getmodifypack file ->append in
+	if (append==-1) then
+		_createpack line _getmodifypack file
+	else nil
+ )
+ else nil;; 
+ 
+fun _echo(x,s)= 
+  saveLog "_echo.txt" strcat x "\n";; 
+
+fun logout(cli)=
+  _DMSevent this cli "destroyed" nil nil
+;;
+
+fun activate (from,cli,action,param,rep) = 	
+  if !strcmp action "start" then
+  (       
+	_DMScreateClientDMI this cli (strcatn port::"\n"::speed::"\n"::bytesize::"\n"::parity::"\n"::stopbits::"\n"::lastchar::"\n"::refresh::"\n"::nil);  
+	//_DMSsend this cli CgetPos ["setPos"];
+	//_echo "Serial IO : start"
+	0    
+  )
+  else if !strcmp action "destroy" then
+  (
+    _DMSdelClientDMI this cli;
+    0
+  )
+  else if !strcmp (substr action 0 3) "out" then
+  (
+    0
+  )
+  else 
+    nil
+;;
+
+fun IniDMI(dmiFile)=
+  let _getpack _checkpack dmiFile -> paramFile in  
+  let strextr paramFile -> fileEdit in
+  (
+    set port = getInfo fileEdit "port";
+    set speed = getInfo fileEdit "speed";
+    set bytesize = getInfo fileEdit "bytesize";
+    set parity = getInfo fileEdit "parity";
+    set stopbits = getInfo fileEdit "stopbits";
+    set lastchar = getInfo fileEdit "lastchar";
+	set refresh = getInfo fileEdit "refresh";
+	
+	/*save ini file to download by clients NOT USED*/
+	/*_createpack (strcatn port::"\n"::speed::"\n"::bytesize::"\n"::parity::"\n"::stopbits::"\n"::lastchar::"\n"::refresh::nil) _getmodifypack strcat iniPath "/serialio.ini"*/
+  );	
+ _DMSregisterDMI this @activate nil @logout nil;;
+ 

@@ -1,0 +1,10 @@
+name serialIO
+version 1 0
+
+serverLoad locked/lib/_mlistlib.pkg ./serialios.pkg 
+clientNeeded Dms/stereobit/serial/serialioc.pkg
+clientScript _load\ "Dms/stereobit/serial/serialioc.pkg"
+editorLoad  Dms/L/templateEdit1.pkg dms/lib/_mcolormap.pkg ./serialioe.pkg
+
+helpFile ./help/help.htm
+bitmap ./serialio.bmp

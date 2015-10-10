@@ -1,0 +1,214 @@
+/* Camera Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof class=S;;
+typeof avatar=H3d;;
+
+var configPath="locked/conf/stereogeo/";;/*path used to save current fog state and reload it when restarting server*/
+var geoEnable=1;;
+var geodata="";;
+
+var iniPath="locked/conf/stereogeo/";;
+
+typeof configFile=S;;
+
+fun GetAvName(o)=
+  if o.avOb then
+  let
+    if o==owner then
+      strcat strcat "[ " o.pseudoOb " ]"
+    else
+      o.pseudoOb
+  -> name in
+  (
+    _fooS strcat strcat ">>>" name ".";
+   /* _ADDlist list 1000 name;
+    _DMSevent this "avatarList" name nil*/
+  )
+  else
+    nil
+;;
+
+fun fooCoord (text, coord) =
+  let coord -> [c1 c2 c3] in
+    _fooS strcatn text::" : "::(itoa c1)::" ; "::(itoa c2)::" ; "::(itoa c3)::nil
+;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for local client */
+fun C3D_IsPhysicsActivated () = cel.Cel3dphysics;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for server */
+fun C3D_IsGlobalPhysicsActivated () = cel.Cel3dglobalphysics;;
+
+fun SetGeo()= [-2277 170 2382];; 
+ /* let strextr _getpack strcat iniPath "vtrack.txt" -> l in */
+  /*let strextr _getpack _checkpack strcatn iniPath::"_"::".conf"::nil -> l in*/
+  
+ /* let x -> [-355 170 2400] in
+ 0;; */
+ 
+fun SetAng()= [31185 0 0];;
+
+fun CBdownload (inet, datas, received, error)=
+	if error == 0 then	// download in progress
+	(
+		let datas -> [d] in
+		mutate datas <- [strcat d received];
+		0
+	)
+	else if error == 1 then	// download finished
+	(
+		let datas -> [d] in
+		_createpack d _getmodifypack strcat iniPath "vtrack.txt";
+		_fooS "Done !";
+		0
+	)
+	else	// an error occurs
+	(
+		_fooS strcat "An error occurs : " itoa error;
+		0
+	);;
+	
+fun ReadGeo(param, o)=
+  let GetAvName o -> name in 
+  _storepack strbuild ("soundState:"::name::nil)::nil configFile;	 
+ /*_showconsole;*/ 	
+ INETGetURL _channel param 0 @CBdownload [""]; 
+ 0;; 	
+
+/*-------------*/
+fun saveConf(o)=
+ let strcatn configPath::"_"::(ObName o)::".conf"::nil -> configFileName in
+   _storepack strbuild ("state"::(itoa geoEnable)::nil)::nil configFileName;
+   
+  let GetAvName o -> name in 
+  _storepack strbuild ("soundState"::name::nil)::nil configFile;	 
+ /*_showconsole;*/
+ 
+ INETGetURL _channel "http://http://www.stereobit.gr/dev/geo/vtrack.txt" 0 @CBdownload [""]; 
+ 0;; 
+ 
+/*fun readConf(o)=
+ let strcatn configPath::"_"::(ObName o)::".conf"::nil -> configFileName in
+ set geodata=_getpack configFileName;
+ 
+     let strextr _getpack _checkpack configFile -> l in
+       let getInfo l "soundState" -> tmp in
+         if !strcmp tmp "0" then set soundEnabled = 0 else nil; 
+ 0;;  
+*/
+
+fun UpdateGeo ()=
+    /*inboxClosing coll; remove collision box*/
+	
+	let coll.curboxIB -> oldbox in
+    let SetGeo -> [xpos ypos zpos] in
+	let SetAng -> [xang yang zang] in
+	
+	/*_showconsole;
+	let coord->[xpos ypos zpos] in
+	fooCoord "test" SetGeo;
+	_fooS ">>>>>>>>>>.asdfdfsdfsdf";*/	
+        
+	let M3getObjVec session M3getFather session cam -> [x y z] in
+	let M3getObjAng session M3getFather session cam -> [xa _ za] in
+	let M3getObjAng session M3getFather session cam -> [_ ya _] in
+
+    if !(C3D_IsPhysicsActivated) then
+    (	
+		/*M3setObjVec session M3getFather session cam [0 0 0];
+		M3setObjAng session M3getFather session cam [0 0 0];
+		M3setObjAng session M3getFather session cam [xa 0 za];
+		M3setObjVec session M3getFather session cam [(x+170) y z];*/
+		
+		M3setObjAng session M3getFather session cam [xa 0 za];
+		M3setObjVec session M3getFather session cam [x+xpos y+ypos z+zpos]
+	)	
+    else (
+		M3setObjAng session M3getFather session cam [xa 0 za];
+		M3setObjVec session M3getFather session cam [x+xpos y+ypos z+zpos];	
+		/* check gravity */
+		/*if cel.Cel3dgrav != nil then
+			M3setObjVec session M3getFather session cam [(x+170) (-cel.Cel3dgrav) z]
+		else
+			nil	*/			
+	);;
+
+/*-------------*/
+fun MoreP()=
+ let M3getCamera session cam -> [a b [zclip zmiddle zmax]] in
+  let a -> [ax ay] in 
+  M3setCamera session cam [[ax +30 ay +30] b [zclip zmiddle zmax]]
+;;
+
+/*-------------*/
+fun LessP()=
+ let M3getCamera session cam -> [a b [zclip zmiddle zmax]] in
+  let a -> [ax ay] in 
+  M3setCamera session cam [[ax -30 ay -30] b [zclip zmiddle zmax]]
+;;
+
+fun SetP(param)=
+ let M3getCamera session cam -> [a b [zclip zmiddle zmax]] in
+let lineextr param -> [ax [ay _]] in
+let atoi ax -> Pax in
+let atoi ay -> Pay in
+  M3setCamera session cam [[Pax Pay] b [zclip zmiddle zmax]]
+;;
+
+/*-------------*/
+fun activate(o,from,action,param,reply)=
+
+if !strcmp action (strcatn (ObName o)::".more"::nil) then 
+  UpdateGeo
+else 
+   if !strcmp action (strcatn (ObName o)::".less"::nil) then
+     ( if param != nil then
+       ReadGeo param o	
+       else nil;
+     )   
+     /*(
+	 LessP;
+	 saveConf o;
+	 )*/
+   else 
+      if !strcmp action (strcatn (ObName o)::".moreless"::nil) then
+  ( if param != nil then
+     SetP param 	
+   else nil;
+   )
+else nil;;
+
+fun newOb(o)=
+    ObRegisterAction o (strcatn (ObName o)::".more"::nil) @activate;
+    ObRegisterAction o (strcatn (ObName o)::".less"::nil) @activate;
+    ObRegisterAction o (strcatn (ObName o)::".moreless"::nil) @activate;    
+	
+  /*set o.nameOb=name;
+  set o.pseudoOb=name; 	*/
+	
+ /*if o==owner then */
+ let [o nil] -> z in
+ ( 
+  /*set avatar=M3getObj session "avatar";
+  M3recursFillMatObj session avatar; 
+  M3link session cam avatar;*/
+  0;
+ )
+ /*else nil; 
+0 */
+;; 
+
+/*-------------*/
+fun IniPlug(file)=
+ set class=getInfo strextr _getpack _checkpack file "name";
+ set avatar=M3getObj session "avatar";
+ 
+ /*_storepack strbuild ("state"::(itoa geoEnable)::nil)::nil strcat iniPath "geo.ini";
+ set iniWrite = _getmodifypack strcat iniPath "geo.ini"; */
+ 
+ set configFile = strcatn "locked/conf/stereogeo/"::DMSname::".conf"::nil; 
+ 
+ PlugRegister class @newOb nil;  
+ 0;;

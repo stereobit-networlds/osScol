@@ -1,0 +1,1593 @@
+/*bubble plugin - DMS2 - Jan 00 - by Gaetan Guentin & Dugh */
+/*rev July 00 - by Sebastien DENEUX*/
+/*rev July 14 - stereobit */
+
+typeof class=S;;
+var EventPeriod = 1000;;
+var BubbleCpt = 0;;    /* Compteur de secondes pour les bulles: pour afficher */
+var BeforeTime = 1000;;    /* Nombre de secondes avant que la bulle s'affiche */
+var TimeToWait = 5000;; /* Nombre de secondes pendant lesquelles la bulle est affichée */
+var MustShow = -1;;
+typeof BubbleFont = ObjFont;;
+typeof BubbleText = [S r1];;
+typeof BubbleSpacing = I;;
+var BubbleFontSize = 18;;
+var BubbleFontColor = 0;;
+var BubbleFontName = "Arial";;
+var BubbleStretch = 0;;
+var bgnd = 0;;
+typeof BubbleImage = ObjBitmap;;
+typeof NomImage = P;;
+var dx = 0;;
+var dy = -20;;
+var tx = 0;;
+var ty = 0;;
+var TranspCol = 0x0000FF;;
+var IsTransp = 0;;
+typeof TypeFic = fun [Chn P] ObjBitmap;;
+var lastTick = 0;;
+
+
+typeof font = ObjFont;;                 /* font du term */
+typeof historic = [S r1];;              /* historique complet */
+typeof cliColor = [[S I] r1];;          /* liste des correspondances entre login S et couleur I */
+typeof color = I;;                      /* couleur des messages envoyés par le client */
+typeof colorAv = I;;                    /* couleur d'affichage des pseudos et des liens (couleur par défaut définie dans l'éditeur */
+typeof colorAvHilite = I;;              /* couleur de mise en évidence du pseudo cliqué */
+typeof message = S;;                    /* message saisi lettre par lettre */
+typeof messageTerm = [S r1];;
+typeof transparence = I;;               /* l'affichage des liens et de la liste des avatars se fait-elle sur un fond transparent (1) ou opaque (0) */
+typeof FSbottom = I;;                   /* si 1 alors le term doit toujours resté à la même distance du bas de la 3d (mode fullscreen) */
+typeof idMove = I;;                     /* id fun callback souris move / c3d3 */
+typeof idClic = I;;                     /* id fun callback souris clic / c3d3 */
+typeof objIsAvatar = I;;                /* l'objet est-il un avatar (1) ou un autre objet (0) */
+typeof displayCustomItem = I;;
+typeof ChgCliSize = I;;
+typeof nameCustomItem = S;;
+
+typeof menu = ObjMenu;;                 /* menu contextuel */
+typeof menuSave = ObjMenuItem;;         /* item menu : enregistrement ou non des messages */
+typeof menuAway = ObjMenuItem;;         /* item menu : mise en absence par le visiteur */
+typeof menuTrans = ObjMenuItem;;        /* item menu : transparence */
+typeof menuURL = ObjMenuItem;;          /* item menu : ouvre les URLs automatiquement ou pas */
+typeof menuSmileys = ObjMenuItem;;      /* item menu : affiche les smileys ou pas */
+typeof pathSaveFile = S;;  
+typeof myMacros = [S r1];; 
+typeof macro = ObjText;;
+typeof specialKey = [[I I] r1];;
+
+typeof cpteurAv = I;; 
+typeof fontAv = ObjFont;; 
+typeof ignoreList = [S r1];;            /* liste des pseudos à ignorer */
+typeof displayAvList = I;;              /* affiche (1) ou pas (0) la liste des avatars présents */
+typeof CoordAvList = [I I I I];;        /* position et taille de l'objet contenant la liste des avatars présents [x y w h] */
+typeof CoordAvListDefault = [I I I I];; /* ... default (valeurs de l'éditeur) */
+typeof bmpAvBG = ObjBitmap;;            /* bitmap liste des avatars présents */
+typeof listCelAv = [S r1];;             /* liste des pseudos présents dans la cellule 3d */
+typeof bmpLinksBG = ObjBitmap;;         /* bitmap affichage du lien 3d */
+typeof displayAvListInit = I;;          /* affiche ou pas la liste des avatars (valeur initiale) */
+typeof displayLinks = I;;  
+typeof defaultSize = [I I I I];;
+
+typeof pathCtrl1 = S;;
+typeof pathCtrl2 = S;;
+typeof pathLogo = S;;
+var pathImages = "dms/3d/plugins/stereobit/";;
+
+var fileMacros = "locked/conf/bubble2/macros.txt";;
+var fileColor = "locked/conf/bubble2/color.txt";;
+var fileSave = "tmp/bubble2/";;
+
+var premier = 0;;                       /* dès qu'une première touche est enfoncée passe  à 1 */
+var maxHistoric = 50;;                  /* nombre de lignes de l'historique complet */
+var posHistoric = 0;;                   /* position de la 1er ligne affichée de l'historique complet */
+var useHistoric = 0;;                   /* 1 si les touches historiques (à l'origine Page down/up) viennent d'être utilisées 0 autrement */
+var posListAv = 0;;                     /* position dans la liste du 1er pseudo affiché */
+var openUrl = 1;;
+var setSmileys = 0;; 
+var bMenuSave = 0;;                     /* booleen : check menuSave item */
+var bMenuAway = 0;;                     /* booleen : check menuAway item */
+var ENterm3d = 1;; 
+var nbRSC = 0;;  
+
+struct Tdata = 
+[
+  D_posX : I,                           /* X position of the term3d */
+  D_posY : I,                           /* Y position of the term3d */
+  D_width : I,                          /* width of the term3d */
+  D_heigth : I,                         /* heigth of the term3d */
+  D_font : S,                           /* name of font */    
+  D_size : I,                           /* fontSize */
+  D_type : I,                           /* fontType */
+  D_color : I,                          /* fontColor (default value) */
+  D_onoff : I,                          /* term3d shown / hidden */
+  D_fond : ObjBitmap                    /* background bitmap (fixed) */
+] mkData;;
+
+typeof codeAnchor = I;;
+typeof textAnchor = S;;
+typeof CTRL = ObjBitmap;;
+typeof SHIFT = ObjBitmap;;
+
+fun initKey()=
+  let lineextr _getpack _checkpack fileMacros -> l in
+  if l == nil then
+    set myMacros = (_loc this "term3d_macro1" nil)::
+                  (_loc this "term3d_macro2" nil)::
+                  (_loc this "term3d_macro3" nil)::
+                  (_loc this "term3d_macro4" nil)::
+                  (_loc this "term3d_macro5" nil)::
+                  (_loc this "term3d_macro6" nil)::
+                  (_loc this "term3d_macro7" nil)::
+                  (_loc this "term3d_macro8" nil)::
+                  (_loc this "term3d_macro9" nil)::
+                  nil
+  else
+    set myMacros = l; 
+  set specialKey = [13 1]::             /* retour chariot / entrer */
+                   [9 2]::              /* tab */
+                   [8 3]::              /* backspace */
+                   [65535 4]::          /* suppr */
+                   [65361 5]::          /* left */
+                   [65362 5]::          /* up */
+                   [65363 5]::          /* right */
+                   [65364 5]::          /* down */
+                   [65379 7]::          /* inser */
+                   [65470 6]::          /* F1 -> */
+                   [65471 6]::
+                   [65472 6]::
+                   [65473 6]::
+                   [65474 6]::
+                   [65475 6]::
+                   [65476 6]::
+                   [65477 6]::
+                   [65478 6]::          /* -> F9 */
+                   [65360 8]::          /* home */
+                   [65367 11]::         /* end */
+                   [65365 9]::          /* page up */
+                   [65366 10]::         /* page down */
+                   [65407 5]::
+                   [65307 5]::
+                   [65300 5]::
+                   [65299 5]::
+                   [65409 5]::
+                   nil;;
+
+typeof Bitmap  = ObjBitmap;;
+typeof BitmapH = I;;
+typeof BitmapL = I;;
+
+struct Btdata = 
+[
+  Bt_posX : I,               /* X position of the logo */
+  Bt_posY : I,               /* Y position of the logo */
+  Bt_view_posX : I,
+  Bt_view_posY : I,
+  Bt_url : S,                /* url to redirect when click */
+  Bt_bitmap : ObjBitmap,     /* bitmap on he screen */
+  Bt_bitmapW : I,            /* widht of the bitmap */
+  Bt_bitmapH : I,            /* Height of the bitmap */
+  Bt_show : I,               /* flag to show the bitmap */
+  Bt_in : I,                 /* The mouse is in the bitmap */
+  Bt_alias : S,              /* text on the picture */
+  Bt_trans : I
+] btData;;
+
+fun _echo(x,s)= 
+	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+;;
+  
+	 
+/************ windows *************/ 
+
+fun _endHelp(win, u)=
+  _DSwindow win;
+  _SETfocus w3d.V3dwin;
+  0;;
+
+fun helpme()=
+  let _getress "DefaultLanguage" -> lang in
+  if !strcmp lang "french" then
+    _DMSevent this strcat class ".helpFR" nil nil
+  else
+    _DMSevent this strcat class ".helpUK" nil nil;
+  let _CRwindow _channel w3d.V3dwin 200 150 250 135 WN_MENU "Help Term3d !" -> winHelp in
+  (
+   _CRtext _channel winHelp 0 0 250 135 ET_BORDER (_loc this "term3d_txtHelp" nil);
+   _CBwinDestroy winHelp @_endHelp 0
+  );
+  0;;
+  
+/*********** files logo images ******************/
+
+fun extension(fi) =
+	let 0->j in
+	let 0->find in
+	(
+	  while ((set find=strfind "." fi j)!=nil) do 
+	  (
+		  set j=find+1
+	  );
+	substr fi j (strlen fi)-j
+	)
+;;
+
+fun openBMP(stringF, p) =
+
+  let _checkpack stringF->fP in
+    if (fP != nil) then
+    (
+	    if (!strcmpi (extension stringF) "png") then
+	    (
+		    let _LDalphaBitmap _channel fP->alphabmp in
+		    let _GETalphaBitmapSize alphabmp->[l h] in
+		    let _GETalphaBitmaps alphabmp -> [bmp b8] in 
+		    (
+		      _DSbitmap8 b8;
+		      set p.Bt_bitmap = bmp;
+		      set p.Bt_bitmapW = l;
+		      set p.Bt_bitmapH = h
+		    );
+		    
+	    )
+	    else 
+	      let 
+	        if (!strcmpi (extension stringF) "jpg") then 
+	          _LDjpeg _channel fP
+		      else if (!strcmpi (extension stringF) "bmp") then 
+	          _LDbitmap _channel fP 
+		      else if (!strcmpi (extension stringF) "tga") then 
+	          _LDtga _channel fP
+		      else
+		        nil
+		    -> bmp in
+		      if bmp == nil then
+		        nil
+		      else
+		        let _GETbitmapSize bmp -> [l h] in 
+		        (
+		           set p.Bt_bitmap = bmp;
+		           set p.Bt_bitmapW = l;
+		           set p.Bt_bitmapH = h
+		        );
+	          
+    )
+    else
+    (
+      set p.Bt_bitmap = nil;
+	  set p.Bt_bitmapW = nil;
+	  set p.Bt_bitmapH = nil
+    );
+    
+    0
+;;  
+
+fun cbResizeBt (ob, param, z) =
+  let param -> [w h] in
+  (
+    set z.Bt_view_posX = ((z.Bt_posX*w)/100) - (z.Bt_bitmapW/2);
+    set z.Bt_view_posY = ((z.Bt_posY*h)/100) - (z.Bt_bitmapW/2);
+  
+    if ((z.Bt_view_posX + z.Bt_bitmapW) > w) then 
+      set z.Bt_view_posX = w - z.Bt_bitmapW
+    else
+      nil;
+    
+    if (z.Bt_view_posX < 0) then 
+      set z.Bt_view_posX = 0
+    else
+      nil;
+    
+    if ((z.Bt_view_posY + z.Bt_bitmapH) > h) then 
+      set z.Bt_view_posY = h - z.Bt_bitmapH
+    else
+      nil;
+    
+    if (z.Bt_view_posY < 0) then 
+      set z.Bt_view_posY = 0
+    else
+      nil  
+    
+  );
+  0
+;;
+
+fun showBt(o, from, action, param, reply, p) =
+  set p.Bt_show = 1
+;;
+
+fun hideBt(o, from, action, param, reply, p) =
+  set p.Bt_show = 0
+;;
+
+fun cbDestroyBt(o, p)=  
+  _DSbitmap p.Bt_bitmap
+;;
+
+fun cbClickBt(o,b,z) =
+  let b -> [_ [xclick yclick bt]] in  
+	
+	  if z.Bt_url!=nil && bt==1 && (xclick > z.Bt_view_posX) && (xclick < z.Bt_view_posX+z.Bt_bitmapW) && (yclick > z.Bt_view_posY) && (yclick < z.Bt_view_posY+z.Bt_bitmapH) then
+      _DMSevent this strcat class ".clickLOGO" z.Bt_url nil
+          else if z.Bt_url==nil && bt==1 && (xclick > z.Bt_view_posX) && (xclick < z.Bt_view_posX+z.Bt_bitmapW) && (yclick > z.Bt_view_posY) && (yclick < z.Bt_view_posY+z.Bt_bitmapH) then
+      _DMSevent this strcat class ".clickLOGO" nil nil
+          else
+      nil;
+    0
+;;
+
+/*callback when downloaded*/
+/*e.g _RSCdownload this docName fileNameOnClient mknode @cbEndDownImage [o z fileNameOnClient] 3;*/
+fun cbEndDownImage(doc,b) = 
+  let b -> [o z fileName] in
+  let openBMP fileName z -> _ in /*ouverture img*/
+  let _GETpixel16 z.Bt_bitmap 0 0 -> colRGB in  
+  let ((colRGB&16252928)>>16)+(colRGB&63488)+((colRGB&248)<<16) -> transColor in
+  let getView3dSize w3d -> [w h] in
+  (
+    //ObCbPostRender o mkfun3 @cbBlitLogo [z transColor];
+    
+    ObRegisterAction o (strcat class ".hideLOGO") mkfun6 @hideBt z;
+    ObRegisterAction o (strcat class ".showLOGO") mkfun6 @showBt z;
+
+    OB_CBclickDown o mkfun3 @cbClickBt z;
+    //OB_CBmouseMove o mkfun3 @cbMoveBt z;
+    
+    cbResizeBt o [w h] z;
+    0  
+  )
+;; 
+
+/******************/
+/* Divers (MISC.) */
+/******************/
+
+fun searchKey(k, i)=
+  if i <= (sizelist specialKey) then
+    let nth_list specialKey i -> [n action] in
+    if k == n then
+      action
+    else
+      searchKey k i+1
+  else
+    0;;      
+
+fun myreplace_in_list (list, old, new)=
+  if list == nil then
+    nil
+  else
+    let list -> [first next] in
+    let first -> [a b] in
+    let old -> [c d] in
+    if !strcmp a c then
+      new::next
+    else
+      first::myreplace_in_list next old new;;
+
+
+/* Remplace l'ancien login par le nouveau */          
+fun myreplace_login_in_listC(ll, p)=
+  let lineextr p -> [newLogin[oldLogin _]] in
+  if ll == nil then
+    nil
+  else
+    let ll -> [[login c] q] in
+    if !strcmp oldLogin login then
+      set cliColor = myreplace_in_list cliColor [oldLogin c] [newLogin c]
+    else
+      myreplace_login_in_listC q p;;
+
+/* conversion des valeurs relatives en valeurs absolues */
+fun convertPourCent(z)=
+  let getView3dSize w3d -> [w3 h3] in
+  let if z.D_width > 100 then w3 else (z.D_width * w3)/100 -> w in
+  let if z.D_heigth > 100 then h3 else (z.D_heigth * h3)/100 -> h in
+  (
+   set z.D_width = w;
+   set z.D_heigth = h
+  );;
+
+/* cherche le dernier / d'une chaîne et retourne sa position+1 */
+/* fun [S I] I */
+fun searchSlash(string, pos)=
+  let strfind "/" string pos -> r in
+  if r != nil then
+    searchSlash string r+1
+  else
+    pos;;
+
+/* retourne le login dans une contribution reçue */      
+fun searchLogin(string)=
+  let strfind ">" string 1 -> r in
+  substr string 1 r-1;;
+	
+	
+/*************************/
+/* Functions AVATAR list */
+/*************************/  	
+	
+fun calculCoordAvList(c)=
+  let c -> [hautgauche basgauche w h] in
+  let w3d.V3dsize -> [w3 h3] in
+  let if hautgauche then 0 else w3-w -> x in
+  let if basgauche then h3-h else 0 -> y in
+  set CoordAvList = [x y w h];;
+
+fun creaAvList()=
+  let  CoordAvList -> [x y w h] in
+  
+  /*let _LDjpeg _channel _checkpack pathCtrl1 -> topBMP in
+  let _LDjpeg _channel _checkpack pathCtrl2 -> downBMP in */
+  
+  let sizeav C3DobList -> nb in
+  (
+   _DSbitmap bmpAvBG;
+   if transparence then
+     set bmpAvBG = _FILLbitmap _CRbitmap _channel w h cel.Cel3dback
+   else
+     set bmpAvBG = _FILLbitmap _CRbitmap _channel w h
+                     if cel.Cel3dback == 0 then
+                       cel.Cel3dback+8
+                     else
+                       cel.Cel3dback;
+   _DRAWtext bmpAvBG fontAv 0 0 TD_TOP colorAv strcatn ">> "::(itoa nb)::" "::(if nb <= 1 then _loc this "term3d_PEOPLE1" nil else _loc this "term3d_PEOPLE2" nil)::nil;
+   
+   /*
+   _CPbitmap16 bmpAvBG w-18 0 topBMP 0 0 64 18 0;
+   _CPbitmap16 bmpAvBG w-18 h-18 downBMP 0 0 64 17 0;
+   */
+   0);;
+   
+
+fun displayListAv(hilite)=
+  let 0 -> i in
+  let CoordAvList -> [_ _ _ h] in
+  let (h-14)/13 -> nbMaxDisplayed in
+  (
+   set cpteurAv = posListAv;
+   creaAvList;
+   while i <= nbMaxDisplayed do
+     (if i <= (sizelist listCelAv) then
+        (if cpteurAv == hilite then
+           _DRAWtext bmpAvBG fontAv 0 (i*13)+14 TD_TOP colorAvHilite nth_list listCelAv cpteurAv
+         else
+           _DRAWtext bmpAvBG fontAv 0 (i*13)+14 TD_TOP colorAv nth_list listCelAv cpteurAv;
+         set cpteurAv = cpteurAv+1;
+         set i=i+1)
+      else
+        set i = nbMaxDisplayed+1);
+  0);;
+  
+/* les 2 prochaines fonctions sont des fonctions adaptées de celles du C3D3 (c3d3c.pkg) */
+fun sizeav(l)=
+ if l==nil then
+  0
+ else
+  let l->[o nxt] in
+    o.avOb+sizeav nxt;;
+
+/* ajoute les pseudos à la liste */
+fun addlist(o, i)=
+  if !o.avOb then
+    nil
+  else
+    let
+    if o==owner then
+      strcat strcat "[ " o.pseudoOb " ]"
+    else
+      o.pseudoOb
+    -> name in
+    (set listCelAv = add_nth_in_list listCelAv sizelist listCelAv name;
+     0);;
+   
+fun updatelist(o)=
+   set listCelAv = nil;
+   apply_on_list C3DobList @addlist 0;
+   displayListAv nil;
+   0;;
+
+fun clicAvUp()=
+  if posListAv > 0 then
+    (set posListAv = posListAv-1;
+     displayListAv nil;
+     0)
+  else
+     0;;
+
+fun clicAvDown()=
+  let CoordAvList -> [_ _ _ h] in
+  let (h-14)/13 -> nbMaxDisplayed in
+  if posListAv < ((sizelist listCelAv)-nbMaxDisplayed-1) then
+    (set posListAv = posListAv+1;
+     displayListAv nil;
+     0)
+  else
+     0;;
+
+/* dirige face à l'avatar cliqué dans la liste (si différent de soi-même) */
+/* item -> I numero du pseudo dans la liste */
+fun cbclicListAv(item)=
+  displayListAv item;
+  let nth_moblist C3DobList item -> o in
+  if o == owner then
+    nil
+  else
+    targetOb owner o;;
+
+fun cliconlogin(x, y, i)=
+  let sizeav C3DobList -> nb in
+  if i <= nb then
+    let CoordAvList -> [xAv yAv wAv hAv] in
+    if (y > (yAv+14+(i*13))) && (y < (yAv+14+13+(i*13))) then
+      (cbclicListAv i;
+       displayListAv i;
+       0)
+    else
+      cliconlogin x y i+1
+  else
+    0;;	
+	
+fun cliByLogin(currentLogin, userLogin) =
+  !strcmp currentLogin userLogin;;	
+	
+fun ChangeNameIgnList (oldname, newname, IgnList)=
+  if IgnList == nil then
+    0
+  else
+    let IgnList -> [currentname NIgnList] in
+    if !strcmp oldname currentname then
+      (mutate IgnList <- [newname _];
+       1)
+    else
+      ChangeNameIgnList oldname newname NIgnList;;		
+	
+fun updateLogin(oldname,newname)=  
+  ChangeNameIgnList oldname newname ignoreList;  
+  0;;	
+
+/********************/
+/* Fonctions IGNORE */
+/********************/  
+fun searchIfIgnored(login)=
+  search_in_list ignoreList @cliByLogin login;;
+  
+fun msgPass(s)=
+  let strfind ">" s 1 -> pos in
+  let substr s 1 (pos-1) -> login in
+  if (searchIfIgnored login) != nil then
+    0
+  else
+    1;;  
+
+fun updateIgnoreList(type, name, state)=
+ if !strcmp type "ChatIn" then
+   if atoi state then              
+     set ignoreList = name::(removef_from_list ignoreList @cliByLogin name)
+   else
+     set ignoreList = removef_from_list ignoreList @cliByLogin name
+ else nil;
+ 0;;	
+	
+/**********************/
+/* Gestion du Term 3d */
+/**********************/
+
+fun saveMsgFile(m)=
+  _appendpack strcat m "\n" _getmodifypack pathSaveFile;;
+
+
+/* détermine la taille de la liste des contributions à afficher. Si trop long elle est amputée de la plus ancienne */
+fun sizeMessageTerm(z)=
+  let sizelist messageTerm -> size in
+  if (size*(z.D_size+2)) > (z.D_heigth-(3*(z.D_size))) then
+    set messageTerm = remove_nth_from_list messageTerm size-1
+  else
+    nil;;
+
+/* devrait revenir à l'affichage normal chat après l'utilisation des touches "historiques" */
+fun lastMessageTerm(z, i)=
+  let sizelist messageTerm -> size in
+  if (size*(z.D_size+2)) > (z.D_heigth-(3*(z.D_size))) then
+    messageTerm
+  else
+    (set messageTerm = (nth_list historic i)::messageTerm;
+     lastMessageTerm z i+1);;
+
+/* z -> struct Tdata */
+/* supprime la ligne la plus ancienne de l'historique affichée si nécessaire */
+fun verifLongMessageTerm(z)=
+  if useHistoric then
+    (
+     lastMessageTerm z 0;
+     set useHistoric = 0;
+     nil)
+  else
+    sizeMessageTerm z;;
+
+fun getColor2(ll, s, z)=
+  if ll == nil then
+    z.D_color
+  else
+    let ll -> [[l c] q] in
+    if !strcmp l s then
+      c
+    else
+      getColor2 q s z
+  ;;
+  
+fun getColor(s, z)=
+  let strfind ">" s 1 -> r in
+  if r != nil then
+    let substr s 1 r-1 -> login in
+    if !strcmp login DMSlogin then
+      color
+    else
+     getColor2 cliColor login z
+  else
+    z.D_color;;
+
+/* crée une chaine avec un nombre d'espace déterminé (longueur du login) */
+/* fonction non utilisée (cf fonction longMessage) */
+fun addspace(i, s)=
+  if i == 0 then
+    s
+  else
+    (set s = strcat s "\ ";
+     addspace i-1 s);;
+
+/* old -> S  ancien login */
+/* lorsque le client change de login, remplace l'ancien pseudo par le nouveau en tête de la ligne de saisie */
+fun chgLogin(old)=
+  if premier then
+    let strlen(strcatn "<"::old::"> "::nil) -> longold in
+    let substr message longold strlen message -> saisie in
+    set message = strcatn "<"::DMSlogin::"> "::saisie::nil
+  else
+    nil;
+  0;;
+
+/* retourne la largeur et la hauteur du rectangle pouvant contenir le texte selon la font utilisée */
+fun testLong(s)=
+  _GETstringSize font s;;
+
+/* teste la longueur du message reçu d'un autre client en fonction de la taille du tchat */
+fun longueurMessageRecu(z, m, i, tmp, login)=
+  if i <= (strlen m) then
+    let substr m 0 i -> string in
+    let testLong string -> [w _] in
+    if w < (z.D_width - z.D_size) then
+      longueurMessageRecu z m i+1 string login
+    else
+      let substr m i-1 strlen m -> fin in
+      let strcatn "<"::login::"> "::fin::nil -> fin in
+      (set messageTerm = tmp::messageTerm;
+       longueurMessageRecu z fin 0 nil login)
+  else
+    if tmp == nil then
+      set messageTerm = m::messageTerm
+    else
+      set messageTerm = tmp::messageTerm;;
+    
+/* si le message en cours de saisie est trop long, la phrase est coupée et la 1ere partie est affichée */  
+fun longueurMessage(z, o)=
+  let testLong message -> [w _] in
+  let substr message (2 + strlen DMSlogin) strlen message -> m in /* suppr le "<login> " du message */
+  if w > (z.D_width - z.D_size) then
+    (UsendMessage ObUi o "command" message;
+     _DMSevent this strcat class ".log" message nil;
+     _DMSevent this strcat class ".message" m nil;
+     set message = strcatn "<"::DMSlogin::"> "::nil;
+     0)
+  else
+    0;;	
+	
+/* Gère l'affichage de l'ancien historique lorsque demandé */
+fun affichHistoric(sens, z)=
+  let sizelist messageTerm -> size in
+  (/*set messageTerm = remove_nth_from_list messageTerm size-1;*/
+  if !sens then
+   (if posHistoric < 0 then
+      set posHistoric = 1 
+    else 
+      0;
+    let nth_list historic posHistoric -> s in
+     if (s != nil) && (posHistoric < maxHistoric) then
+       (set posHistoric = posHistoric+1;
+      /*  set messageTerm = remove_nth_from_list messageTerm size-1;*/
+        set messageTerm = s::messageTerm)
+     else
+       nil)
+  else if sens then
+   (if posHistoric >= (sizelist messageTerm) then
+      set posHistoric = (sizelist messageTerm)-1 
+    else 
+      0;
+    let nth_list historic posHistoric -> s in
+     if (s != nil) && (posHistoric >= 0) then
+       (set posHistoric = posHistoric-1;
+      /*  set messageTerm = remove_nth_from_list messageTerm size-1;*/
+        set messageTerm = s::messageTerm)
+     else
+       nil)
+  else
+    nil);
+  sizeMessageTerm z;
+  0;;	
+  
+fun verifLongHistoric(s)=
+  let sizelist historic -> size in
+  if size >= maxHistoric then
+    remove_nth_from_list historic size-1
+  else
+    nil;
+  set historic = s::historic;
+  set posHistoric = posHistoric+1;
+  0;;  
+	
+fun text(z, o)=
+  if transparence then
+    set z.D_fond = _FILLbitmap z.D_fond cel.Cel3dback
+  else
+    set z.D_fond = _FILLbitmap z.D_fond 
+                      if cel.Cel3dback == 0 then
+                        cel.Cel3dback+8
+                      else
+                        cel.Cel3dback;
+  /* new message */						
+  set z.D_fond = _DRAWtext z.D_fond BubbleFont 5 z.D_heigth-z.D_size 0 z.D_color message;
+  
+  /* olds messages */
+  let sizelist messageTerm -> i in
+  while i > -1 do
+    (
+     let nth_list messageTerm i -> s in
+     let getColor s z -> c in
+     (
+      set z.D_fond = _DRAWtext z.D_fond font 5 ((z.D_size+2)*((sizelist messageTerm)-i)) 0 c s; 0
+     );
+     set i = i-1
+    );
+  0;;
+  
+/* génère l'évenement shown/hidden lorsque le term change d'état */
+fun ishidden(z)=
+  if z.D_onoff then
+    _DMSevent this strcat class ".shown" nil nil
+  else
+    _DMSevent this strcat class ".hidden" nil nil;
+  0;;
+
+/* touche backspace : efface le caractère si ce n'est pas le pseudo */
+fun suppr()=
+  let strlen(strcatn "<"::DMSlogin::"> "::nil) -> longlogin in
+  if longlogin < (strlen message) then
+    set message = substr message 0 (strlen message)-1
+  else
+    nil;;  
+
+/********************************/   
+  
+/*** bubble functions *************/  
+  
+fun RechargeImage()=M3filter exec TypeFic with [_channel NomImage] "A0000ff46";;
+
+/* CustomLineExtr */
+fun CustomLineExtr (s) =
+  let strfind "\\n" s 0 -> pos in
+  (
+    if pos == nil then
+      s::nil
+    else
+      (substr s 0 pos)::( CustomLineExtr substr s (pos+3) ((strlen s)-pos-3) )
+  )
+;;    
+  
+/* Draw Multi Line Text on bitmap */ 
+fun DrawMultiLineText (bmp, font, x, y, flag, fontColor, lines, spacing) =
+  if lines == nil then
+    0
+  else
+    let lines -> [first next] in
+    (
+      _DRAWtext bmp font x y flag fontColor first;
+      DrawMultiLineText bmp font x y+spacing flag fontColor next spacing
+    )
+;;
+
+/*******************************************************************************
+  Draw Multi Line Text on surface
+*******************************************************************************/ 
+fun SDrawMultiLineText (surface, font, x, y, flag, fontColor, lines, spacing) =
+  if lines == nil then
+    0
+  else
+    let lines -> [first next] in
+    (
+      _SDRAWtext surface font x y flag fontColor first;
+      SDrawMultiLineText surface font x y+spacing flag fontColor next spacing
+    )
+;;  
+  
+/* MaxStringListSize */
+fun MaxStringListSize (font, list, w, h) = 
+  if list == nil then
+    [w h]
+  else
+    let list -> [first next] in
+    let _GETstringSize font first -> [ww hh] in
+    let if ww>w then ww else w -> mw in
+    let if hh>h then hh else h -> mh in
+      MaxStringListSize font next mw mh
+;; 
+
+/* Draw bubble into buffer */
+fun DrawBubble (text) =
+  set BubbleText = CustomLineExtr text;
+  let MaxStringListSize BubbleFont BubbleText 0 0 -> [bw spacing]in
+  (
+    set BubbleSpacing = spacing;
+    if bgnd then
+      let RechargeImage -> bmp in
+      let _GETbitmapSize bmp -> [w h] in
+      (
+        if BubbleStretch then 
+          let [bw+6 6+spacing*(sizelist BubbleText)] -> [bw bh] in
+          let _CRbitmap _channel bw bh -> bubbleBmp in
+          let _SCPbitmap bubbleBmp 0 0 bw-1 bh-1 bmp 0 0 w-1 h-1 TranspCol -> bubbleBmp in
+          (
+            set tx = bw;
+            set ty = bh;         
+            _DSbitmap BubbleImage;
+            _DSbitmap bmp;
+            set BubbleImage = bubbleBmp
+          )
+        else       
+        (
+          set tx = w;
+          set ty = h;         
+          _DSbitmap BubbleImage;
+          set BubbleImage = bmp
+        );
+        DrawMultiLineText BubbleImage BubbleFont 3 3 TD_LEFT BubbleFontColor BubbleText BubbleSpacing
+      )
+    else
+      nil
+  );
+  set MustShow = 1;
+  set BubbleCpt = _tickcount
+;;
+  
+fun showBubbleAction (Ob, cli, action, param, reply)=
+  let strextr param -> l in
+  let hd switchstr l "ref" -> text in
+  let hd switchstr l "userParam" -> code in
+  (
+
+    /*_fooS strcat "###code = " code;
+    _fooS strcat "###ref = " text;
+    */
+	set codeAnchor = atoi code;
+	set textAnchor = text;
+	
+    if param != nil then   
+    if !strcmp code "0" then /* lien invisible ou avatar devant */
+    {
+      /*_fooS "#### code 0";*/
+      if MustShow == 1 then set MustShow = 0 else nil;
+    }
+    else
+    if (!strcmp code "1") then /* lien visible */
+      DrawBubble text
+    else
+    if !strcmp code "2" then /* avatar */
+      DrawBubble text
+    else /* pas de lien */
+    {
+      if MustShow then set MustShow = 0 else nil;
+    }
+    else
+    {
+       set BubbleCpt = 0;
+       set MustShow = -1; 
+    }
+   )
+;;  
+
+/*Affiche la bulle sur la bitmap de rendu*/
+fun ShowBubble(objSurface)=
+ let _GETcursorPos w3d.V3dwin -> [PosX PosY] in
+ let getView3dSize w3d -> [winX winY] in
+ if bgnd then {
+   let PosX+dx -> Xpos in
+   let PosY+dy -> Ypos in
+   let if (Xpos < 0) then 0 else if (Xpos + tx) > winX then (winX - tx) else Xpos -> resultX in
+   let if (Ypos < 0) then 0 else if (Ypos + ty) > winY then (winY - ty) else Ypos -> resultY in
+     _Bitmap2Surface objSurface resultX resultY BubbleImage 0 0 tx ty make_rgb 0 0 255;
+   nil;
+ } else
+    SDrawMultiLineText objSurface BubbleFont PosX+dx PosY+dy 0 BubbleFontColor BubbleText BubbleSpacing;
+ 0
+;;
+
+/*POSTRender :: Callback appelee pour chaque frame du rendu*/
+fun BubblePostrender(ob, l, p)=
+
+  /** cbBlitTerm **/
+  let p -> [z] in
+   if z.D_onoff && ENterm3d then
+   (  
+      /* TAB ON /OFF */
+	  
+	  text z ob;
+	  
+      if FSbottom then
+        let _GETsurfaceSize w3d.V3dbuf -> [_ h] in
+        _Bitmap2Surface w3d.V3dbuf z.D_posX (z.D_posY) z.D_fond 0 0 z.D_width z.D_heigth cel.Cel3dback
+      else
+        _Bitmap2Surface w3d.V3dbuf z.D_posX z.D_posY z.D_fond 0 0 z.D_width z.D_heigth cel.Cel3dback;
+		
+	  /*** control on screen ***********/
+
+      _CPbitmap16 bmpAvBG 300 100 CTRL 0 0 64 18 0;
+	  //_Bitmap2Surface w3d.V3dbuf x y CTRL 0 0 64 18 0
+      _CPbitmap16 bmpAvBG 300 300 SHIFT 0 0 64 17 0;
+	  //_Bitmap2Surface w3d.V3dbuf x y SHIFT 0 0 64 17 0
+
+		
+      /** avatar list **/
+      if displayAvList then
+      (
+	    calculCoordAvList CoordAvListDefault;
+        let  CoordAvList -> [x y w h] in
+        if displayLinks then 
+          //  let _CRbitmap _channel w h+30 -> temp in
+          let CoordAvListDefault -> [_ yAv _ _] in
+          if yAv then  /* si la liste des avatars est affichée en bas (1) ou en haut (0) de l'écran */
+          (/*_CPbitmap16 temp 0 30 bmpAvBG 0 0 w h nil;
+           _CPbitmap16 temp 0 0 bmpLinksBG 0 0 w 20 nil;*/
+           _Bitmap2Surface w3d.V3dbuf x y-30 bmpAvBG 0 0 w h+30 0
+		   )
+          else
+          (/*_CPbitmap16 temp 0 0 bmpAvBG 0 0 w h nil;
+           _CPbitmap16 temp 0 h+10 bmpLinksBG 0 0 w 20 nil;*/
+           _Bitmap2Surface w3d.V3dbuf x y bmpAvBG 0 0 w h+30 0
+		   )
+        else
+          _Bitmap2Surface w3d.V3dbuf x y bmpAvBG 0 0 w h 0
+	  )
+      else
+        nil;  
+		
+   0)
+   else
+     0;
+	 
+  /** bubble always show ****/ 
+  if MustShow == -1 then nil
+  else
+  (
+    let _GETcursorPos w3d.V3dwin -> [PosX PosY] in
+    let getView3dSize w3d -> [winX winY] in
+    /* on sort de la fenêtre 3d */
+    if (MustShow == 1) && ((PosX > winX) || (PosX <0) || (PosY > winY) || (PosY <0)) then nil 
+    else let (_tickcount - BubbleCpt) -> diffCpt in 
+    {
+      if diffCpt > TimeToWait then set MustShow = 0 else nil;
+	
+      if (MustShow == 1) && (diffCpt > BeforeTime) then 
+        let l -> [objSurface [ width height]] in 
+	    {
+          ShowBubble objSurface;
+          0
+	    }
+      else if MustShow == 0 then 
+	    { 
+          _DSbitmap BubbleImage;
+          set BubbleImage = RechargeImage;
+          set BubbleCpt = 0;
+          set MustShow = -1; 
+          0
+	    }
+      else nil
+    }
+  );;
+
+/*Callback correspondant à l'action ShowBubble*/
+fun CBShowBubbleAction (Ob, cli, action, param, reply)=
+  let strextr param -> l in
+  let hd switchstr l "ref" -> text in
+  let hd switchstr l "userParam" -> code in
+  /*FIN MODIF PB*/
+  (
+
+    _fooS strcat "###code = " code;
+    _fooS strcat "###ref = " text;
+
+    if param != nil then   
+    if !strcmp code "0" then /* lien invisible ou avatar devant */
+    {
+      /*_fooS "#### code 0";*/
+      if MustShow == 1 then set MustShow = 0 else nil;
+    }
+    else
+    if (!strcmp code "1") then /* lien visible */
+      DrawBubble text
+    else
+    if !strcmp code "2" then /* avatar */
+      DrawBubble text
+    else /* pas de lien */
+    {
+      if MustShow then set MustShow = 0 else nil;
+    }
+    else
+    {
+       set BubbleCpt = 0;
+       set MustShow = -1; 
+    }
+   )
+;;
+
+
+/**** menu callback ******************/
+
+fun fDisplayLink(link)=
+  let CoordAvList -> [xAv yAv wAv hAv] in  
+  (_DSbitmap bmpLinksBG;
+   set bmpLinksBG = _FILLbitmap _CRbitmap _channel wAv 20
+                      if transparence then
+                        0
+                      else
+                        if cel.Cel3dback == 0 then 
+                          cel.Cel3dback+8 
+                        else
+                          cel.Cel3dback;
+   set bmpLinksBG = _DRAWtext bmpLinksBG fontAv wAv/2 3 TD_TOP|TD_CENTER colorAv link;
+   /* begin 12/2004  : correction erreur 'PaintBuffer' à NIL */
+   displayListAv nil;
+   set bmpAvBG = _CPbitmap16 _CRbitmap _channel wAv hAv+30 0 0 bmpAvBG 0 0 wAv hAv 0;
+   _CPbitmap16 bmpAvBG 0 hAv+10 bmpLinksBG 0 0 wAv 20 0;
+   /* end 12/2004 */
+  );
+  0;;    
+
+
+fun cbMenu(m, p)=
+  let p -> [s o z] in
+  (if !strcmp s "Color" then
+    nil
+  else if !strcmp s "Text" then
+    nil
+  else if !strcmp s "Size" then
+    nil
+  else if !strcmp s "Macros" then
+    nil
+  else if !strcmp s "Show" then
+    nil
+  else if !strcmp s "ShowAv" then
+    nil
+  else if !strcmp s "Trans" then
+     (set transparence = !transparence;
+      _CHKmenu menuTrans transparence;
+      updatelist o;
+      fDisplayLink nil;
+      0)
+  else if !strcmp s "Smileys" then
+    nil
+  else if !strcmp s "url" then
+    (set openUrl = !openUrl;
+     _CHKmenu menuURL openUrl;
+     0)
+  else if !strcmp s "Away" then
+    (_CHKmenu menuAway !bMenuAway;
+     set bMenuAway = _GETcheckMenu menuAway;
+     if bMenuAway then 
+       _DMSevent this strcat class ".awayPop" nil nil
+     else
+       _DMSevent this strcat class ".backPop" nil nil)
+  else if !strcmp s "Custom" then
+    (_DMSevent this strcat class ".customPop" nil nil;
+     0)
+  else if !strcmp s "Help" then
+     helpme
+  else if !strcmp s "Save" then
+    (_CHKmenu menuSave !(bMenuSave); 
+     set bMenuSave = _GETcheckMenu menuSave;
+     if bMenuSave then
+       (let localtime time -> [s mn h d m y _ _] in
+        set pathSaveFile = strcatn fileSave::DMSname::"_"::(itoa d)::" "::(itoa m)::" "::(itoa y)::"_"::(itoa h)::" "::(itoa mn)::" "::(itoa s)::".txt"::nil;
+        _storepack "" pathSaveFile
+		)
+     else
+       nil;
+     0)
+  else
+     0;
+  OB_ReleaseMouse o;
+  0);;
+   
+fun popupMenu1(o, z) =
+  _DSmenu menu;
+  set menu = _CRpopupMenu _channel;
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextColor" nil) @cbMenu ["Color" o z];
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextText" nil) @cbMenu ["Text" o z];
+  _CBmenu _APPitem _channel menu if ChgCliSize then ME_ENABLED else ME_DISABLED (_loc this "term3d_contextSize" nil) @cbMenu ["Size" o z];
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextMacros" nil) @cbMenu ["Macros" o z];
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextShow" nil) @cbMenu ["Show" o z];
+  
+  set menuTrans = _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextTrans" nil);
+  _CBmenu menuTrans @cbMenu ["Trans" o z];
+  _CHKmenu menuTrans transparence;
+  
+  set menuSmileys = _APPitem _channel menu ME_ENABLED "Smileys";
+  _CBmenu menuSmileys @cbMenu ["Smileys" o z];
+  _CHKmenu menuSmileys setSmileys;
+  
+  set menuURL = _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextUrl" nil);
+  _CBmenu menuURL @cbMenu ["url" o z];
+  _CHKmenu menuURL openUrl;  
+  
+  if displayCustomItem then
+    _CBmenu _APPitem _channel menu ME_ENABLED nameCustomItem @cbMenu ["Custom" o z]
+  else
+    nil;
+	
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextHelp" nil) @cbMenu ["Help" o z];
+  set menuSave = _APPitem _channel menu ME_ENABLED (_loc this "term3d_contectSave" nil);
+  _CHKmenu menuSave bMenuSave;
+  _CBmenu menuSave @cbMenu ["Save" o z];
+  _CHKmenu menuAway bMenuAway;
+  _CBmenu menuAway @cbMenu ["Away" o z];	
+	
+  let _GETscreenPos -> [x y] in
+  if _GETsurfaceState == SURFACE_FULLSCREEN then
+    _DRAWmenu w3d.V3dwin menu x y PM_SCREEN|PM_LEFT_ALIGN|PM_TOP_ALIGN
+  else
+    _DRAWmenu w3d.V3dwin menu x y-20 PM_SCREEN|PM_LEFT_ALIGN|PM_TOP_ALIGN;	
+0;;  
+
+  
+fun popupMenu(o, z) = popupMenu1 o z;;
+fun popupMenuAvatar(o, z) = popupMenu1 o z;;
+fun popupMenuAnchor(o, z) = popupMenu1 o z;;
+
+
+
+/********* move & click *********************/
+
+fun searchDynEd(list, name)=
+  if list == nil then
+    0
+  else
+    let list -> [plug suite] in
+    if !strcmp name (PLUG_GetClass plug) then
+      1
+    else
+      searchDynEd suite name;; 
+ 
+fun cbControlMove(o, p)=
+  let p -> [obj h m] in
+  if (OB_SearchObj3DAvatar ObList h) == nil then
+    set objIsAvatar = 0    
+  else
+    set objIsAvatar = 1;;  
+    
+fun cbMoveWin(x, y, btn, p)=
+  let p -> [o z] in                   
+      (
+	  OB_ReleaseCursor o;
+      OB_SetCursor o StdCursor
+	  );
+  0;;
+ 
+fun clicWinOk(o, z)=
+  if ENterm3d then
+    (
+	 OB_TakeMouse o; 
+     popupMenu o z 
+	 )
+  else
+    0;;  
+	
+fun clicAvatarOk(o, z)=
+  if ENterm3d then
+    (
+	 OB_TakeMouse o; 
+     popupMenuAvatar o z 
+	 )
+  else
+    0;; 	
+	
+fun clicAnchorOk(o, z)=
+  if ENterm3d then
+    (
+	 OB_TakeMouse o; 
+     popupMenuAnchor o z 
+	 )
+  else
+    0;; 	
+
+  
+/********** mouse callbacks ***********/ 
+
+fun cbClicWin(x, y, btn, p)=
+
+  //_fooS strcat "XXXXX" "YYYYY\n";
+  _echo strcatn "CLICK AT:"::(itoa x)::","::(itoa y)::nil
+  
+  let p -> [o z] in
+  (
+  
+   ObControlMove o;
+   
+   if (btn == 2) && !(searchDynEd plugins "Dynamic\ Editor") then
+   (
+     if (!objIsAvatar) then
+	   clicAvatarOk o z 
+	 else if (!codeAnchor) then
+	   clicAnchorOk o z 
+	 else
+       clicWinOk o z
+   )	 
+   else if (btn == 1) && (searchDynEd plugins "Dynamic\ Editor") && (_keybdstate == 1) then
+   (
+     if (!objIsAvatar) then
+	   clicAvatarOk o z
+	 else if (!codeAnchor) then
+	   clicAnchorOk o z 	   
+	 else
+       clicWinOk o z
+   )	 
+   else
+   (
+      let CoordAvList -> [xAv yAv wAv hAv] in
+      if (x > xAv) && (x < (xAv+wAv-18)) && (y > yAv) && (y < (yAv+hAv)) then
+        /*cliconlogin x y 0*/ nil
+      else if (x > xAv+wAv-18) && (x < xAv+wAv) && (y > yAv) && (y < yAv+18) then
+        /*clicAvUp*/ nil
+      else if (x > xAv+wAv-18) && (x < xAv+wAv) && (y > yAv+hAv-18) && (y < yAv+hAv) then
+        /*clicAvDown   */ nil
+	  else	
+        OB_ReleaseMouse o; 
+      0
+   );
+  0);;	 
+
+/********** keyboard callabck ****************/
+
+fun cbKey(o, b, p)=
+ if ENterm3d then
+  let b -> [a k] in
+  let p -> [z] in
+  (
+  if k == 9 then
+    (set z.D_onoff = !z.D_onoff;
+     ishidden z)
+  else 
+    nil;
+  if z.D_onoff then
+    (
+    if !premier then
+      (set premier = 1;
+       set message = strcatn "<"::DMSlogin::"> "::nil)
+    else
+      nil;
+    let searchKey k 0 -> action in
+    if action == 1 then
+      (verifLongMessageTerm z;
+       set posHistoric = 0;
+       UsendMessage ObUi o "command" message;
+       _DMSevent this strcat class ".log" message nil;
+       let substr message (2 + strlen DMSlogin) strlen message -> m in 
+       _DMSevent this strcat class ".message" m nil;
+       set message = strcatn "<"::DMSlogin::"> "::nil;
+       0)
+    else if action == 2 then
+      0
+    else if action == 3 then
+      (suppr;
+       nil)
+    else if action == 4 then
+      (/*showColor z o;*/
+       0)
+    else if action == 5 then
+      0
+    else if (action == 6) && (_keybdstate == 1) then
+      /*affichMacro k o*/ nil
+    else if action == 6 then
+      0
+    else if action == 7 then
+      /*configMacro*/ nil
+    else if action == 8 then
+      /*helpme*/ nil
+    else if action == 9 then
+      if posHistoric >= 0 then
+        (set useHistoric = 1;
+         affichHistoric 1 z)
+      else
+        nil
+    else if action == 10 then
+      if posHistoric < (sizelist historic) then
+        (set useHistoric = 1;
+         affichHistoric 0 z)
+      else
+        nil
+    else if action == 11 then
+      (/*configTexte z o;*/
+       0)
+    else
+      (set message = strcat message ctoa k;
+       set posHistoric = posHistoric+1;
+       0);
+    longueurMessage z o;
+    text z o
+    )
+  else
+    nil)
+ else
+   nil;
+ 0;; 
+  
+/*************** callbacks **************/  
+  
+fun activate(o, from, action, param, reply, z)=
+
+  if !strcmp action (strcat class ".setTermPOP") then
+    (set messageTerm = lineextr param;
+     0)
+  else if !strcmp action (strcat class ".IgnoreFlagPOP") then      	    
+    let lineextr param -> [type[id[name[state _]]]] in    	      
+    updateIgnoreList type name state
+  else if !strcmp action (strcat class ".IgnChgLoginPOP") then
+    let lineextr param -> [oldName[newName _]] in
+    updateLogin oldName newName    
+  else if !strcmp action (strcat class ".IgnLogoutPOP") then
+    let lineextr param -> [id[name _]] in
+    (set ignoreList = removef_from_list ignoreList @cliByLogin name;
+     0)
+  else if !strcmp action (strcat class ".getLinkPOP") then
+    nil
+  else if !strcmp action (strcat class ".enablePOP") then
+    (set ENterm3d = 1;
+     set z.D_onoff = 1)
+  else if !strcmp action (strcat class ".disablePOP") then
+    (set ENterm3d = 0;
+     set z.D_onoff = 0)
+  else if !strcmp action (strcat class ".showBubblePOP") then
+  (
+   showBubbleAction o from action param reply;  
+   0;
+  )
+  else
+    0;;
+	
+fun cbcomm(ui, action, param, p)=
+  let p -> [z o] in
+  if !strcmp action "incomingMsgPOP" then
+    if msgPass param then
+      (let searchLogin param -> login in
+       longueurMessageRecu z param 0 nil login; /*set messageTerm = param::messageTerm;*/
+       /*if openUrl then
+         searchUrl o param
+       else
+         0;*/
+       verifLongHistoric param;
+       verifLongMessageTerm z;
+       if bMenuSave then
+         saveMsgFile param
+       else
+         nil;
+       0)
+    else
+      0
+  else if !strcmp action "broadInfoPOP" then
+    (set messageTerm = (strcat ">>> " param)::messageTerm;
+     verifLongMessageTerm z;
+     verifLongHistoric param;
+     0)
+  else if !strcmp action "colorChangedPOP" then
+     let lineextr param -> [a[b _]] in
+     (set cliColor = myreplace_in_list cliColor [a nil] [a atoi b];
+      0)
+  else if !strcmp action "addUserPOP" then
+    (let lineextr param -> [a[b _]] in
+     set cliColor = [a atoi b]::cliColor;
+     updatelist o;
+     0)
+  else if !strcmp action "loginChangedPOP" then
+    (myreplace_login_in_listC cliColor param;
+     UsendMessage ObUi o "updatedAv" nil;
+     0)
+  else if !strcmp action "chgPseudoPOP" then
+     (chgLogin param;
+      0)
+  else if !strcmp action "updateAvPOP" then
+    (updatelist o;
+     0)
+  else
+    0;; 
+
+fun CBfinDownload(file, o)=
+  if file == nil then 
+   set bgnd = 0
+  else
+  {
+   set NomImage = _checkpack file;
+   let _LDjpeg _channel NomImage -> background in
+   {
+     if background == nil then
+     {  
+	    set background = _LDbitmap _channel NomImage;
+        set TypeFic = @_LDbitmap;
+     }
+     else 
+	   set TypeFic = @_LDjpeg;
+	   
+     set BubbleImage = background;
+     let _GETbitmapSize BubbleImage -> [x y] in if x == nil then nil else {set tx = x; set ty = y};
+     if background == nil then set bgnd = 0
+     else set bgnd = 1;
+	 
+	 /*dummy NOT USED SEE cbRegistered */
+	 UsendMessage ObUi o "register" nil;
+   }
+  };
+  let hd UgetParam ObUi o "Transparency" -> tr in if tr == nil then nil else {set TranspCol = atoi tr; set IsTransp = 1};
+
+  let hd UgetParam ObUi o "x" -> x in if x == nil then nil else set dx = atoi x;
+  let hd UgetParam ObUi o "y" -> y in if y == nil then nil else set dy = atoi y;
+
+  let getView3dSize w3d -> [w3 h3] in
+  let _CRbitmap _channel 500 400 -> fond in    /* background du chat */  
+  let 0 -> transparence in
+  let mkData[15 15 500 400 BubbleFontName BubbleFontSize 0 BubbleFontColor 1 fond] -> z in 
+
+  (
+    UcbComm this ObUi o mkfun4 @cbcomm [z o];
+	
+    ObCbPostRenderPriority o mkfun3 @BubblePostrender [z] 100;
+
+    ObCbControlKeyDown o mkfun3 @cbKey [z];
+    ObCbControlMove o @cbControlMove;
+    set idMove = V3D_AddCBmouseMove mkfun4 @cbMoveWin [o z];
+    set idClic = V3D_AddCBmouseClick mkfun4 @cbClicWin [o z];	
+  
+    ObRegisterAction o strcat class ".setTermPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat class ".IgnoreFlagPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat class ".IgnChgLoginPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat class ".IgnLogoutPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat class ".getLinkPOP" mkfun6 @activate z;	
+    ObRegisterAction o strcat class ".enablePOP" mkfun6 @activate z;
+    ObRegisterAction o strcat class ".disablePOP" mkfun6 @activate z;
+	ObRegisterAction o strcat class ".showBubblePOP" mkfun6 @activate z;
+
+	
+    /* initialisation */
+	
+	/* messages */
+	let "Heloooooo!" -> initTxt in
+    if initTxt == nil then
+      set message = _loc this "term3d_initMessage" nil
+    else
+      set message = initTxt;
+    let lineextr _getpack _checkpack fileColor -> [l1[l2[l3 _]]] in
+    (
+     set color = if l1 == nil then z.D_color else atoi l1;
+     set z.D_size = if l2 == nil then z.D_size else atoi l2;
+     set z.D_type = if l3 == nil then z.D_type else atoi l3
+    );
+	
+    set font = _CRfont _channel z.D_size 0 z.D_type z.D_font;
+    set colorAv = z.D_color;
+    set colorAvHilite = 1;
+	
+    initKey;
+    set fontAv = _CRfont _channel 12 0 0 "Arial";
+    set cpteurAv = 0;
+	
+	/* avatar list */
+    set displayAvListInit = 1;
+    set defaultSize = [15 h3-115 100 100];
+    calculCoordAvList [w3-115 h3-115 100 100];
+    set CoordAvListDefault = [15 h3-115 100 100];	
+	
+    if displayAvList then
+      updatelist o
+    else
+      nil;	
+	0  
+  );    
+  
+  /*download bitmap logo*/
+  let getView3dSize w3d -> [wb3 hb3] in
+  let 10 -> x in
+  let 10 -> y in
+  let "textover" -> alias in
+  let 1 -> show in
+  let "http://www.stereobit.com" -> url in
+  let 0 -> trans in
+  let btData[x y ((x*wb3)/100) ((y*hb3)/100) url nil nil nil show 0 alias trans] -> z in
+  (
+    set pathLogo = strcat pathImages "logo.jpg";
+    _RSCdownload this pathLogo pathLogo mknode @cbEndDownImage [o z pathLogo] 3;
+    ObCbDestroy o mkfun2 @cbDestroyBt z;
+    OB_CBresizeView o mkfun3 @cbResizeBt z;
+    0
+  );  
+0
+;;
+
+/*NOT USED ANYMORE, MOVED ON CBfinDownload */
+fun cbRegistered (ui, action, param, o) = 0;;
+
+/* détruit une liste de bitmap */
+fun dsBmp(l)=
+  if l == nil then
+    0
+  else
+    (
+     _DSbitmap hd l;
+     dsBmp tl l
+    );; 
+
+/*this destroy */	
+fun cbDestroyOb()=
+  V3D_RemoveCBmouseMove idMove;
+  V3D_RemoveCBmouseClick idClic; 
+  
+  /*clean bmps loaded */
+  dsBmp bmpAvBG::bmpLinksBG::CTRL::SHIFT::nil; 
+
+  _DMSevent this strcat class ".getTermPOP" linebuild messageTerm nil;
+  0;; 
+  
+fun endDownload(file, p)=
+  let p -> [o n] in
+  (set nbRSC = nbRSC+n;
+   if nbRSC == 2 then
+      let lineextr _getpack _checkpack fileColor -> [col _] in /* correctif : ajout de la couleur au msg srv */
+      UsendMessage ObUi o "register" col
+   else
+     nil);
+  0;;  
+
+fun newOb(o)=
+ 
+ //_showconsole;
+
+ let hd UgetParam ObUi o "BeforeTime" -> Time in if Time==nil then nil else set BeforeTime = atoi Time;
+ set TimeToWait = BeforeTime + let hd UgetParam o.uiOb "Time" -> Time in if Time == nil then TimeToWait else atoi Time;
+ let hd UgetParam ObUi o "Font" -> fontName in
+ let UgetParam ObUi o "FontColor" -> [R [G [B _]]] in
+ let hd UgetParam ObUi o "FontSize" -> fontSize  in
+ let atoi hd UgetParam ObUi o "Stretch" -> bubbleStretch  in
+ let if (R == nil) || (G == nil) || (B == nil) then nil else make_rgb atoi R atoi G atoi B -> fontColor in
+ (  
+   if bubbleStretch==nil then nil else set BubbleStretch = bubbleStretch;
+   if fontSize==nil then nil else set BubbleFontSize = atoi fontSize;
+   if fontName==nil then nil else set BubbleFontName = fontName;
+   if fontColor==nil then nil else set BubbleFontColor = fontColor;
+   set BubbleFont = _CRfont _channel BubbleFontSize 0 0 BubbleFontName
+ );
+ 
+  /* download control images */
+  set pathCtrl1 = strcat pathImages "ctrl1.jpg";
+  set pathCtrl2 = strcat pathImages "ctrl2.jpg";
+  _RSCdownload this pathCtrl1 pathCtrl1 (mkfun2 @endDownload [o 1]) 1;
+  _RSCdownload this pathCtrl2 pathCtrl2 (mkfun2 @endDownload [o 1]) 1; 
+  /*load ctrl images */
+  let _LDjpeg _channel _checkpack pathCtrl1 -> CTRL in
+  let _LDjpeg _channel _checkpack pathCtrl2 -> SHIFT in 
+ 
+ /*download bg register bubble after file dnload*/
+ let hd UgetParam ObUi o "Background" ->  file in
+   _RSCdownload this file file (mkfun2 @CBfinDownload o) 1;
+    
+ 0;;
+
+fun IniPlug(file)=
+ set class=getInfo strextr _getpack _checkpack file "name";
+ set BubbleFontColor = make_rgb 255 255 0;
+ set TranspCol = make_rgb 0 0 255;
+ PlugRegister class @newOb @cbDestroyOb;
+ 0;;
+

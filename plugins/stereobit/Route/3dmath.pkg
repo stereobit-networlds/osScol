@@ -1,0 +1,98 @@
+/*** vectors 3d math **********************/
+/* 3d math lib - JUNE 2014 - by stereobit */
+
+//magnitude - length of a vector
+fun length(v) = 
+ let v -> [x y z] in
+ sqrt (sqr x +. sqr y +. sqr z);;
+ 
+/*calculate the normal vector */ 
+fun normalize(v) = 
+ let v -> [x y z] in
+ let length v -> vl in 
+ [(x /. vl) (x /. vl) (x /. vl)];;
+ 
+
+/* dot product of vector */
+fun dotProduct(v1, v2) = 
+ let v1 -> [x1 y1 z1] in
+ let v2 -> [x2 y2 z2] in
+ ((x1 *. x2) +. (y1 *. y2) +. (z1 *. z2));;
+ 
+/*cross product of vectors */
+/* The cross product will give a vector c that is perpendicular to both a and b.*/
+fun crossProduct(v1, v2) =  
+ let v1 -> [x1 y1 z1] in
+ let v2 -> [x2 y2 z2] in
+ let (y1 *. z2) -. (y2 *. z1) -> x in
+ let (z1 *. x2) -. (z2 *. x1) -> y in
+ let (x1 *. y2) -. (x2 *. y1) -> z in 
+[x y z];; 
+ 
+/*Axis and Angle is one possible way to represent the rotation of a solid 3D object. */ 
+/*http://stackoverflow.com/questions/4879961/calculate-angle-from-two-points-and-a-direction-vector*/ 
+fun axisAng(v1, v2) =
+  let normalize v1 -> nv1 in
+  let normalize v2 -> nv2 in
+  let crossProduct nv1 nv2 -> cp in
+  normalize cp;; 
+  
+/*http://snipd.net/2d-and-3d-vector-normalization-and-angle-calculation-in-c*/  
+/* polar angle theta */  
+fun theta(v) = 
+  let normalize v -> [x y z] in
+  atan2 (sqrt (sqr x) +. (sqr y)) sqr z;; 
+
+/* Azimuthal angle phi*/ 
+fun phi(v) = 
+  let v -> [x y z] in
+  atan2 y x;;
+  
+/*convert radians to degrees */
+fun rad2deg(r) = r *. (180.0 /. PIf);; 
+
+/*convert degrees to radians */
+fun deg2rad(d) = d *. (PIf /. 180.0);; 
+
+/*YXZ euler angle to matrix*/
+/*http://stackoverflow.com/questions/1568568/how-to-convert-euler-angles-to-directional-vector*/
+fun euler2matrix(ang) = 
+  let ang -> [rx ry rz] in
+  let sin rx -> sx in
+  let sin ry -> sy in
+  let sin rz -> sz in
+  let cos rx -> cx in
+  let cos ry -> cy in
+  let cos rz -> cz in
+[[((cy*.cz)+.(sx*.sy*.sz)) ((cz*.sx)-.(cy*.sz)) (cx*.sy)] 
+ [(cx*.sz) (cx*.cz) (-.sx)] 
+ [((-.cz*.sy)+.(cy*.sx*.sz)) ((cy*.cz*.sx)+.(sy*.sz)) (cx*.cy)]];; 
+  
+/*all above funcs takes float as inputs and return floats  */
+/*convert vectors to float and vice versa */
+fun fvec(v) = let v -> [itof x itof y itof z] in [x y z];;
+fun ivec(v) = let v -> [ftoi x ftoi y ftoi z] in [x y z];;  
+
+fun test3dmath() = 1;;
+
+
+/*** Angle optimization *********************/ 
+fun OptAng(source, dest) =
+   let (abs (dest - source)) -> path1 in
+   let (abs (dest + 65536 - source)) -> path2 in
+   let (abs (dest - 65536 - source)) -> path3 in
+   let min path1 min path2 path3 -> minpath in
+      if (minpath == path1) then
+         dest
+      else if (minpath == path2) then
+         (dest + 65536)
+      else
+         (dest - 65536);; 
+		 
+fun OptimizeDestOrientation(source, dest) = 
+  let source -> [rX1 rY1 rZ1] in
+  let dest -> [rX2 rY2 rZ2] in
+   [(OptAng rX1 rX2) (OptAng rY1 rY2) (OptAng rZ1 rZ2)];;
+		 
+
+ 

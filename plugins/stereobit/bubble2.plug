@@ -1,0 +1,9 @@
+name Bubble2
+help ./help/help.htm
+serverNeeded ./bubble2util.pkg Dms/3d/Plugins/stereobit/Bubble2s.pkg
+serverScript _load\ "Dms/3d/Plugins/stereobit/Bubble2S.pkg"
+clientNeeded Dms/3d/Plugins/stereobit/Bubble2c.pkg
+clientScript _load\ "Dms/3d/Plugins/stereobit/Bubble2c.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/stereobit/Bubble2edit.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/stereobit/Bubble2edit.pkg"
+version 2 3

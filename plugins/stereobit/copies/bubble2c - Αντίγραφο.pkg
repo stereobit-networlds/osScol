@@ -1,0 +1,670 @@
+/*bubble plugin - DMS2 - Jan 00 - by Gaetan Guentin & Dugh */
+/*rev July 00 - by Sebastien DENEUX*/
+/*rev May 01 - Julien ZORKO */
+
+typeof message = S;;                    /* message saisi lettre par lettre */
+typeof transparence = I;;               /* l'affichage des liens et de la liste des avatars se fait-elle sur un fond transparent (1) ou opaque (0) */
+typeof FSbottom = I;;                   /* si 1 alors le term doit toujours resté à la même distance du bas de la 3d (mode fullscreen) */
+typeof idMove = I;;                     /* id fun callback souris move / c3d3 */
+typeof idClic = I;;                     /* id fun callback souris clic / c3d3 */
+typeof objIsAvatar = I;;                /* l'objet est-il un avatar (1) ou un autre objet (0) */
+typeof displayCustomItem = I;;
+typeof ChgCliSize = I;;
+typeof nameCustomItem = S;;
+
+typeof menu = ObjMenu;;                 /* menu contextuel */
+typeof menuSave = ObjMenuItem;;         /* item menu : enregistrement ou non des messages */
+typeof menuAway = ObjMenuItem;;         /* item menu : mise en absence par le visiteur */
+typeof menuTrans = ObjMenuItem;;        /* item menu : transparence */
+typeof menuURL = ObjMenuItem;;          /* item menu : ouvre les URLs automatiquement ou pas */
+typeof menuSmileys = ObjMenuItem;;      /* item menu : affiche les smileys ou pas */
+typeof pathBgAvTop = S;;                /* path scroll up */
+typeof pathBgAvDown = S;;               /* path scroll down */
+typeof pathSaveFile = S;;  
+
+var fileSave = "tmp/bubble2/";;
+var fileColor = "locked/conf/bubble2/term3dcolor.txt";;
+
+var openUrl = 1;;
+var setSmileys = 0;; 
+var bMenuSave = 0;;                     /* booleen : check menuSave item */
+var bMenuAway = 0;;                     /* booleen : check menuAway item */
+var ENterm3d = 1;; 
+var nbRSC = 0;;
+
+struct Tdata = 
+[
+  D_posX : I,                           /* X position of the term3d */
+  D_posY : I,                           /* Y position of the term3d */
+  D_width : I,                          /* width of the term3d */
+  D_heigth : I,                         /* heigth of the term3d */
+  D_font : S,                           /* name of font */    
+  D_size : I,                           /* fontSize */
+  D_type : I,                           /* fontType */
+  D_color : I,                          /* fontColor (default value) */
+  D_onoff : I,                          /* term3d shown / hidden */
+  D_fond : ObjBitmap                    /* background bitmap (fixed) */
+] mkData;;
+
+
+ 
+typeof class=S;;
+var EventPeriod = 1000;;
+var BubbleCpt = 0;;    /* Compteur de secondes pour les bulles: pour afficher */
+var BeforeTime = 1000;;    /* Nombre de secondes avant que la bulle s'affiche */
+var TimeToWait = 5000;; /* Nombre de secondes pendant lesquelles la bulle est affichée */
+var MustShow = -1;;
+typeof BubbleFont = ObjFont;;
+typeof BubbleText = [S r1];;
+typeof BubbleSpacing = I;;
+var BubbleFontSize = 18;;
+var BubbleFontColor = 0;;
+var BubbleFontName = "Arial";;
+var BubbleStretch = 0;;
+var bgnd = 0;;
+typeof BubbleImage = ObjBitmap;;
+typeof NomImage = P;;
+var dx = 0;;
+var dy = -20;;
+var tx = 0;;
+var ty = 0;;
+var TranspCol = 0x0000FF;;
+var IsTransp = 0;;
+typeof TypeFic = fun [Chn P] ObjBitmap;;
+var lastTick = 0;;
+
+
+fun _echo(x,s)= 
+	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+;;
+  
+/*popup code start */
+
+fun cbMenu(m, p)=
+  let p -> [s o z] in
+  (if !strcmp s "Color" then
+    nil
+  else if !strcmp s "Text" then
+    nil
+  else if !strcmp s "Size" then
+    nil
+  else if !strcmp s "Macros" then
+    nil
+  else if !strcmp s "Show" then
+    nil
+  else if !strcmp s "ShowAv" then
+    nil
+  else if !strcmp s "Trans" then
+     (set transparence = !transparence;
+      _CHKmenu menuTrans transparence;
+      //updatelist o;
+      //fDisplayLink nil;
+      0)
+  else if !strcmp s "Smileys" then
+    nil
+  else if !strcmp s "url" then
+    (set openUrl = !openUrl;
+     _CHKmenu menuURL openUrl;
+     0)
+  else if !strcmp s "Away" then
+    (_CHKmenu menuAway !bMenuAway;
+     set bMenuAway = _GETcheckMenu menuAway;
+     if bMenuAway then 
+       _DMSevent this strcat class ".awayPop" nil nil
+     else
+       _DMSevent this strcat class ".backPop" nil nil)
+  else if !strcmp s "Custom" then
+    (_DMSevent this strcat class ".customPop" nil nil;
+     0)
+  else if !strcmp s "Help" then
+     nil
+  else if !strcmp s "Save" then
+    (_CHKmenu menuSave !(bMenuSave); 
+     set bMenuSave = _GETcheckMenu menuSave;
+     if bMenuSave then
+       (let localtime time -> [s mn h d m y _ _] in
+        set pathSaveFile = strcatn fileSave::DMSname::"_"::(itoa d)::" "::(itoa m)::" "::(itoa y)::"_"::(itoa h)::" "::(itoa mn)::" "::(itoa s)::".txt"::nil;
+        _storepack "" pathSaveFile
+		)
+     else
+       nil;
+     0)
+  else
+     0;
+  OB_ReleaseMouse o;
+  0);;
+  
+fun popupMenu(o, z) =
+  _DSmenu menu;
+  set menu = _CRpopupMenu _channel;
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextColor" nil) @cbMenu ["Color" o z];
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextText" nil) @cbMenu ["Text" o z];
+  _CBmenu _APPitem _channel menu if ChgCliSize then ME_ENABLED else ME_DISABLED (_loc this "term3d_contextSize" nil) @cbMenu ["Size" o z];
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextMacros" nil) @cbMenu ["Macros" o z];
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextShow" nil) @cbMenu ["Show" o z];
+  
+  set menuTrans = _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextTrans" nil);
+  _CBmenu menuTrans @cbMenu ["Trans" o z];
+  _CHKmenu menuTrans transparence;
+  
+  set menuSmileys = _APPitem _channel menu ME_ENABLED "Smileys";
+  _CBmenu menuSmileys @cbMenu ["Smileys" o z];
+  _CHKmenu menuSmileys setSmileys;
+  
+  set menuURL = _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextUrl" nil);
+  _CBmenu menuURL @cbMenu ["url" o z];
+  _CHKmenu menuURL openUrl;  
+  
+  if displayCustomItem then
+    _CBmenu _APPitem _channel menu ME_ENABLED nameCustomItem @cbMenu ["Custom" o z]
+  else
+    nil;
+	
+  _CBmenu _APPitem _channel menu ME_ENABLED (_loc this "term3d_contextHelp" nil) @cbMenu ["Help" o z];
+  set menuSave = _APPitem _channel menu ME_ENABLED (_loc this "term3d_contectSave" nil);
+  _CHKmenu menuSave bMenuSave;
+  _CBmenu menuSave @cbMenu ["Save" o z];
+  _CHKmenu menuAway bMenuAway;
+  _CBmenu menuAway @cbMenu ["Away" o z];	
+	
+  let _GETscreenPos -> [x y] in
+  if _GETsurfaceState == SURFACE_FULLSCREEN then
+    _DRAWmenu w3d.V3dwin menu x y PM_SCREEN|PM_LEFT_ALIGN|PM_TOP_ALIGN
+  else
+    _DRAWmenu w3d.V3dwin menu x y-20 PM_SCREEN|PM_LEFT_ALIGN|PM_TOP_ALIGN;	
+0;;  
+
+fun text(z, o)=
+  if transparence then
+    set z.D_fond = _FILLbitmap z.D_fond cel.Cel3dback
+  else
+    set z.D_fond = _FILLbitmap z.D_fond 
+                      if cel.Cel3dback == 0 then
+                        cel.Cel3dback+8
+                      else
+                        cel.Cel3dback;
+						
+  set z.D_fond = _DRAWtext z.D_fond BubbleFont 5 z.D_heigth-z.D_size 0 z.D_color message;
+  0;;
+
+fun cbBlitTerm(o, b, p) =
+  let p -> [z] in
+  (
+   if z.D_onoff && ENterm3d then
+     (
+	  text z o;
+	  
+      if FSbottom then
+        let _GETsurfaceSize w3d.V3dbuf -> [_ h] in
+        _Bitmap2Surface w3d.V3dbuf z.D_posX (z.D_posY) z.D_fond 0 0 z.D_width z.D_heigth cel.Cel3dback
+      else
+        _Bitmap2Surface w3d.V3dbuf z.D_posX z.D_posY z.D_fond 0 0 z.D_width z.D_heigth cel.Cel3dback;
+      0)
+   else
+     0;
+  0);;
+
+fun cbKey(o, b, p)=
+ if ENterm3d then
+   nil
+ else
+   nil;
+ 0;;  
+ 
+fun searchDynEd(list, name)=
+  if list == nil then
+    0
+  else
+    let list -> [plug suite] in
+    if !strcmp name (PLUG_GetClass plug) then
+      1
+    else
+      searchDynEd suite name;; 
+ 
+fun cbControlMove(o, p)=
+  let p -> [obj h m] in
+  if (OB_SearchObj3DAvatar ObList h) == nil then
+    set objIsAvatar = 0    
+  else
+    set objIsAvatar = 1;;  
+    
+fun cbMoveWin(x, y, btn, p)=
+  let p -> [o z] in                   
+      (
+	  OB_ReleaseCursor o;
+      OB_SetCursor o StdCursor
+	  );
+  0;;
+ 
+fun clicWinOk(o, z)=
+  if ENterm3d then
+    (
+	 OB_TakeMouse o; 
+     popupMenu o z 
+	 )
+  else
+    0;;  
+	 
+fun cbClicWin(x, y, btn, p)=
+
+  //_fooS strcat "XXXXX" "YYYYY\n";
+  _echo strcatn "POS:"::(itoa x)::","::(itoa y)::nil
+  
+  let p -> [o z] in
+  (
+   ObControlMove o;
+   if (btn == 2) && !(searchDynEd plugins "Dynamic\ Editor") && !objIsAvatar then
+     clicWinOk o z
+   else if (btn == 1) && (searchDynEd plugins "Dynamic\ Editor") && (_keybdstate == 1) && !objIsAvatar then
+     clicWinOk o z
+  else
+      (OB_ReleaseMouse o; 
+       0);
+  0);;	 
+  
+  
+  
+  
+fun RechargeImage()=M3filter exec TypeFic with [_channel NomImage] "A0000ff46";;
+
+/* CustomLineExtr */
+fun CustomLineExtr (s) =
+  let strfind "\\n" s 0 -> pos in
+  (
+    if pos == nil then
+      s::nil
+    else
+      (substr s 0 pos)::( CustomLineExtr substr s (pos+3) ((strlen s)-pos-3) )
+  )
+;;    
+  
+/* Draw Multi Line Text on bitmap */ 
+fun DrawMultiLineText (bmp, font, x, y, flag, fontColor, lines, spacing) =
+  if lines == nil then
+    0
+  else
+    let lines -> [first next] in
+    (
+      _DRAWtext bmp font x y flag fontColor first;
+      DrawMultiLineText bmp font x y+spacing flag fontColor next spacing
+    )
+;;
+
+/*******************************************************************************
+  Draw Multi Line Text on surface
+*******************************************************************************/ 
+fun SDrawMultiLineText (surface, font, x, y, flag, fontColor, lines, spacing) =
+  if lines == nil then
+    0
+  else
+    let lines -> [first next] in
+    (
+      _SDRAWtext surface font x y flag fontColor first;
+      SDrawMultiLineText surface font x y+spacing flag fontColor next spacing
+    )
+;;  
+  
+/* MaxStringListSize */
+fun MaxStringListSize (font, list, w, h) = 
+  if list == nil then
+    [w h]
+  else
+    let list -> [first next] in
+    let _GETstringSize font first -> [ww hh] in
+    let if ww>w then ww else w -> mw in
+    let if hh>h then hh else h -> mh in
+      MaxStringListSize font next mw mh
+;; 
+
+/* Draw bubble into buffer */
+fun DrawBubble (text) =
+  set BubbleText = CustomLineExtr text;
+  let MaxStringListSize BubbleFont BubbleText 0 0 -> [bw spacing]in
+  (
+    set BubbleSpacing = spacing;
+    if bgnd then
+      let RechargeImage -> bmp in
+      let _GETbitmapSize bmp -> [w h] in
+      (
+        if BubbleStretch then 
+          let [bw+6 6+spacing*(sizelist BubbleText)] -> [bw bh] in
+          let _CRbitmap _channel bw bh -> bubbleBmp in
+          let _SCPbitmap bubbleBmp 0 0 bw-1 bh-1 bmp 0 0 w-1 h-1 TranspCol -> bubbleBmp in
+          (
+            set tx = bw;
+            set ty = bh;         
+            _DSbitmap BubbleImage;
+            _DSbitmap bmp;
+            set BubbleImage = bubbleBmp
+          )
+        else       
+        (
+          set tx = w;
+          set ty = h;         
+          _DSbitmap BubbleImage;
+          set BubbleImage = bmp
+        );
+        DrawMultiLineText BubbleImage BubbleFont 3 3 TD_LEFT BubbleFontColor BubbleText BubbleSpacing
+      )
+    else
+      nil
+  );
+  set MustShow = 1;
+  set BubbleCpt = _tickcount
+;;
+  
+fun showBubbleAction (Ob, cli, action, param, reply)=
+  let strextr param -> l in
+  let hd switchstr l "ref" -> text in
+  let hd switchstr l "userParam" -> code in
+  /*FIN MODIF PB*/
+  (
+
+    _fooS strcat "###code = " code;
+    _fooS strcat "###ref = " text;
+
+    if param != nil then   
+    if !strcmp code "0" then /* lien invisible ou avatar devant */
+    {
+      /*_fooS "#### code 0";*/
+      if MustShow == 1 then set MustShow = 0 else nil;
+    }
+    else
+    if (!strcmp code "1") then /* lien visible */
+      DrawBubble text
+    else
+    if !strcmp code "2" then /* avatar */
+      DrawBubble text
+    else /* pas de lien */
+    {
+      if MustShow then set MustShow = 0 else nil;
+    }
+    else
+    {
+       set BubbleCpt = 0;
+       set MustShow = -1; 
+    }
+   )
+;;  
+
+/*Affiche la bulle sur la bitmap de rendu*/
+fun ShowBubble(objSurface)=
+ let _GETcursorPos w3d.V3dwin -> [PosX PosY] in
+ let getView3dSize w3d -> [winX winY] in
+ if bgnd then {
+   let PosX+dx -> Xpos in
+   let PosY+dy -> Ypos in
+   let if (Xpos < 0) then 0 else if (Xpos + tx) > winX then (winX - tx) else Xpos -> resultX in
+   let if (Ypos < 0) then 0 else if (Ypos + ty) > winY then (winY - ty) else Ypos -> resultY in
+     _Bitmap2Surface objSurface resultX resultY BubbleImage 0 0 tx ty make_rgb 0 0 255;
+   nil;
+ } else
+    SDrawMultiLineText objSurface BubbleFont PosX+dx PosY+dy 0 BubbleFontColor BubbleText BubbleSpacing;
+ 0
+;;
+
+/*Callback appelee pour chaque frame du rendu*/
+fun BubblePostrender(ob, l)=
+if MustShow == -1 then nil
+else
+  let _GETcursorPos w3d.V3dwin -> [PosX PosY] in
+  let getView3dSize w3d -> [winX winY] in
+  /* on sort de la fenêtre 3d */
+  if (MustShow == 1) && ((PosX > winX) || (PosX <0) || (PosY > winY) || (PosY <0)) then nil 
+  else let (_tickcount - BubbleCpt) -> diffCpt in {
+    if diffCpt > TimeToWait then set MustShow = 0 else nil;
+    if (MustShow == 1) && (diffCpt > BeforeTime) then /*Si une bulle doit être affichée*/
+      let l -> [objSurface [ width height]] in {
+        ShowBubble objSurface;
+        0}
+    else if MustShow == 0 then { /* image a détruire */
+      _DSbitmap BubbleImage;
+      set BubbleImage = RechargeImage;
+      set BubbleCpt = 0;
+      set MustShow = -1; 
+      0}
+    else nil};;
+
+
+
+/*Callback correspondant à l'action ShowBubble*/
+fun CBShowBubbleAction (Ob, cli, action, param, reply)=
+  let strextr param -> l in
+  let hd switchstr l "ref" -> text in
+  let hd switchstr l "userParam" -> code in
+  /*FIN MODIF PB*/
+  (
+
+    _fooS strcat "###code = " code;
+    _fooS strcat "###ref = " text;
+
+    if param != nil then   
+    if !strcmp code "0" then /* lien invisible ou avatar devant */
+    {
+      /*_fooS "#### code 0";*/
+      if MustShow == 1 then set MustShow = 0 else nil;
+    }
+    else
+    if (!strcmp code "1") then /* lien visible */
+      DrawBubble text
+    else
+    if !strcmp code "2" then /* avatar */
+      DrawBubble text
+    else /* pas de lien */
+    {
+      if MustShow then set MustShow = 0 else nil;
+    }
+    else
+    {
+       set BubbleCpt = 0;
+       set MustShow = -1; 
+    }
+   )
+;;
+  
+  
+  
+fun activate(o, from, action, param, reply, z)=
+  if !strcmp action (strcat ObName o ".setTermPOP") then
+    nil
+  else if !strcmp action (strcat ObName o ".IgnoreFlagPOP") then      	    
+	nil
+  else if !strcmp action (strcat ObName o ".IgnChgLoginPOP") then
+    nil   
+  else if !strcmp action (strcat ObName o ".IgnLogoutPOP") then
+    nil
+  else if !strcmp action (strcat ObName o ".getLinkPOP") then
+    nil
+  else if !strcmp action (strcat ObName o ".enablePOP") then
+    nil
+  else if !strcmp action (strcat ObName o ".disablePOP") then
+    nil
+  else if !strcmp action (strcat ObName o ".showBubblePOP") then
+  (
+   showBubbleAction o from action param reply;  
+   0;
+  )
+  else
+    0;;
+	
+fun cbcomm(ui, action, param, p)=
+  let p -> [z o] in
+  if !strcmp action "incomingMsgPOP" then
+    nil
+  else if !strcmp action "broadInfoPOP" then
+    nil
+  else if !strcmp action "colorChangedPOP" then
+    nil
+  else if !strcmp action "addUserPOP" then
+    nil
+  else if !strcmp action "loginChangedPOP" then
+    nil
+  else if !strcmp action "chgPseudoPOP" then
+    nil
+  else if !strcmp action "updateAvPOP" then
+    nil
+  else
+    0;; 	
+
+fun CBfinDownload(file, o)=
+ if file == nil then 
+   set bgnd = 0
+ else
+ {
+    set NomImage = _checkpack file;
+   let _LDjpeg _channel NomImage -> background in
+   {
+     if background == nil then
+       {set background = _LDbitmap _channel NomImage;
+        set TypeFic = @_LDbitmap;
+       }
+     else set TypeFic = @_LDjpeg;
+     set BubbleImage = background;
+     let _GETbitmapSize BubbleImage -> [x y] in if x == nil then nil else {set tx = x; set ty = y};
+     if background == nil then set bgnd = 0
+     else set bgnd = 1;
+	 
+	 /*register popup*/
+     UsendMessage ObUi o "register" nil
+   }
+ };
+ let hd UgetParam ObUi o "Transparency" -> tr in if tr == nil then nil else {set TranspCol = atoi tr; set IsTransp = 1};
+
+ let hd UgetParam ObUi o "x" -> x in if x == nil then nil else set dx = atoi x;
+ let hd UgetParam ObUi o "y" -> y in if y == nil then nil else set dy = atoi y;
+ //ObCbPostRenderPriority o @BubblePostrender 100;
+ //ObRegisterAction o strcat ObName o ".showBubble" @CBShowBubbleAction;
+ 
+  let getView3dSize w3d -> [w3 h3] in
+  let _CRbitmap _channel 100 100 -> fond in    /* background du chat */  
+  let mkData[100 100 200 200 BubbleFontName BubbleFontSize 0 BubbleFontColor 1 fond] -> z in 
+
+  (
+    UcbComm this ObUi o mkfun4 @cbcomm [z o];
+	
+    ObCbPostRenderPriority o @BubblePostrender 100;
+	//ObCbPostRenderPriority o mkfun3 @cbBlitTerm [z] 200;
+
+    ObCbControlKeyDown o mkfun3 @cbKey [z];
+    ObCbControlMove o @cbControlMove;
+    set idMove = V3D_AddCBmouseMove mkfun4 @cbMoveWin [o z];
+    set idClic = V3D_AddCBmouseClick mkfun4 @cbClicWin [o z];	
+  
+    ObRegisterAction o strcat ObName o ".setTermPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat ObName o ".IgnoreFlagPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat ObName o ".IgnChgLoginPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat ObName o ".IgnLogoutPOP" mkfun6 @activate z;
+    ObRegisterAction o strcat ObName o ".getLinkPOP" mkfun6 @activate z;	
+    ObRegisterAction o strcat ObName o ".enablePOP" mkfun6 @activate z;
+    ObRegisterAction o strcat ObName o ".disablePOP" mkfun6 @activate z;
+	ObRegisterAction o strcat ObName o ".showBubblePOP" mkfun6 @activate z;
+    //ObRegisterAction o strcat ObName o ".showBubble" @CBShowBubbleAction;
+ 		
+	
+    /* initialisation */
+	let "Heloooooo!" -> initTxt in
+    if initTxt == nil then
+      set message = _loc this "term3d_initMessage" nil
+    else
+      set message = initTxt;
+	text z o;  	
+  );    
+0
+;;
+ 
+ 
+
+/************* popup win callback ***********/	
+	
+fun cbRegistered (ui, action, param, o) =
+  let getView3dSize w3d -> [w3 h3] in
+  let _CRbitmap _channel 100 100 -> fond in    /* background du chat */  
+  let mkData[100 100 200 200 BubbleFontName BubbleFontSize 0 BubbleFontColor 1 fond] -> z in
+  (
+
+    UcbComm this ObUi o mkfun4 @cbcomm [z o];
+    ObRegisterAction o (strcat class ".setTermPOP") mkfun6 @activate z;
+    ObRegisterAction o (strcat class ".IgnoreFlagPOP") mkfun6 @activate z;
+    ObRegisterAction o (strcat class ".IgnChgLoginPOP") mkfun6 @activate z;
+    ObRegisterAction o (strcat class ".IgnLogoutPOP") mkfun6 @activate z;
+    ObRegisterAction o (strcat class ".getLinkPOP") mkfun6 @activate z;	
+    ObRegisterAction o (strcat class ".enablePOP") mkfun6 @activate z;
+    ObRegisterAction o (strcat class ".disablePOP") mkfun6 @activate z;
+    
+    ObCbPostRenderPriority o mkfun3 @cbBlitTerm [z] 200;
+    ObCbControlKeyDown o mkfun3 @cbKey [z];
+    ObCbControlMove o @cbControlMove;
+    set idMove = V3D_AddCBmouseMove mkfun4 @cbMoveWin [o z];
+    set idClic = V3D_AddCBmouseClick mkfun4 @cbClicWin [o z];
+	
+    /* initialisation */
+	let "Heloooooo!" -> initTxt in
+    if initTxt == nil then
+      set message = _loc this "term3d_initMessage" nil
+    else
+      set message = initTxt;
+	text z o;  
+    0
+  )
+;;
+
+fun delOb()=
+  V3D_RemoveCBmouseMove idMove;
+  V3D_RemoveCBmouseClick idClic;
+  //dsBmp bmpAvBG::bmpLinksBG::lSmileyDisplayed;
+  //_DMSevent this strcat class ".getTerm" linebuild messageTerm nil;
+  0;; 
+  
+fun endDownload(file, p)=
+  let p -> [o n] in
+  (set nbRSC = nbRSC+n;
+   if nbRSC == 2 then
+      let lineextr _getpack _checkpack fileColor -> [col _] in /* correctif : ajout de la couleur au msg srv */
+      UsendMessage ObUi o "register" col
+   else
+     nil);
+  0;;  
+
+/************* popup win callback ***********/
+
+fun newOb(o)=
+ 
+ _showconsole;
+
+ let hd UgetParam ObUi o "BeforeTime" -> Time in if Time==nil then nil else set BeforeTime = atoi Time;
+ set TimeToWait = BeforeTime + let hd UgetParam o.uiOb "Time" -> Time in if Time == nil then TimeToWait else atoi Time;
+ let hd UgetParam ObUi o "Font" -> fontName in
+ let UgetParam ObUi o "FontColor" -> [R [G [B _]]] in
+ let hd UgetParam ObUi o "FontSize" -> fontSize  in
+ let atoi hd UgetParam ObUi o "Stretch" -> bubbleStretch  in
+ let if (R == nil) || (G == nil) || (B == nil) then nil else make_rgb atoi R atoi G atoi B -> fontColor in
+ (  
+   if bubbleStretch==nil then nil else set BubbleStretch = bubbleStretch;
+   if fontSize==nil then nil else set BubbleFontSize = atoi fontSize;
+   if fontName==nil then nil else set BubbleFontName = fontName;
+   if fontColor==nil then nil else set BubbleFontColor = fontColor;
+   set BubbleFont = _CRfont _channel BubbleFontSize 0 0 BubbleFontName
+ );
+ 
+ /*register bubble after file dnload*/
+ let hd UgetParam ObUi o "Background" ->  file in
+   _RSCdownload this file file (mkfun2 @CBfinDownload o) 1;
+   
+   
+ /*win popup*/  
+ /* set pathBgAvTop = strcat pathBgAv "top.jpg";
+  set pathBgAvDown = strcat pathBgAv "down.jpg"; 
+  _RSCdownload this pathBgAvTop pathBgAvTop (mkfun2 @endDownload [o 1]) 1;
+  _RSCdownload this pathBgAvDown pathBgAvDown (mkfun2 @endDownload [o 1]) 1);
+ */ 
+ //UcbMessage ObUi o ["registered" mkfun4 @cbRegistered o]::nil;
+ //_DMSevent this strcat class ".in" nil nil;   
+ 0;;
+
+fun IniPlug(file)=
+ set class=getInfo strextr _getpack _checkpack file "name";
+ set BubbleFontColor = make_rgb 255 255 0;
+ set TranspCol = make_rgb 0 0 255;
+ PlugRegister class @newOb @delOb;
+ 0;;
+

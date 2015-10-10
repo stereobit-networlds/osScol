@@ -1,0 +1,17 @@
+# Module Dispatcher
+# Author : Laurent HACHET
+# Last update : 22.06.2001
+# Version 1 0
+#
+# This module allow to dispatch the visitor to the different c3d3 cellules
+
+name dispatcher
+version 1 0
+
+serverLoad locked/lib/_mlistlib.pkg ./sdispatcher.pkg
+clientNeeded Dms/stereobit/dispatcher/cdispatcher.pkg
+clientScript _load\ "Dms/stereobit/dispatcher/cdispatcher.pkg"
+editorLoad Dms/L/templateEdit1.pkg dms/lib/_mcolormap.pkg ./edispatcher.pkg
+
+helpFile ./help/help.htm
+bitmap ./dispatcher.bmp

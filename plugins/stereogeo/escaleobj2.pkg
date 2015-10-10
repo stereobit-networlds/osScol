@@ -1,0 +1,141 @@
+/* ScaleEditor.pkg : Scale plugin Editor for C3D3 by Loïc ARGELIES july 2000 */
+/* based on the rotate plugin by Sylvain HUET march 99 */
+
+/* Scale2 - February 2003 - by Bob Le Gob         */
+/* Last update: 7th of February 2003 - Bob Le Gob */
+
+/* Plugin basic variables */
+typeof plugin = S;;                    /* '*.plug' file name */
+typeof class  = S;;                    /* plugin name        */
+
+/* 2D API variables */
+typeof txtScaleFactorMax       = ObjText;;
+typeof edtScaleFactorMax       = ObjText;;
+typeof txtScaleFactorMin       = ObjText;;
+typeof edtScaleFactorMin       = ObjText;;
+typeof txtScaleFactorIncrement = ObjText;;
+typeof edtScaleFactorIncrement = ObjText;;
+typeof txtFramerate            = ObjText;;
+typeof edtFramerate            = ObjText;;
+
+
+/* Protos */
+proto cbSave  = fun [[Inst r1]] [[S r1] [S r1] [[S r1] r1] [[S r1] r1]];;
+
+
+/*******************************************************************************
+ cbDestroyWin()
+ win -> ObjWin : Plugin Editor window
+ p   -> u0     : Not used
+     <- I      : Not used
+ Callback function activated when the plugin Editor window is destroyed.
+ Resources allocated in cbOpenEdit should be freed here. Checking the real
+ allocation prevents corruptions in Voyager's data structures.
+*******************************************************************************/
+fun cbDestroyWin(win, p) = 
+   if (txtScaleFactorMax != nil) then (_DStext txtScaleFactorMax; set txtScaleFactorMax = nil; 0;) else 0;
+   if (edtScaleFactorMax != nil) then (_DStext edtScaleFactorMax; set edtScaleFactorMax = nil; 0;) else 0;
+   if (txtScaleFactorMin != nil) then (_DStext txtScaleFactorMin; set txtScaleFactorMin = nil; 0;) else 0;
+   if (edtScaleFactorMin != nil) then (_DStext edtScaleFactorMin; set edtScaleFactorMin = nil; 0;) else 0;
+   if (txtScaleFactorIncrement != nil) then (_DStext txtScaleFactorIncrement; set txtScaleFactorIncrement = nil; 0;) else 0;
+   if (edtScaleFactorIncrement != nil) then (_DStext edtScaleFactorIncrement; set edtScaleFactorIncrement = nil; 0;) else 0;
+   if (txtFramerate != nil) then (_DStext txtFramerate; set txtFramerate = nil; 0;) else 0;
+   if (edtFramerate != nil) then (_DStext edtFramerate; set edtFramerate = nil; 0;) else 0;
+   0;;
+
+/*******************************************************************************
+ cbClose()   
+    <- I : Not used
+ Callback function which is called when you click on the Cancel button of the
+ C3D3 or on the OK button of the C3D3 (in this case, the cbSave function is
+ called just before).
+*******************************************************************************/
+fun cbClose() =
+   0;;
+   
+/*******************************************************************************
+ cbCloseEdit()
+    <- S : "strbuilded" list of plugin's instance's parameters and params' values
+ Callback function called when you click on the OK button of the plugin Editor.
+ The Cancel button doesn't call this callback, nor any other one.
+*******************************************************************************/
+fun cbCloseEdit() =
+   strbuild ("ScaleFactorMin"::(_GETtext edtScaleFactorMin)::nil)::
+            ("ScaleFactorMax"::(_GETtext edtScaleFactorMax)::nil)::
+            ("ScaleFactorIncrement"::(_GETtext edtScaleFactorIncrement)::nil)::
+            ("Framerate"::(_GETtext edtFramerate)::nil)::
+            nil;;
+
+/*******************************************************************************
+ cbOpenEdit()
+ win    -> ObjWin : Plugin's Editor father window
+ params -> S      : "strbuilded" list of plugin's instance's parameters and params' values
+        <- I      : Not used
+ Callback function called when the Editor of the plugin is opened. Caution!
+ Resources allocated here will not be destroyed until the cbDestroyWin callback
+ is triggered and if you destroy them in this function. Multiple openings of
+ the plugin Editor should thus consume a lot of resources if resources are
+ not properly handled.
+*******************************************************************************/
+fun cbOpenEdit(win, params)=
+   let strextr params -> l in
+   let getInfo l "ScaleFactorMax" -> sScaleFactorMax in
+   let getInfo l "ScaleFactorMin" -> sScaleFactorMin in
+   let getInfo l "ScaleFactorIncrement" -> sScaleFactorIncrement in
+   let getInfo l "Framerate" -> sFramerate in
+   (
+         set txtScaleFactorMax = _CRtext _channel win 10 10 250 20 ET_ALIGN_LEFT "Maximum scale factor (unit: %)";
+         set edtScaleFactorMax = _CReditLine _channel win 300 8 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sScaleFactorMax) then "200" else sScaleFactorMax;
+      		
+         set txtScaleFactorMin = _CRtext _channel win 10 40 250 20 ET_ALIGN_LEFT "Minimum scale factor (unit: %)";
+         set edtScaleFactorMin = _CReditLine _channel win 300 38 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sScaleFactorMin) then "50" else sScaleFactorMin;
+
+         set txtScaleFactorIncrement = _CRtext _channel win 10 70 250 20 ET_ALIGN_LEFT "Scale factor increment (unit: %)";
+         set edtScaleFactorIncrement = _CReditLine _channel win 300 68 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sScaleFactorIncrement) then "10" else sScaleFactorIncrement;
+
+         set txtFramerate = _CRtext _channel win 10 100 250 20 ET_ALIGN_LEFT "Framerate";
+         set edtFramerate = _CReditLine _channel win 300 98 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sFramerate) then "30" else sFramerate;
+   );
+   _CBwinDestroy win @cbDestroyWin nil;
+   0;;
+
+/*******************************************************************************
+ cbSave()
+ l -> [Inst r1]                               : List of plugin's instances
+   <- [[S r1] [S r1] [[S r1] r1] [[S r1] r1]] : cf comments in code
+ Callback function called when you click on Apply in C3D3 Editor, or on OK in
+ C3D3 Editor (in this case, cbClose is called just after).
+*******************************************************************************/
+fun cbSave(l)=
+  [ 
+    nil                                /* registerF */
+    nil                                /* register */
+    ("plugin"::plugin::nil)::nil       /* supplementary Dat */ 
+    nil                                /* supplementary Dmi */
+  ];;
+
+
+/*******************************************************************************
+ IniPlug()
+ file -> S : '*.plug' file name
+      <- I : not used
+ Standard function. Plugin initialisation, the PlugRegister function has to be 
+ called at the end.
+ This function is called when you open the C3D3 Editor. 
+*******************************************************************************/
+fun IniPlug(file)=
+   set plugin = file;
+   set class = getInfo strextr _getpack _checkpack file "name";
+   set txtScaleFactorMax       = nil;
+   set edtScaleFactorMax       = nil;
+   set txtScaleFactorMin       = nil;
+   set edtScaleFactorMin       = nil;
+   set txtScaleFactorIncrement = nil;
+   set edtScaleFactorIncrement = nil;
+   set txtFramerate = nil;
+   set edtFramerate = nil;
+   PlugRegister class @cbSave @cbClose @cbOpenEdit @cbCloseEdit;
+   0;;
+ 
+ 
+ 

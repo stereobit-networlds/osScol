@@ -1,0 +1,27 @@
+material face {
+ color 808080
+ texture Dms/3d/plugins/SnapAv/cam.jpg
+ type LIGHT
+}
+material dos {
+ color 008000
+ type LIGHT
+}
+
+mesh snap {
+0 0 0   0 0 0
+
+-50 -50 0
+50 -50 0
+50 50 0
+-50 50 0
+0 0 -30
+
+face
+ 1 0 0 0 255 0 3 255 255 2 0 255
+dos
+ 0 1 4
+ 1 2 4
+ 2 3 4
+ 3 0 4
+}

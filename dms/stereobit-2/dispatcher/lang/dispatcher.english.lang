@@ -1,0 +1,37 @@
+vote Vote
+abs Abstention
+respyes Yes
+respno No
+voter Number of voters
+regis Number of registered
+abst Abstention
+quest Question
+resp Reponse
+admin_window Administration windows
+admin_question Question
+admin_answer1 1st answer
+admin_answer2 2nd answer
+admin_answer3 3rd answer
+admin_answer4 4th answer
+admin_answer5 5th answer
+admin_question_default 
+admin_answer1_default Yes
+admin_answer2_default No
+admin_answer3_default 
+admin_answer4_default
+admin_answer5_default
+admin_check Several possible answers :
+admin_text_default Vote results
+admin_btn_start Start
+admin_btn_stop Stop
+admin_btn_archive Archive
+admin_btn_quit Quit
+archive_window Archive visual display
+archive_preview <<
+archive_next >>
+archive_empty Delete all
+archive_quit Quit
+archive_vote Votes archives
+elector_window Vote window
+elector_btn_vote Vote
+elector_btn_abs Abstention

@@ -1,0 +1,113 @@
+/* Camera GPS Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof plugin=S;;
+typeof class=S;;
+typeof ed = PluginEditor;;
+typeof LBangularX = ObjText;;
+typeof AngularX = ObjText;;
+typeof LBangularY = ObjText;;
+typeof AngularY = ObjText;;
+typeof LBangularZ = ObjText;;
+typeof AngularZ = ObjText;;
+typeof LBframerate = ObjText;;
+typeof Framerate = ObjText;;
+
+fun InstName(UI)=UI.nameInst;;
+fun InstParam(UI)=UI.paramInst;;
+
+proto save=fun [ [Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]];;
+
+
+/*----------------*/
+/*fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   ("actionC"::(strcatn name::".more"::nil)::nil)::
+   ("actionC"::(strcatn name::".less"::nil)::nil)::
+   ("actionC"::(strcatn name::".moreless"::nil)::nil)::
+   (suppactions nl);;
+*/
+   
+fun testinst(l, c) =
+  if l==nil then 
+    0 
+  else 
+    let l->[a n] in
+  if !strcmp a.classInst c then
+    1
+  else 
+    testinst n c
+;;
+
+   
+/*----------------*/
+fun save(l)=
+ if l==nil then [nil nil nil nil]
+ else
+ [
+  nil /* registerF */
+  nil /* register */
+  ("plugin"::plugin::nil)::nil /* supplemental Dat */
+  suppactions l /* supplemental Dmi */
+ ];;
+ 
+fun openedit(win, param) =
+
+  let strextr param -> l in
+  let _GETwindowSizePosition win -> [w h x y] in
+  ( 
+    set ed = startPluginEditor _channel win 0 0 w h WN_CHILDINSIDE|WN_NOBORDER class;
+
+    set LBangularX = _CRtext _channel ed.PluginEditorEditWin 5 5 80 20 ET_ALIGN_LEFT "angular X : ";
+    set AngularX = _CReditLine _channel ed.PluginEditorEditWin 85 5 w-85 20 ET_ALIGN_LEFT|ET_DOWN 
+    let getInfo l "angularX" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+ 
+    set LBangularY = _CRtext _channel ed.PluginEditorEditWin 5 30 80 20 ET_ALIGN_LEFT "angular Y : ";
+    set AngularY = _CReditLine _channel ed.PluginEditorEditWin 85 30 w-85 20 ET_ALIGN_LEFT|ET_DOWN 
+    let getInfo l "angularY" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+        
+    set LBangularZ = _CRtext _channel ed.PluginEditorEditWin 5 55 80 20 ET_ALIGN_LEFT "angular Z : ";
+    set AngularZ = _CReditLine _channel ed.PluginEditorEditWin 85 55 w-85 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "angularZ" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+ 
+    set LBframerate = _CRtext _channel ed.PluginEditorEditWin 5 80 80 20 ET_ALIGN_LEFT "framerate : ";
+    set Framerate = _CReditLine _channel ed.PluginEditorEditWin 85 80 w-85 20 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER
+    let getInfo l "Framerate" -> string in
+      if (nil == string) then
+        "30"
+      else
+        string;
+    0
+  )
+;;
+ 
+ 
+fun closeedit() =
+
+ strbuild
+ ("angularX"::(_GETtext AngularX)::nil)::
+ ("angularY"::(_GETtext AngularY)::nil)::
+ ("angularZ"::(_GETtext AngularZ)::nil)::
+ ("Framerate"::(_GETtext Framerate)::nil)::nil
+;; 
+
+/*----------------*/
+fun IniPlug(file)=
+ set plugin=file;
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @save nil @openedit @closeedit;;

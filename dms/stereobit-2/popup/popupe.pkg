@@ -1,0 +1,204 @@
+/*
+-----------------------------------------------------------------------------
+
+
+Copyright (c) 2014 stereobit
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*
+  Version : 1.0
+  First version : 24/07/2014
+  Author : stereobit
+*/
+
+typeof port = ObjText;;    
+typeof speed = ObjText;;    
+typeof bytesize = ObjText;;    
+typeof parity = ObjText;;    
+typeof stopbits = ObjText;;    
+typeof lastchar = ObjText;;    
+typeof refresh = ObjText;;
+
+
+
+/*! \brief Callback on plugIT instance editor closed
+  *
+  *  <b>Prototype:</b> fun [] [[S S] r1]
+  *   
+  *  \return [[S S] r1] : parameters to save in the instance XML data
+  **/
+/*  
+fun cbCloseEdit(p)=
+  let p -> [ctrlport ctrlspeed ctrlbytesize ctrlparity ctrlstopbits ctrlendchar] in
+    ["port" (getSelectedEdCtrlSelect ctrlport)]::
+    ["speed" (getSelectedEdCtrlSelect ctrlspeed)]::
+    ["bytesize" (getSelectedEdCtrlSelect ctrlbytesize)]::
+    ["parity" itoa (getSelectedEdCtrlSelectPos ctrlparity)]::
+    ["stopbits" itoa (getSelectedEdCtrlSelectPos ctrlstopbits)]::
+    ["lastchar" itoa (getSelectedEdCtrlSelectPos ctrlendchar)]::
+    nil;;
+*/
+
+/*! \brief Callback on plugIT instance editor opened
+  *
+  *  <b>Prototype:</b> fun [EdWindow PInstance V3Dview] I
+  *
+  *  \param EdWindow : editor window structure
+  *  \param PInstance : plugIT instance
+  *  \param V3Dview : default 3D view structure
+  *  
+  *  \return @fun [] [[S S] r1] : Callback to call on close
+  **/
+/*  
+fun dynamicedit(winstr, inst, viewstr) =
+  let [400 200] -> [iw ih] in
+  (
+    setEdWindowSize winstr iw ih;
+    let (getPluginInstanceParam inst "port") -> sport in
+    let if sport == nil then "1" else sport -> sport in
+    let (getPluginInstanceParam inst "speed") -> speed in
+    let if speed == nil then "9600" else speed -> speed in
+    let (getPluginInstanceParam inst "bytesize") -> bytesize in
+    let if bytesize == nil then "8" else bytesize -> bytesize in
+    let atoi (getPluginInstanceParam inst "parity") -> parity in
+    let if parity == nil then 0 else parity -> parity in
+    let atoi (getPluginInstanceParam inst "stopbits") -> stopbits in
+    let if stopbits == nil then 0 else stopbits -> stopbits in // 0 equal to onestopbit
+    let atoi (getPluginInstanceParam inst "lastchar") -> lastchar in
+    let if lastchar == nil then 0 else lastchar -> lastchar in
+    
+    let crEdCtrlLabel winstr 10 12 160 20 "Com port" nil -> labeltitle in
+    let crEdCtrlSelect winstr 180 10 200 120 EDWIN_RESIZE_MW -> ctrlport in
+    let crEdCtrlLabel winstr 10 37 160 20 "Speed" nil -> labelspeed in
+    let crEdCtrlSelect winstr 180 35 200 120 EDWIN_RESIZE_MW -> ctrlspeed in
+    let crEdCtrlLabel winstr 10 62 160 20 "Byte size" nil -> labelbyte in
+    let crEdCtrlSelect winstr 180 60 200 120 EDWIN_RESIZE_MW -> ctrlbytesize in
+    let crEdCtrlLabel winstr 10 87 160 20 "Parity" nil -> labelparity in
+    let crEdCtrlSelect winstr 180 85 200 120 EDWIN_RESIZE_MW -> ctrlparity in
+    let crEdCtrlLabel winstr 10 112 160 20 "Stop bits" nil -> labelstopbits in
+    let crEdCtrlSelect winstr 180 110 200 120 EDWIN_RESIZE_MW -> ctrlstopbits in
+    let crEdCtrlLabel winstr 10 137 160 20 "End char" nil -> labelendchar in
+    let crEdCtrlSelect winstr 180 135 200 120 EDWIN_RESIZE_MW -> ctrlendchar in
+    (
+    	let 1 -> i in
+    	while i < 256 do
+    	(
+      	addEdCtrlSelect ctrlport itoa i;
+      	set i = i + 1;
+     	);
+      selectEdCtrlSelect ctrlport sport;
+      
+      fillEdCtrlSelect ctrlspeed "110"::"300"::"600"::"1200"::"2400"::"4800"::"9600"::"14400"::"19200"::"38400"::"56000"::"57600"::"115200"::"128000"::"256000"::nil;
+      selectEdCtrlSelect ctrlspeed speed;
+      
+      fillEdCtrlSelect ctrlbytesize "4"::"5"::"6"::"7"::"8"::nil;
+      selectEdCtrlSelect ctrlbytesize bytesize;
+      
+      fillEdCtrlSelect ctrlparity "NONE"::"ODD"::"EVEN"::"MARK"::"SPACE"::nil;
+      selectEdCtrlSelectByPos ctrlparity parity;
+
+      fillEdCtrlSelect ctrlstopbits "1"::"1.5"::"2"::nil;
+      selectEdCtrlSelectByPos ctrlstopbits stopbits;
+
+      fillEdCtrlSelect ctrlendchar "NONE"::"CR (/13)"::"CRLF (/13/10)"::nil;
+      selectEdCtrlSelectByPos ctrlendchar lastchar;
+      
+      [mkfun1 @cbCloseEdit [ctrlport ctrlspeed ctrlbytesize ctrlparity ctrlstopbits ctrlendchar] nil];
+    );
+  );;
+  
+*/
+  
+  
+  
+
+fun load(l)=
+  _SETtext port getInfo l "port";
+  _SETtext speed getInfo l "speed";
+  _SETtext bytesize getInfo l "bytesize";
+  _SETtext parity getInfo l "parity";
+  _SETtext stopbits getInfo l "stopbits";
+  _SETtext lastchar getInfo l "lastchar";  
+  _SETtext refresh getInfo l "refresh";  
+  0
+;;  
+  
+fun save (filename, n)= 
+  ("action"::"start"::nil)::
+  ("action"::"destroy"::nil)::
+  ("actionC"::"Send"::nil)::
+  ("actionC"::"Read"::nil)::
+  ("actionC"::"Set com port"::nil)::  
+  ("eventC"::"in"::nil)::  
+  ("eventC"::"ready"::nil)::  
+  ("eventC"::"hear"::nil)::     
+  ("port"::(_GETtext port)::nil)::
+  ("speed"::(_GETtext speed)::nil)::
+  ("bytesize"::(_GETtext bytesize)::nil)::
+  ("parity"::(_GETtext parity)::nil)::
+  ("stopbits"::(_GETtext stopbits)::nil)::
+  ("lastchar"::(_GETtext lastchar)::nil)::
+  ("refresh"::(_GETtext refresh)::nil)::nil
+;;  
+  
+fun IniEditor (s)=
+  let startEditor
+    _channel nil nil nil 315 275 WN_NORMAL EDITOR_NORMAL
+    s "worlds/stereobit/serialio/serialio.dmc" nil nil
+    @load @save nil
+  -> ed in
+  
+  let getEditWin ed -> editWin in
+  (
+    _CRtext _channel editWin 5    30   190    20  ET_ALIGN_LEFT "Port";  
+    set port = _CReditLine _channel editWin  200 30 100 20 ET_DOWN+ET_AHSCROLL "1";      
+
+    _CRtext _channel editWin 5    50   190    20  ET_ALIGN_LEFT "Speed";  
+    set speed = _CReditLine _channel editWin  200 50 100 20 ET_DOWN+ET_AHSCROLL "14400";      
+    
+    _CRtext _channel editWin 5    70   190    20  ET_ALIGN_LEFT "Byte size";  
+    set bytesize = _CReditLine _channel editWin  200 70 100 20 ET_DOWN+ET_AHSCROLL "8";      
+
+    _CRtext _channel editWin 5    90   190    20  ET_ALIGN_LEFT "Parity (NONE-ODD-EVEN-..)";  
+    set parity = _CReditLine _channel editWin  200 90 100 20 ET_DOWN+ET_AHSCROLL "NONE";      
+	
+    _CRtext _channel editWin 5    110   190    20  ET_ALIGN_LEFT "Stop bits";  
+    set stopbits = _CReditLine _channel editWin  200 110 100 20 ET_DOWN+ET_AHSCROLL "1";      
+
+    _CRtext _channel editWin 5    130   190    20  ET_ALIGN_LEFT "Last char (1=13,2=13-10)";  
+    set lastchar = _CReditLine _channel editWin  200 130 100 20 ET_DOWN+ET_AHSCROLL "NONE";      
+	
+    _CRtext _channel editWin 5    150   190    20  ET_ALIGN_LEFT "Refresh (ms)";  
+    set refresh = _CReditLine _channel editWin  200 150 100 20 ET_DOWN+ET_AHSCROLL "10000";      
+    /*
+    _CRtext _channel editWin 5    170   190    20  ET_ALIGN_LEFT "Cell 6";  
+    set cellF = _CReditLine _channel editWin  200 170 100 20 ET_DOWN+ET_AHSCROLL "0";      
+		
+    _CRtext _channel editWin 5    190   190    20  ET_ALIGN_LEFT "Default Cell number";  
+    set defaultCell = _CReditLine _channel editWin  200 190 100 20 ET_DOWN+ET_AHSCROLL "3";      
+	*/	
+		
+    if s==nil then 
+  	  nil 
+    else 
+  	  openDMI ed
+  );
+	0
+;;  
+  

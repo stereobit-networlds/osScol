@@ -1,0 +1,267 @@
+
+typeof ELfichier2= ObjText;;
+typeof ELalias2   = ObjText;;
+typeof ELurl2    = ObjText;;
+typeof Win2      = ObjWin;;
+typeof ELX2       = ObjText;;
+typeof ELY2       = ObjText;;
+typeof Size  = I;;
+
+typeof TRANS      = ObjCheck;;
+
+typeof IDCbclickLogo = I;;
+typeof nrand    = I;; /* ??? ajouté par moi */
+
+typeof editWin = ObjWin;;
+
+/*********************************************************************
+  find extension file
+    fi -> S         : name of the file
+       <- S         : extension
+**********************************************************************/
+fun Extension(fi) =
+	let 0->j in
+	let 0->find in
+	(
+	  while ((set find=strfind "." fi j)!=nil) do 
+		 set j=find+1;
+	substr fi j (strlen fi)-j
+	)
+;;
+
+/*********************************************************************
+  check if the bitmap is good
+    file -> S         : name of the bitmap
+         <- I         : 1 good, 0 bad
+**********************************************************************/
+fun CheckBMP(file) =
+  let _checkpack file -> fP in
+  let Extension file -> ext in
+    if fP == nil then
+      0
+    else
+	    if !strcmpi ext "png" then
+		    let _LDalphaBitmap _channel fP -> alphabmp in
+		    let if alphabmp == nil then 0 else 1 -> res in
+		    let _GETalphaBitmapSize alphabmp -> [w h] in
+		    (
+		      set Size = w*h;
+		      _DSalphaBitmap alphabmp;
+		      res		      
+		    )		    	    
+	    else if !strcmpi ext "jpg" then 	      
+		    let _LDjpeg _channel fP -> bmp in		    
+		    let if bmp == nil then 0 else 1 -> res in  
+		    let _GETbitmapSize bmp -> [w h] in
+		    (
+		      set Size = w*h;
+		      _DSbitmap bmp;
+		      res
+		    )	      
+	    else if !strcmpi ext "bmp" then 	        
+		    let _LDbitmap _channel fP -> bmp in
+		    let if bmp == nil then 0 else 1 -> res in  
+		    let _GETbitmapSize bmp -> [w h] in
+		    (
+		      set Size = w*h;
+		      _DSbitmap bmp;
+		      res
+		    )		        
+      else if !strcmpi ext "tga" then 	        
+        let _LDtga _channel fP -> bmp in		        
+        let if bmp == nil then 0 else 1 -> res in  
+		    let _GETbitmapSize bmp -> [w h] in
+		    (
+		      set Size = w*h;
+		      _DSbitmap bmp;
+		      res
+		    )
+		  else
+		    0
+;;
+
+fun cbVerify(ack, win) =
+  if ack == 1 then
+    nil
+  else
+    _DLGMessageBox _channel win (_loc this "LOGO_WARNING" nil) (_loc this "LOGO_ERR5" nil) 0;
+    
+  _ENwindow win 1;
+  0
+;;
+
+/*********************************************************************
+  callback of the open file windows
+    a -> OpenBox        : Open fil window
+    win -> ObjWin       : dyneditor window
+    fp -> P             : file
+*********************************************************************/
+fun openBMP(a, win, fP) =
+ if fP == nil then
+  nil
+ else
+  let _PtoScol fP->stringF in
+  if (fP != nil && stringF!=nil && ((_FILESize _FILEOpen _channel fP) < 64000)) then    
+    let if CheckBMP stringF then stringF else (_DLGMessageBox _channel editWin _loc this "LOGO_WARNING" nil _loc this "LOGO_ERR2" nil 0;"logo.bmp") -> stringF in
+    if Size < 90000 then
+    (
+	    _SETtext ELfichier2 stringF;
+	    /* upload of the file to serveur */
+  	  _ENwindow win 0;
+  	  _DMSupload this (strcatn "tmp/logo/"::(substr _getlongname strcat (itoa nrand) (substr stringF 0 (strfind "." stringF 1)) "" "#" 1 8)::"."::(Extension stringF)::nil) (_getpack fP) mkfun2 @cbVerify win; /* ??? modifié */
+	    0
+    )
+    else
+    (
+      _DLGMessageBox _channel nil (_loc this "LOGO_WARNING" nil) (_loc this "LOGO_ERR4" nil) 0;
+      0
+    )
+  else if (fP != nil && stringF==nil) then 
+  (
+	  _DLGMessageBox _channel Win2 "" _loc this "LOGO_ERR1" nil 0;
+	  0
+	) 
+	else if ((_FILESize _FILEOpen _channel fP) >= 64000) then 
+  (
+	  _DLGMessageBox _channel Win2 "" _loc this "LOGO_ERR3" nil 0;
+	  0
+	) 
+	else   
+	  nil;
+  0
+;;
+
+/**********************************************************************
+  callback of the selection button
+    button -> Button        : selection button
+    win -> ObjWin           : dyneditor windows
+***********************************************************************/
+fun cbbutton (button, win) =
+  let _DLGOpenFile _channel win "" nil "bitmap (*.bmp,*.jpg,*.png,*.tga)\0*.BMP;*.TGA;*.PNG;*.JPG;*.JPEG\0\0" -> open in 
+	  _DLGrflopen open @openBMP win;
+	0                                       
+;;
+
+
+fun cbClic3D(x, y, btn, z) =
+  let getView3dSize w3d -> [w h] in
+  let z -> [ELX2 ELY2] in
+      (
+        _SETtext ELX2 itoa ((x*100)/w) ;
+        _SETtext ELY2 itoa ((y*100)/h)
+      );
+      
+      0
+;;
+
+fun verifyPosition (text) = 
+  let atoi (_GETtext text) -> number in
+    itoa  if number > 100 then
+            100
+          else if number < 0 then
+            0
+          else
+            number
+;;
+
+fun closeedit() =
+
+   V3D_RemoveCBmouseClick IDCbclickLogo;
+
+   let _GETtext ELfichier2 -> tmp in
+   let if nrand == 0 then rand else nrand -> nrand in /* ??? ajouter par moi */   
+      (
+        if strcmp tmp "" then
+          nil
+        else
+          set tmp = "logo.bmp";
+       strbuild ("fichier"::tmp::nil)::
+                ("nrand"   ::(itoa nrand)::nil):: /* ??? ajouter par moi */
+                ("x"      ::(verifyPosition ELX2)::nil)::
+                ("y"      ::(verifyPosition ELY2)::nil)::
+                ("url"    ::(_GETtext ELurl2)::nil)::
+                ("alias"  ::(_GETtext ELalias2)::nil)::
+                ("trans"  ::(if _GETcheck TRANS then "1" else "0")::nil)::nil
+     )
+;;
+
+fun EnableChk (check, ParamU, state) =
+
+  _SETcheck TRANS state
+;; 
+
+fun dynamicedit(win, obj, mat, param) =
+  
+  set editWin = win ;
+   
+  let strextr param -> l in
+  let _GETwindowSizePosition win -> [w h x y] in
+  (          
+
+      _CRtext _channel win 5 7 80 20 ET_ALIGN_LEFT _loc this "LOGO_IMAGE" nil;
+      set ELfichier2 = _CReditText _channel win 85 5 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                      let getInfo l "fichier" -> string in
+                      if (nil == string) then
+                        ""
+                      else
+                        string;
+                  
+                  
+      _CRtext _channel win 5 32 80 20 ET_ALIGN_LEFT _loc this "LOGO_ALIAS" nil;
+      set ELalias2 = _CReditLine _channel win 85 30 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                let getInfo l "alias" -> string in
+                if (nil == string) then
+                  ""
+                else
+                  string;            
+                  
+    
+      _CRtext _channel win 5 57 80 20 ET_ALIGN_LEFT _loc this "LOGO_URL" nil;
+      set ELurl2 = _CReditLine _channel win 85 55 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                  let getInfo l "url" -> string in
+                  if (nil == string) then
+                    ""
+                  else
+                    string;
+                    
+      _CRtext _channel win 5 82 80 20 ET_ALIGN_LEFT _loc this "LOGO_POS" nil;
+      _CRtext _channel win 116 82 150 20 ET_ALIGN_LEFT _loc this "LOGO_SCREEN_W" nil;
+      set ELX2 = _CReditLine _channel win 85 80 30 20 ET_ALIGN_LEFT|ET_DOWN
+                  let getInfo l "x" -> string in
+                  if (nil == string) then
+                    "0"
+                  else
+                    string;
+                           
+      _CRtext _channel win 116 107 150 20 ET_ALIGN_LEFT _loc this "LOGO_SCREEN_H" nil;
+      set ELY2 = _CReditLine _channel win 85 105 30 20 ET_ALIGN_LEFT|ET_DOWN
+                  let getInfo l "y" -> string in
+                  if (nil == string) then
+                    "0"
+                  else
+                    string;
+
+    set TRANS  = _CRcheck _channel win 300 107 100 16 CH_LEFT _loc this "LOGO_TRANS" nil ;
+      
+      let getInfo l "trans" -> string in
+        if !strcmp string "1" then
+          _SETcheck TRANS 1
+        else
+          _SETcheck TRANS 0;
+      
+      _CBcheck TRANS @EnableChk nil;
+    
+      set IDCbclickLogo = V3D_AddCBmouseClick mkfun4 @cbClic3D [ELX2 ELY2]; /* Callback for mouse Click on 3D screen */
+    
+       
+    _CRtext _channel win 5 140 800 /*40*/ 140 ET_ALIGN_LEFT _loc this "LOGO_EXPLICATION" nil ;
+  
+    /* invertion des deux */
+    _CBbutton (_CRbutton _channel win 250 5 120 20 0 _loc this "LOGO_SELECTION" nil) @cbbutton win;
+    
+    set nrand = (atoi getInfo l "nrand"); /* ??? ajouté par moi */
+    
+  );
+
+  @closeedit
+;;

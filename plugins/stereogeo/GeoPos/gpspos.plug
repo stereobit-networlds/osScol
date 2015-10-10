@@ -1,0 +1,12 @@
+# stereobit 2014
+# rev : 25/06/2014
+
+name GpsPos
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/stereogeo/sgpspos.pkg
+serverScript _load\ "Dms/3d/Plugins/stereogeo/sgpspos.pkg"
+clientLoad Dms/3d/Plugins/stereogeo/cgpspos.pkg
+clientScript _load\ "Dms/3d/Plugins/stereogeo/cgpspos.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/stereogeo/egpspos.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/stereogeo/egpspos.pkg"
+version 1 0

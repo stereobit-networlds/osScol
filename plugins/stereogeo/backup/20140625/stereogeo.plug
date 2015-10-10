@@ -1,0 +1,12 @@
+# stereobit 2014
+# rev : 21/06/2014
+
+name StereoGeo
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/stereogeo/sstereogeo.pkg
+serverScript _load\ "Dms/3d/Plugins/stereogeo/sstereogeo.pkg"
+clientLoad Dms/3d/Plugins/stereogeo/cstereogeo.pkg
+clientScript _load\ "Dms/3d/Plugins/stereogeo/cstereogeo.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/stereogeo/estereogeo.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/stereogeo/estereogeo.pkg"
+version 1 0

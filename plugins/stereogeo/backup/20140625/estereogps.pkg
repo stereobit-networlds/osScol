@@ -1,0 +1,40 @@
+/* Camera GPS Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof plugin=S;;
+typeof class=S;;
+typeof ed = PluginEditor;;
+
+fun InstName(UI)=UI.nameInst;;
+fun InstParam(UI)=UI.paramInst;;
+
+proto save=fun [ [Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]];;
+
+
+/*----------------*/
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   ("actionC"::(strcatn name::".more"::nil)::nil)::
+   ("actionC"::(strcatn name::".less"::nil)::nil)::
+   ("actionC"::(strcatn name::".moreless"::nil)::nil)::
+   (suppactions nl);;
+
+/*----------------*/
+fun save(l)=
+ if l==nil then [nil nil nil nil]
+ else
+ [
+  nil /* registerF */
+  nil /* register */
+  ("plugin"::plugin::nil)::nil /* supplemental Dat */
+  suppactions l /* supplemental Dmi */
+ ];;
+
+/*----------------*/
+fun IniPlug(file)=
+ set plugin=file;
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @save nil nil nil;;

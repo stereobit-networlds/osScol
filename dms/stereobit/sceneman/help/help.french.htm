@@ -1,0 +1,156 @@
+<html>
+<head>
+<title>Chatroom</title>
+<link href="help.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="frametop"> <img width=21 height=21 src="french/image001.jpg"> <sup> 
+  Chatroom 3.0</sup> </div>
+  <br>
+<table class="table1">
+  <tr> 
+    <td width="37%">Catégorie / Domaine :</td>
+    <td width="62%" class="td1">Commtools</td>
+  </tr>
+  <tr> 
+    <td width="37%">Compatibilité SCOL Voy@ger :</td>
+    <td width="62%" class="td1">V 3.2 et supérieure</td>
+  </tr>
+  <tr> 
+    <td width="37%">Mise à jour :</td>
+    <td width="62%" class="td1">03/2000</td>
+  </tr>
+</table>
+<br>
+<div class="title1">Fonction</div>
+<p>Le module CHATROOM est un module r&eacute;serv&eacute; aux dialogues entre 
+  utilisateurs et ne poss&egrave;de pas de graphisme. Il fonctionne sur le m&ecirc;me 
+  principe que le module C3D3.</p>
+<p> </p>
+<p>Attention : pour fonctionner, ce module doit obligatoirement &ecirc;tre coupl&eacute; 
+  &agrave; un module Term ou <a href="../../../interf/colorterm/help/help.french.htm">ColorTerm</a>. 
+  Le module ColorTerm d&eacute;j&agrave; associ&eacute; &agrave; ou aux module(s) 
+  C3D3 peut &ecirc;tre utilis&eacute;, mais il perd de son int&eacute;r&ecirc;t 
+  car, ChatRoom est plut&ocirc;t destin&eacute; &agrave; lancer une discussion 
+  annexe &agrave; celle qui a lieu dans une cellule C3D3 ; l&#146;utilisation 
+  d&#146;un m&ecirc;me module ColorTerm emp&ecirc;che ces deux discussions simultan&eacute;es, 
+  il est donc pr&eacute;f&eacute;rable d&#146;utiliser un autre module ColorTerm 
+  pour ChatRoom.</p>
+<div class="title1">Configuration</div>
+<p><img width=436 height=443 src="french/image.jpg"><br>
+  Figure 1&nbsp;: Interface du module Chatroom</p>
+<p>(1) : Add =&gt; Permet d&#146;ajouter un mot-cl&eacute; qui servira de commande</p>
+<p>(2) : Remove =&gt; Efface le mot-cl&eacute; s&eacute;lectionn&eacute;.</p>
+<p> </p>
+<p>(3) : Edit Intro =&gt; Permet de taper un texte d&#146;introduction que l&#146;utilisateur 
+  verra s&#146;afficher &agrave; son entr&eacute;e dans le module CHATROOM.</p>
+<div class="title1">Mise en oeuvre</div>
+<p><ul><li>Ouvrez l'arbre de cr&eacute;ation du SCS. S&eacute;lectionnez le dossier CommTools 
+  puis double-cliquez sur ChatRoom 3.0.<br>
+ <li> Etablissez les liens n&eacute;cessaires au projet.</ul><br>
+</p>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Action</td>
+    <td width="64%">Fonction</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> chatroom. 
+      !changeLogin</td>
+    <td>Prend en compte le changement de pseudonyme (&agrave; relier avec un module 
+      Login ou oginPx).</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> chatroom.!speak</td>
+    <td>Force l'affichage d'une commande</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> chatroom.broadMsg</td>
+    <td>Affiche un message &agrave; tous les utilisateurs.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> chatroom.destroy</td>
+    <td>Arr&ecirc;te le module chez le client</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> chatroom.privateMsg</td>
+    <td>Affiche un message &agrave; un utilisateur particulier.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> chatroom.start</td>
+    <td>D&eacute;marre le module chez un client.</td>
+  </tr>
+</table>
+<p>Les deux actions <i>chatroom.destroy</i> et <i>colorTerm.destroy</i> sont n&eacute;cessaires 
+  pour que l&#146;utilisateur puisse revenir plus tard dans le module CHATROOM, 
+  l&#146;entr&eacute;e dans ce module &eacute;tant d&eacute;termin&eacute;e par 
+  l&#146;action ChatRoom.start (qui n&#146;aura aucun effet si l&#146;utilisateur 
+  n&#146;a pas effectivement quitt&eacute; le module, m&ecirc;me s&#146;il n&#146;est 
+  plus apparent). A la suite de cet &eacute;v&eacute;nement, l&#146;action ColorTerm.start 
+  est elle-m&ecirc;me d&eacute;clench&eacute;e.</p>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Evénement</td>
+    <td width="64%">Fonction</td>
+  </tr>
+  <tr valign="top"> 
+    <td>chatroom.destroyed <span style='font-family:Wingdings;'>&agrave;</span> 
+      module Action</td>
+    <td>Ev&eacute;nement g&eacute;n&eacute;r&eacute; &agrave; l'arr&ecirc;t du 
+      module chez un client</td>
+  </tr>
+  <tr valign="top"> 
+    <td>chatroom.entering <span style='font-family:Wingdings;'>&agrave;</span> 
+      colorTerm.start</td>
+    <td>D&eacute;marre le module ColorTerm &agrave; l&#146;entr&eacute;e du module 
+      ChatRoom</td>
+  </tr>
+  <tr valign="top"> 
+    <td>chatroom.entering <span style='font-family:Wingdings;'>&agrave;</span> 
+      module Action</td>
+    <td>Ev&eacute;nement g&eacute;n&eacute;r&eacute; au chargement du module chez 
+      un client.</td>
+  </tr>
+  <tr valign="top"> 
+    <td> chatroom.getDialog <span style='font-family:Wingdings;'>&agrave;</span> 
+      colorterm.getDialog</td>
+    <td>Permet &agrave; l&#146;utilisateur d&#146;avoir la main dans le module 
+      COLORTERM</td>
+  </tr>
+  <tr valign="top"> 
+    <td>chatroom.hear <span style='font-family:Wingdings;'>&agrave;</span> colorterm.privateMsg</td>
+    <td>Le module COLORTERM restitue aux autres utilisateurs ce qui est &eacute;crit 
+      par l&#146;un d&#146;entre eux,<br> avec son nom entre &lt; et &gt;.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>chatroom.log <span style='font-family:Wingdings;'>&agrave;</span> log.log</td>
+    <td>Enregistre les conversations du module CHATROOM dans le log.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>chatroom.spy <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>Lien permettant l&#146;intervention d&#146;un module BOT, par exemple</td>
+  </tr>
+  <tr valign="top"> 
+    <td>chatroom.mot_clef <span style='font-family:Wingdings;'>&agrave;</span> 
+      module Action</td>
+    <td>Ev&eacute;nement engendr&eacute;e par un mot-clef</td>
+  </tr>
+</table>
+<br>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td>Zone</td>
+    <td>Fonction</td>
+    <td>Interface</td>
+    <td>Affectation</td>
+  </tr>
+  <tr valign="top"> 
+    <td>Aucune</td>
+    <td>&nbsp; </td>
+    <td>&nbsp;</td>
+    <td>&nbsp;</td>
+  </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,379 @@
+/**************************************************
+ Module Dispatcher
+ Server
+ Version: 1.0
+ Author: Laurent Hachet
+ Last update: 22/06/2001 
+ 
+ This module allow to dispatch the visitor to the different c3d3 cells
+
+**************************************************/
+
+defcom CgetPos=getPos S;;
+
+typeof tiiCellStatus = [[I I] r1];;     /* [connectedNumber cellNumber] */
+
+typeof iCellNumber = I;;     /* the number of c3d3 cells */
+typeof iConnected = I;;      /* the maximum of connected for one c3d3 cell */
+
+typeof iCellA = S;;
+typeof iCellB = S;;
+typeof iCellC = S;;
+typeof iCellD = S;;
+typeof iCellE = S;;
+typeof iCellF = S;;
+typeof defaultCell = I;;    /*default cell entry when no client position */
+
+typeof paramList = [S r1];;
+
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (iniPath)::fname::nil -> file in
+ 
+	let _appendpack s _getmodifypack file ->append in
+	if (append==-1) then
+		_createpack s _getmodifypack file
+	else nil
+ )
+ else nil;;
+
+fun _echo(x,s)= 
+/*_DMSevent this "hear" strcat strcat ">> " x "\n" nil;*/
+saveLog "_echo.txt" strcat x "\n";;
+	
+
+//read data from line 
+fun GetData(line, n) =
+  let 1 -> i in
+  let 0 -> ind1 in
+  let 0 -> ind2 in
+  (
+    while (i < n) do
+    (
+      set ind1 = 1 + strfind "," line ind1;
+      set i = i + 1;
+    );
+    set ind1 = 1 + strfind "," line ind1;
+    set ind2 = strfind "," line ind1;
+    substr line ind1 (ind2 - ind1);
+  );;
+	
+/*NMEA GPGGA lon lat to decimal */
+/*NMEA lat  0302.78469 = 03 + (02.78469/60) = 3.046412  decimal*/	
+/*NMEA lon 10141.82531 = 101 + 41.82531/60) = 101.6971  decimal*/
+fun NMEA2dec(n, islat) = 
+  //_echo "NMEA2dec:"::n::nil
+  if (islat) then
+  (
+    let atof substr n 0 2 -> p1 in
+    let atof substr n 2 9 -> q1 in
+	
+	p1 +. (q1 /. 60.0)
+  )	
+  else
+  (
+    let atof substr n 0 3 -> p1 in
+    let atof substr n 3 9 -> q1 in
+	
+	p1 +. (q1 /. 60.0)
+  );;
+  
+//for triangle check  
+fun sign (x1,y1,x2,y2,x3,y3) = 
+(((x1 -. x3) *. (y2 -. y3)) -. ((x2 -. x3) *. (y1 -. y3)));;
+
+fun pointInTriangle (x,y,x1,y1,x2,y2,x3,y3) = 
+  let sign x y x1 y1 x2 y2 -> a1 in
+  let sign x y x2 y2 x3 y3 -> a2 in
+  let sign x y x3 y3 x1 y1 -> a3 in
+  
+  if ((a1 == a2) && (a2 == a3)) then 1 else 0;;
+ 
+fun chkPos(line, position, cellID) = 
+  //let strextr position -> p in
+  
+  //let hd tl p -> [lat lon] in
+  /*test data */
+  //let "0302.78469" -> latitude in
+  //let "10140.82531" -> longitude in
+  
+  let substr position 0 9 -> latitude in
+  let substr position 10 9 -> longitude in  
+  
+  let strlen line -> lline in
+  let strlen latitude -> llat in
+  let strlen longitude -> llon in
+  
+  _echo strcatn "CHKPOS:["::latitude::","::longitude::"]->"::(itoa lline)::"->"::line::nil
+  if (lline==nil) || (llat==nil) || (llon==nil) then
+    nil
+  else
+  (
+    _echo strcatn "LATLON:["::latitude::"-"::longitude::"]"::nil
+    let atof latitude -> x in
+    let atof longitude -> y in 
+
+    /*let NMEA2dec (GetData line 1) 1 -> x1 in
+    let NMEA2dec (GetData line 2) 0 -> y1 in
+    let NMEA2dec (GetData line 3) 1 -> x2 in
+    let NMEA2dec (GetData line 4) 0 -> y2 in
+    let NMEA2dec (GetData line 5) 1 -> x3 in
+    let NMEA2dec (GetData line 6) 0 -> y3 in
+    let NMEA2dec (GetData line 7) 1 -> x4 in
+    let NMEA2dec (GetData line 8) 0 -> y4 in 
+	now degrees... */
+	let GetData line 1 -> x1 in
+    let GetData line 2 -> y1 in
+    let GetData line 3 -> x2 in
+    let GetData line 4 -> y2 in
+    let GetData line 5 -> x3 in
+    let GetData line 6 -> y3 in
+    let GetData line 7 -> x4 in
+    let GetData line 8 -> y4 in 
+	
+    _echo strcatn "CHECKxy:"::(ftoa x)::","::(ftoa y)::nil   
+    _echo strcatn "A:"::(x1)::","::(y1)::nil 
+    _echo strcatn "B:"::(x2)::","::(y2)::nil
+    _echo strcatn "C:"::(x3)::","::(y3)::nil
+    _echo strcatn "D:"::(x4)::","::(y4)::nil	
+	
+    //method divide in two triangles and check the point if is inside one of two triangles  
+    if ((pointInTriangle x y (atof x1) (atof y1) (atof x2) (atof y2) (atof x3) (atof y3)) ||
+        (pointInTriangle x y (atof x1) (atof y1) (atof x4) (atof y4) (atof x3) (atof y3))) then
+	  cellID 
+	else 
+	  nil
+  );;		
+/*		   
+
+	
+    _echo strcatn "CHECKxy:"::(x)::","::(y)::nil   
+    _echo strcatn "A:"::(x1)::","::(y1)::nil 
+    _echo strcatn "B:"::(x2)::","::(y2)::nil
+    _echo strcatn "C:"::(x3)::","::(y3)::nil
+    _echo strcatn "D:"::(x4)::","::(y4)::nil   
+
+    if (((atof x1) && (atof y1)) && 
+	    ((atof x2) && (atof y2)) && 
+		((atof x3) && (atof y3)) && 
+		((atof x4) && (atof y4))) then
+    (
+      //http://math.stackexchange.com/questions/190111/how-to-check-if-a-point-is-inside-a-rectangle
+  
+      //begin calc point inside in rectangle 2d xy
+      //calc edge lengths
+      //let (sqrt (sqr (x1 -. x2))) +. (sqrt (sqr (y1 -. y2))) -> a1 in 
+      //...	
+      //method divide in two triangles and check the point if is inside one of two triangles  
+      let pointInTriangle (atof x) (atof y) (atof x1) (atof y1) (atof x2) (atof y2) (atof x3) (atof y3) -> a1 in
+      let pointInTriangle (atof x) (atof y) (atof x1) (atof y1) (atof x4) (atof y4) (atof x3) (atof y3) -> a2 in
+
+      _echo strcatn "0:"::(ftoa x)::","::(ftoa y)::nil   
+      _echo strcatn "A:"::(ftoa x1)::","::(ftoa y1)::nil 
+      _echo strcatn "B:"::(ftoa x2)::","::(ftoa y2)::nil
+      _echo strcatn "C:"::(ftoa x3)::","::(ftoa y3)::nil
+      _echo strcatn "D:"::(ftoa x4)::","::(ftoa y4)::nil   
+      //_echo strcatn "------------RESULT:"::(itoa a1)::(itoa a2)::nil
+  
+      if (a1 || a2) then cellID else nil;
+    )
+    else nil;
+  );;*/	
+  
+fun checkCellPos(cellID, position) =
+  _echo strcatn "CELL RES:"::(itoa cellID)::"->"::position::nil
+  
+  if (position==nil) then 
+    1 /* nil */ /*!!! client position goto cell 1=start up cell */
+  else 
+    chkPos nth_list paramList (cellID-1) position cellID
+;;
+/* (
+     let chkPos nth_list paramList (cellID-1) position cellID ->pCell in
+	 if (pCell != nil) then
+	   pCell
+	 else 
+       1; 
+  );;*/	 
+
+ 
+fun logout(cli)=
+  _DMSevent this cli "destroyed" nil nil
+;;
+
+/* change the connected number in a specific cell */
+fun changeValue(l, id, newValue) =
+  if l == nil then 
+    nil
+  else
+  (
+    let hd l -> [idCell total] in
+      if idCell == id then
+        mutate hd l <- [_ (total+newValue)]
+      else
+        changeValue tl l id newValue
+  )
+;;
+
+/* dispatch the new connected in the cell */
+fun dispatchConnected(l, cli, position, isposCheck) =
+  if l == nil then
+  (
+     if (isposCheck) then
+	 (
+	   if (defaultCell) then	 
+	   (
+         /*standart cell to go =1 */	
+         //mutate hd l <- [_ (total+1)]; //<<<NUM ADD	 
+         _DMSevent this cli (strcat "in " itoa defaultCell) nil nil;
+		 
+         _DMSevent this cli "siteDefault" nil nil;
+         //_DLGMessageBox _channel nil "INFO" "Position not found. Default entry." 0;
+         1		 
+	   )  
+	   else	  
+         0	 
+	 )
+	 else 
+	 (
+       _DMSevent this cli "siteFull" nil nil;
+       _DLGMessageBox _channel nil "WARNING" "Site Full" 0;
+	   0
+	 )
+  )
+  else
+  (
+    let hd l -> [idCell total] in
+    (
+      /*_fooS strcat "dispatchConnected 1 (sdispatcher) " itoa total;*/
+	  
+      if total < iConnected then
+      (
+		if ((checkCellPos idCell position) != nil) then
+		(  
+		  _echo strcat "Check C3d:" itoa idCell
+		  /*_fooS strcat "dispatchConnected 2 (sdispatcher) OK" itoa idCell;*/
+		
+          mutate hd l <- [_ (total+1)];
+          _DMSevent this cli (strcat "in " itoa idCell) nil nil;
+		
+          1
+		)
+		else
+		  dispatchConnected tl l cli position 1 
+      )
+      else
+        dispatchConnected tl l cli position nil
+    )
+  )
+;;
+
+
+/* create the cell status list */
+fun createCellStatus(n) =
+  if n == (iCellNumber+1) then
+    nil
+  else
+    ([n 0])::createCellStatus (n+1)
+;;
+
+/* order the cell status list */
+fun orderList() =
+  let hd tiiCellStatus -> [idCell total] in
+  (
+    if total < iConnected then
+      0
+    else
+    (
+      set tiiCellStatus = listcat (tl tiiCellStatus) (hd tiiCellStatus)::nil;
+      orderList
+    )
+  )
+;;
+
+/* indicate if the list is full */
+fun isFull(l) =
+  if l == nil then
+    1
+  else
+    let hd l -> [idCell total] in
+    (
+      if total < iConnected then
+        0
+      else
+        isFull tl l
+    )
+;;
+
+fun activate (from,cli,action,param,rep) = 	
+  if !strcmp action "start" then
+  (
+    /* if it is the first time, create the activate list */
+    if tiiCellStatus == nil then
+      set tiiCellStatus = createCellStatus 1
+    else
+      nil;
+      
+	/*call client to provide user current pos and dispatch */  
+	_DMScreateClientDMI this cli nil;  
+	_DMSsend this cli CgetPos ["setPos"];
+	    
+  )
+  else if !strcmp action "destroy" then
+  (
+    _DMSdelClientDMI this cli;
+    logout cli;
+    0
+  )
+  else if !strcmp (substr action 0 3) "out" then
+  (
+    /* decrease the connected total in the good cell */
+    let atoi substr action 4 ((strlen action)-4 ) -> idCell in
+      changeValue tiiCellStatus idCell (-1);
+    0
+  )
+  else 
+    nil
+;;
+
+/*receive getPos defcom answer of client position */
+fun __setPos(position) =
+  //_echo strcat "POSITION ANSWER:" position
+  //_DLGMessageBox _channel nil "WARNING" s 0;
+ 
+  /*add the new connected to a cell */ 
+  dispatchConnected tiiCellStatus DMSsender position nil;
+    
+  if !isFull tiiCellStatus then
+    orderList
+  else
+    0   
+;;
+
+fun IniDMI(dmiFile)=
+						 
+  /*_showconsole;*/
+  
+  let strextr _getpack _checkpack dmiFile -> fileEdit in
+  (
+    
+	set iCellNumber = atoi getInfo fileEdit "cellNumber";
+    set iConnected  = atoi getInfo fileEdit "connected";
+	
+	
+    set iCellA = getInfo fileEdit "cellA";
+    set iCellB = getInfo fileEdit "cellB";
+    set iCellC = getInfo fileEdit "cellC";
+    set iCellD = getInfo fileEdit "cellD";
+    set iCellE = getInfo fileEdit "cellE";
+    set iCellF = getInfo fileEdit "cellF";
+    set paramList = iCellA::iCellB::iCellC::iCellD::iCellE::iCellF::nil;	
+	set defaultCell  = atoi getInfo fileEdit "defaultCell"
+  );
+  
+  _DMSregisterDMI this @activate nil @logout nil
+;;

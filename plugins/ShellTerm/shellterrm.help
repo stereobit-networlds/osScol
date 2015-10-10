@@ -1,0 +1,31 @@
+Bubble Plugin - Help - 99 by Gaetan Quentin
+ImageBubble by Dugh
+------------------------
+
+Parametres :
+
+BeforeTime : nombre de miliemes de secondes avant que le bubble s'affiche. (defaut: 1000)
+Time       : nombre de miliemes de secondes pour lesquelles le bubble affiché; c'est le temps que sera affiché l'aide.
+             (par defaut: 5000)
+Font       : Police du Texte (par defaut: Arial)
+FontColor  : Couleur du texte en RGB (par defaut jaune 255 255 0)
+FontSize   : Taille du texte (par defaut: 18)
+Background : image de fond (facultatif)
+Transparency : couleur de transparence de l'image de fond (par defaut: bleu (= 0 0 255) )
+x          : position du texte par rapport à l'abscisse de la souris. (par defaut:0)
+y          : position du texte par rapport à l'ordonnée de la souris. (par defaut:-20)
+
+
+************************************************************************************************
+
+exemple:
+
+BeforeTime 500
+Time       3000
+Font       Arial
+FontColor  255 255 255
+FontSize   12
+Background graf/fond.jpg
+Transparency 0xFF
+x 0
+y -15

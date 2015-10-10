@@ -1,0 +1,353 @@
+/* ScaleEditor.pkg : Scale plugin Editor for C3D3 by Loïc ARGELIES july 2000 */
+/* based on the rotate plugin by Sylvain HUET march 99 */
+
+/* Scale2 - February 2003 - by Bob Le Gob         */
+/* Last update: 7th of February 2003 - Bob Le Gob */
+
+/* Plugin basic variables */
+typeof plugin = S;;                    /* '*.plug' file name */
+typeof class  = S;;                    /* plugin name        */
+
+/* 2D API variables */
+typeof txtScaleFactorMax       = ObjText;;
+typeof edtScaleFactorMax       = ObjText;;
+typeof txtScaleFactorMin       = ObjText;;
+typeof edtScaleFactorMin       = ObjText;;
+typeof txtScaleFactorIncrement = ObjText;;
+typeof edtScaleFactorIncrement = ObjText;;
+typeof txtFramerate            = ObjText;;
+typeof edtFramerate            = ObjText;;
+
+typeof edtadjustYrot           = ObjText;;
+typeof txtadjustYrot           = ObjText;;
+typeof edtadjustYpos           = ObjText;;
+typeof txtadjustYpos           = ObjText;;
+typeof edtangX             = ObjText;;
+typeof txtangX             = ObjText;;
+typeof edtangY             = ObjText;;
+typeof txtangY             = ObjText;;
+typeof edtangZ             = ObjText;;
+typeof txtangZ             = ObjText;;
+
+typeof edtdistance        = ObjText;;
+typeof txtdistance        = ObjText;;
+typeof edtdistance2       = ObjText;;
+typeof txtdistance2       = ObjText;;
+
+typeof cisScale    = ObjCheck;;
+typeof cisRotate   = ObjCheck;;
+typeof cinbox      = ObjCheck;;
+typeof cremoveObj  = ObjCheck;;
+
+typeof edtpatrolfr       = ObjText;;
+typeof txtpatrolfr       = ObjText;;
+typeof edtgpoints        = ObjText;;
+typeof txtgpoints        = ObjText;;
+
+typeof edtoffX             = ObjText;;
+typeof txtoffX             = ObjText;;
+typeof edtoffZ             = ObjText;;
+typeof txtoffZ             = ObjText;;
+
+fun InstName(UI)=UI.nameInst;;
+fun InstParam(UI)=UI.paramInst;;
+
+/* Protos */
+proto cbSave  = fun [[Inst r1]] [[S r1] [S r1] [[S r1] r1] [[S r1] r1]];;
+
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   ("eventC"::(strcatn name::".inPatrol"::nil)::nil)::   
+   ("eventC"::(strcatn name::".inTarget"::nil)::nil)::   
+   ("eventC"::(strcatn name::".inArea"::nil)::nil):: 
+   ("eventC"::(strcatn name::".dead"::nil)::nil):: 
+   ("eventC"::(strcatn name::".alive"::nil)::nil)::
+   ("eventC"::(strcatn name::".nPlay"::nil)::nil)::    
+   ("eventC"::(strcatn name::".started"::nil)::nil)::     
+   ("actionC"::(strcatn name::".start"::nil)::nil)::   
+   (suppactions nl);;
+
+
+/*******************************************************************************
+ cbDestroyWin()
+ win -> ObjWin : Plugin Editor window
+ p   -> u0     : Not used
+     <- I      : Not used
+ Callback function activated when the plugin Editor window is destroyed.
+ Resources allocated in cbOpenEdit should be freed here. Checking the real
+ allocation prevents corruptions in Voyager's data structures.
+*******************************************************************************/
+fun cbDestroyWin(win, p) = 
+   if (txtScaleFactorMax != nil) then (_DStext txtScaleFactorMax; set txtScaleFactorMax = nil; 0;) else 0;
+   if (edtScaleFactorMax != nil) then (_DStext edtScaleFactorMax; set edtScaleFactorMax = nil; 0;) else 0;
+   if (txtScaleFactorMin != nil) then (_DStext txtScaleFactorMin; set txtScaleFactorMin = nil; 0;) else 0;
+   if (edtScaleFactorMin != nil) then (_DStext edtScaleFactorMin; set edtScaleFactorMin = nil; 0;) else 0;
+   if (txtScaleFactorIncrement != nil) then (_DStext txtScaleFactorIncrement; set txtScaleFactorIncrement = nil; 0;) else 0;
+   if (edtScaleFactorIncrement != nil) then (_DStext edtScaleFactorIncrement; set edtScaleFactorIncrement = nil; 0;) else 0;
+   if (txtFramerate != nil) then (_DStext txtFramerate; set txtFramerate = nil; 0;) else 0;
+   if (edtFramerate != nil) then (_DStext edtFramerate; set edtFramerate = nil; 0;) else 0;
+   
+   if (edtadjustYrot != nil) then (_DStext edtadjustYrot; set edtadjustYrot = nil; 0;) else 0;
+   if (txtadjustYrot != nil) then (_DStext txtadjustYrot; set txtadjustYrot = nil; 0;) else 0;   
+   if (edtadjustYpos != nil) then (_DStext edtadjustYpos; set edtadjustYpos = nil; 0;) else 0;   
+   if (txtadjustYpos != nil) then (_DStext txtadjustYpos; set txtadjustYpos = nil; 0;) else 0;   
+   
+   if (edtangX != nil) then (_DStext edtangX; set edtangX = nil; 0;) else 0;   
+   if (txtangX != nil) then (_DStext txtangX; set txtangX = nil; 0;) else 0;  
+   if (edtangY != nil) then (_DStext edtangY; set edtangY = nil; 0;) else 0;   
+   if (txtangY != nil) then (_DStext txtangY; set txtangY = nil; 0;) else 0;  
+   if (edtangZ != nil) then (_DStext edtangZ; set edtangZ = nil; 0;) else 0;   
+   if (txtangZ != nil) then (_DStext txtangZ; set txtangZ = nil; 0;) else 0;  
+   if (edtdistance != nil) then (_DStext edtdistance; set edtdistance = nil; 0;) else 0;    
+   if (txtdistance != nil) then (_DStext txtdistance; set txtdistance = nil; 0;) else 0;    
+   if (edtdistance2 != nil) then (_DStext edtdistance2; set edtdistance2 = nil; 0;) else 0;    
+   if (txtdistance2 != nil) then (_DStext txtdistance2; set txtdistance2 = nil; 0;) else 0;    
+
+   if (cisScale != nil) then (_DScheck cisScale; set cisScale = nil; 0;) else 0;  
+   if (cisRotate != nil) then (_DScheck cisRotate; set cisRotate = nil; 0;) else 0;   
+   if (cinbox != nil) then (_DScheck cinbox; set cinbox = nil; 0;) else 0;   
+   if (cremoveObj != nil) then (_DScheck cremoveObj; set cremoveObj = nil; 0;) else 0;   
+   
+   if (edtpatrolfr != nil) then (_DStext edtpatrolfr; set edtpatrolfr = nil; 0;) else 0;    
+   if (txtpatrolfr != nil) then (_DStext txtpatrolfr; set txtpatrolfr = nil; 0;) else 0;    
+   if (edtgpoints != nil) then (_DStext edtgpoints; set edtgpoints = nil; 0;) else 0;    
+   if (txtgpoints != nil) then (_DStext txtgpoints; set txtgpoints = nil; 0;) else 0;      
+   
+   if (edtoffX != nil) then (_DStext edtoffX; set edtoffX = nil; 0;) else 0;    
+   if (txtoffX != nil) then (_DStext txtoffX; set txtoffX = nil; 0;) else 0;    
+   if (edtoffZ != nil) then (_DStext edtoffZ; set edtoffZ = nil; 0;) else 0;    
+   if (txtoffZ != nil) then (_DStext txtoffZ; set txtoffZ = nil; 0;) else 0;   
+   0;;
+
+/*******************************************************************************
+ cbClose()   
+    <- I : Not used
+ Callback function which is called when you click on the Cancel button of the
+ C3D3 or on the OK button of the C3D3 (in this case, the cbSave function is
+ called just before).
+*******************************************************************************/
+fun cbClose() =
+   0;;
+   
+/*******************************************************************************
+ cbCloseEdit()
+    <- S : "strbuilded" list of plugin's instance's parameters and params' values
+ Callback function called when you click on the OK button of the plugin Editor.
+ The Cancel button doesn't call this callback, nor any other one.
+*******************************************************************************/
+fun cbCloseEdit() =
+   strbuild ("ScaleFactorMin"::(_GETtext edtScaleFactorMin)::nil)::
+            ("ScaleFactorMax"::(_GETtext edtScaleFactorMax)::nil)::
+            ("ScaleFactorIncrement"::(_GETtext edtScaleFactorIncrement)::nil)::
+            ("Framerate"::(_GETtext edtFramerate)::nil)::
+            ("adjustYrot"::(_GETtext edtadjustYrot)::nil)::
+            ("adjustYpos"::(_GETtext edtadjustYpos)::nil)::	
+            ("angX"::(_GETtext edtangX)::nil)::
+            ("angY"::(_GETtext edtangY)::nil)::				
+            ("angZ"::(_GETtext edtangZ)::nil)::								
+            ("attackCheck"::(_GETtext edtdistance)::nil)::			
+            ("targetCheck"::(_GETtext edtdistance2)::nil)::			
+			("isRotation"::(itoa _GETcheck cisRotate)::nil)::	
+			("isScale"::(itoa _GETcheck cisScale)::nil)::			
+			("inbox"::(itoa _GETcheck cinbox)::nil)::			
+			("removeObj"::(itoa _GETcheck cremoveObj)::nil)::
+            ("patrolFramerate"::(_GETtext edtpatrolfr)::nil)::			
+            ("guardPoints"::(_GETtext edtgpoints)::nil)::
+            ("offsetX"::(_GETtext edtoffX)::nil)::
+            ("offsetZ"::(_GETtext edtoffZ)::nil)::				
+            nil;;
+
+/*******************************************************************************
+ cbOpenEdit()
+ win    -> ObjWin : Plugin's Editor father window
+ params -> S      : "strbuilded" list of plugin's instance's parameters and params' values
+        <- I      : Not used
+ Callback function called when the Editor of the plugin is opened. Caution!
+ Resources allocated here will not be destroyed until the cbDestroyWin callback
+ is triggered and if you destroy them in this function. Multiple openings of
+ the plugin Editor should thus consume a lot of resources if resources are
+ not properly handled.
+*******************************************************************************/
+fun cbOpenEdit(win, params)=
+   let strextr params -> l in
+   let getInfo l "ScaleFactorMax" -> sScaleFactorMax in
+   let getInfo l "ScaleFactorMin" -> sScaleFactorMin in
+   let getInfo l "ScaleFactorIncrement" -> sScaleFactorIncrement in
+   let getInfo l "Framerate" -> sFramerate in
+   let getInfo l "adjustYrot" -> adjustYrot in
+   let getInfo l "adjustYpos" -> adjustYpos in
+   let getInfo l "angX" -> angX in
+   let getInfo l "angY" -> angY in
+   let getInfo l "angZ" -> angZ in    
+   let getInfo l "attackCheck" -> attackCheck in    
+   let getInfo l "targetCheck" -> targetCheck in  
+   let getInfo l "patrolFramerate" -> pFrate in    
+   let getInfo l "guardpoints" -> gPoints in  
+   let getInfo l "offsetX" -> offX in
+   let getInfo l "offsetZ" -> offZ in   
+   (     
+         /*scaling*/
+         set txtScaleFactorMax = _CRtext _channel win 10 10 190 20 ET_ALIGN_LEFT "Maximum scale factor (unit: %)";
+         set edtScaleFactorMax = _CReditLine _channel win 200 8 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sScaleFactorMax) then "200" else sScaleFactorMax;
+      		
+         set txtScaleFactorMin = _CRtext _channel win 10 40 190 20 ET_ALIGN_LEFT "Minimum scale factor (unit: %)";
+         set edtScaleFactorMin = _CReditLine _channel win 200 38 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sScaleFactorMin) then "50" else sScaleFactorMin;
+
+         set txtScaleFactorIncrement = _CRtext _channel win 10 70 190 20 ET_ALIGN_LEFT "Scale factor increment (unit: %)";
+         set edtScaleFactorIncrement = _CReditLine _channel win 200 68 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sScaleFactorIncrement) then "10" else sScaleFactorIncrement;
+
+         set txtFramerate = _CRtext _channel win 10 100 190 20 ET_ALIGN_LEFT "Framerate";
+         set edtFramerate = _CReditLine _channel win 200 98 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == sFramerate) then "30" else sFramerate;
+		 
+         /*rotation*/
+         set txtangX  = _CRtext _channel win 260 10 100 20 ET_ALIGN_LEFT "Phase X";
+         set edtangX  = _CReditLine _channel win 380 8 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == angX) then "0" else angX;
+
+         set txtangY  = _CRtext _channel win 260 40 100 20 ET_ALIGN_LEFT "Phase Y";
+         set edtangY  = _CReditLine _channel win 380 38 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == angY) then "0" else angY;			 
+
+         set txtangZ  = _CRtext _channel win 260 70 100 20 ET_ALIGN_LEFT "Phase Z";
+         set edtangZ  = _CReditLine _channel win 380 68 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == angZ) then "0" else angZ;		 
+		 
+		 /*checkboxes*/
+         set cisScale = _CRcheck _channel win 260 98 100 16 0 "Scale";
+         let getInfo l "isScale" -> string in
+         if string == nil then
+           _SETcheck cisScale 0
+         else if (atoi string) then
+           _SETcheck cisScale 1 
+         else
+           _SETcheck cisScale 0;	
+
+         set cisRotate = _CRcheck _channel win 380 98 100 16 0 "Rotate";
+         let getInfo l "isRotation" -> string in
+         if string == nil then
+           _SETcheck cisRotate 0
+         else if (atoi string) then
+           _SETcheck cisRotate 1 
+         else
+           _SETcheck cisRotate 0;	
+
+         set cinbox = _CRcheck _channel win 260 158 100 16 0 "Inbox";
+         let getInfo l "inbox" -> string in
+         if string == nil then
+           _SETcheck cinbox 0
+         else if (atoi string) then
+           _SETcheck cinbox 1 
+         else
+           _SETcheck cinbox 0;		
+
+         set cremoveObj = _CRcheck _channel win 380 158 100 16 0 "Remove Obj";
+         let getInfo l "removeObj" -> string in
+         if string == nil then
+           _SETcheck cremoveObj 0
+         else if (atoi string) then
+           _SETcheck cremoveObj 1 
+         else
+           _SETcheck cremoveObj 0;			   
+		 
+		 /*adjustments*/
+         set txtadjustYrot   = _CRtext _channel win 10 130 190 20 ET_ALIGN_LEFT "Adjust Y Rot";
+         set edtadjustYrot   = _CReditLine _channel win 200 128 50 22 ET_DOWN|ET_ALIGN_CENTER if (nil == adjustYrot) then "0" else adjustYrot;
+
+         set txtadjustYpos   = _CRtext _channel win 10 160 190 20 ET_ALIGN_LEFT "Adjust Y Pos";
+         set edtadjustYpos   = _CReditLine _channel win 200 158 50 22 ET_DOWN|ET_ALIGN_CENTER if (nil == adjustYpos) then "0" else adjustYpos;		 
+		 
+         set txtdistance   = _CRtext _channel win 10 190 100 20 ET_ALIGN_LEFT "A Distance";
+         set edtdistance   = _CReditLine _channel win 200 188 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == attackCheck) then nil else attackCheck;
+		 
+         set txtdistance2   = _CRtext _channel win 260 190 100 20 ET_ALIGN_LEFT "T Distance";
+         set edtdistance2   = _CReditLine _channel win 380 188 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == targetCheck) then nil else targetCheck;
+		 		 
+         set txtpatrolfr   = _CRtext _channel win 10 220 100 20 ET_ALIGN_LEFT "P Framerate";
+         set edtpatrolfr   = _CReditLine _channel win 200 218 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == pFrate) then "10" else pFrate;
+		 
+         set txtgpoints   = _CRtext _channel win 260 220 100 20 ET_ALIGN_LEFT "G Points";
+         set edtgpoints   = _CReditLine _channel win 380 218 50 22 ET_DOWN|ET_NUMBER|ET_ALIGN_CENTER if (nil == gPoints) then "1" else gPoints;				 
+
+         set txtoffX   = _CRtext _channel win 10 250 100 20 ET_ALIGN_LEFT "Offset X";
+         set edtoffX   = _CReditLine _channel win 200 248 50 22 ET_DOWN|ET_ALIGN_CENTER if (nil == offX) then "0" else offX;
+		 
+         set txtoffZ   = _CRtext _channel win 260 250 100 20 ET_ALIGN_LEFT "Offset Z";
+         set edtoffZ   = _CReditLine _channel win 380 248 50 22 ET_DOWN|ET_ALIGN_CENTER if (nil == offZ) then "0" else offZ;				 
+					 
+   );
+   _CBwinDestroy win @cbDestroyWin nil;
+   0;;
+
+/*******************************************************************************
+ cbSave()
+ l -> [Inst r1]                               : List of plugin's instances
+   <- [[S r1] [S r1] [[S r1] r1] [[S r1] r1]] : cf comments in code
+ Callback function called when you click on Apply in C3D3 Editor, or on OK in
+ C3D3 Editor (in this case, cbClose is called just after).
+*******************************************************************************/
+fun cbSave(l)=
+ let l -> [UI nl] in
+  let (InstName UI) -> name in 
+  ([ 
+    nil                                /* registerF */
+    nil                                /* register */
+    ("plugin"::plugin::nil)::nil       /* supplementary Dat */ 
+    suppactions l                      /* supplementary Dmi */
+  ]);;
+
+
+/*******************************************************************************
+ IniPlug()
+ file -> S : '*.plug' file name
+      <- I : not used
+ Standard function. Plugin initialisation, the PlugRegister function has to be 
+ called at the end.
+ This function is called when you open the C3D3 Editor. 
+*******************************************************************************/
+fun IniPlug(file)=
+   set plugin = file;
+   set class = getInfo strextr _getpack _checkpack file "name";
+   set txtScaleFactorMax       = nil;
+   set edtScaleFactorMax       = nil;
+   set txtScaleFactorMin       = nil;
+   set edtScaleFactorMin       = nil;
+   set txtScaleFactorIncrement = nil;
+   set edtScaleFactorIncrement = nil;
+   set txtFramerate = nil;
+   set edtFramerate = nil;
+   set txtadjustYrot = nil;
+   set edtadjustYrot = nil;
+   set txtadjustYpos = nil;
+   set edtadjustYpos = nil;   
+   set txtangX = nil;
+   set edtangX = nil;   
+   set txtangY = nil;
+   set edtangY = nil;   
+   set txtangZ = nil;
+   set edtangZ = nil;      
+   set txtdistance = nil;
+   set edtdistance = nil;   
+   set txtdistance2 = nil;
+   set edtdistance2 = nil;      
+   
+   set cisRotate = nil; 
+   set cisScale = nil;    
+   set cinbox = nil;    
+   set cremoveObj = nil; 
+   
+   set txtpatrolfr = nil;
+   set edtpatrolfr = nil;   
+   set txtgpoints = nil;
+   set edtgpoints = nil;   
+
+   set txtoffX = nil;
+   set edtoffX = nil;   
+   set txtoffZ = nil;
+   set edtoffZ = nil;     
+   
+   PlugRegister class @cbSave @cbClose @cbOpenEdit @cbCloseEdit;
+   0;;
+ 
+ 
+ 

@@ -1,0 +1,7 @@
+name Transfer
+help ./help/help.htm
+clientNeeded Dms/3d/Plugins/stereobit/transferc.pkg
+clientScript _load\ "Dms/3d/Plugins/stereobit/transferc.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/stereobit/transfere.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/stereobit/transfere.pkg"
+version 2 1

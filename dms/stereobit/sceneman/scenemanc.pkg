@@ -1,0 +1,59 @@
+/* ChatRoom Client - DMS - october 97 - by Sylvain HUET */
+/* rev March 00 - by Sebastien DENEUX */
+
+defcom Cspeak=speak S;;
+defcom Cregister=register;;
+
+var iniPath="locked/conf/stereobit/";;
+typeof timer = Timer;;
+
+fun activate(from,action,param,rep)=
+ if !strcmp action "privateMsg" then
+  _DMSevent this "hear" param nil
+ else if !strcmp action "!speak" then
+  _DMSsend this Cspeak [param]
+ /*
+  else if !strcmp action "world1" then
+   _DMSevent this "hear" "world1" nil   
+  */
+ else nil;;
+ 
+ 
+fun _echo(x,s)= 
+_DMSevent this "hear" strcat strcat ">> " x "\n" nil;;  
+
+fun checkPosition (position) = 
+  let strextr position -> l in
+  _echo strcatn "Scene manager (6sec):"::position::nil
+0;; 
+ 
+fun rflTimer (t, param)=
+
+  //let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> posfile in	 
+  let strcatn iniPath::DMSname::"/clocation.txt"::nil -> posfile in	 
+  let _getpack _checkpack posfile -> position in
+  //_echo strcatn "Scene manager:"::posfile::"-"::position::nil  
+  
+  checkPosition position;
+  0;; 
+  
+/*  
+fun checkWorld(world) = 
+     if (check) then 
+	   _DMSevent this (strcat world ".in") nil nil
+     else 
+	   _DMSevent this (strcat world ".out") nil nil 
+0;;	   
+*/
+fun IniDMI(param)=
+ _DMSregisterDMI this @activate nil;
+ _DMSsend this Cregister [];
+ _DMSevent this "getDialog" nil "!speak";
+ _DMSevent this "hear" strcat strcat ">> entering " _DMSgetName this "\n" nil; 
+ 
+ set timer = _rfltimer _starttimer _channel 6000 @rflTimer "test" ;  
+  
+ 0;;
+
+fun __hear(s)=
+ _DMSevent this "hear" s nil;;

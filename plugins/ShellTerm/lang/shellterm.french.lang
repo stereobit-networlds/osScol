@@ -1,0 +1,41 @@
+term3d_txtConfigMacro   Choisissez la touche de fonction\net saisissez votre macro. Validez à chaque fois.
+term3d_save             Valider cette macro
+term3d_close            Fermer
+term3d_macro1           Bonjour à tous
+term3d_macro2           Salut !
+term3d_macro3           Bienvenue à toi !
+term3d_macro4           Comment allez-vous ?
+term3d_macro5           Au-revoir !!
+term3d_macro6           A demain, même heure, même endroit ?
+term3d_macro7           Je reviens
+term3d_macro8           macro8
+term3d_macro9           macro9
+term3d_initMessage      Appuyez sur la touche "HOME" pour l'aide
+term3d_txtHelp          TAB : montrer / cacher le tchat\nENTRER : envoyer le message\nSUPPR : changer la couleur\nRETOUR ARRIERE : efface le dernière caratctère\nPAGE HAUT/BAS : monter/descendre l'historique\nHOME : Cette aide\nEND : Configurer l'affichage\nINSER : configurer vos macros\nSHIFT + F1 <-> F9 : vos macros
+term3d_contextColor     Choisir sa couleur
+term3d_contextText      Configuration texte
+term3d_contextSize      Configuration affichage
+term3d_contextMacros    Configurer vos macros
+term3d_contextShow      Montrer / Cacher les messages
+term3d_contextShowAv    Montrer / Cacher la liste Avatar
+term3d_contextTrans     Transparence
+term3d_contextUrl       Ouvrir les URLs dans les messages
+term3d_contextAway      Etre absent
+term3d_contextHelp      Afficher l'aide
+term3d_contectSave      Enregistrer les messages
+term3d_alertCache       Les enregistrements du tchat sur votre disque dur dépasse les 10 Mo !\nDossier où ils sont stockés :  ...scol\\cache\\xxxxx\\
+term3d_txtText          Choisissez la taille et le type\nde la police d'affichage des msgs
+term3d_plain            Normal
+term3d_bold             Gras
+term3d_italic           Italique
+term3d_displayText      Placez le tchat où vous voulez.\nSi vous ne savez pas laissez ou cliquez sur Valeurs par défaut
+term3d_displayPosX      Distance entre le bord gauche du tchat et le bord gauche de la 3d
+term3d_displayPosY      Distance entre le haut du tchat et le haut de la 3d
+term3d_displayW         Largeur du tchat (doit être supérieure à 100)
+term3d_displayH         Hauteur du tchat (doit être supérieure à 100)
+term3d_displayDefault   Valeurs par défaut
+term3d_PEOPLE1          personne
+term3d_PEOPLE2          personnes
+term3d_titleurl         Url ...
+term3d_msgurl           Voulez-vous ouvrir cette url ?\n\n
+term3d_setSmileys       Activer les smileys

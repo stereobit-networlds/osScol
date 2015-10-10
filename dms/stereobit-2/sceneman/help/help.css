@@ -1,0 +1,93 @@
+body {
+	background-color: #FFFFFF;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 12px;
+	font-style: normal;
+	line-height: normal;
+	font-weight: normal;
+	font-variant: normal;
+	text-transform: none;
+	color: #000000;
+	margin: 10px;
+
+}
+.frametop {
+	background-color: #7BB1DF;
+	height: 32px;
+	width: 100%;
+	position: static;
+	visibility: visible;
+	overflow: hidden;
+	clear: none;
+	float: none;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 18px;
+	font-weight: bolder;
+	border: none;
+	color: #000000;
+	text-transform: uppercase;
+
+
+
+
+
+
+
+}
+.table1 {
+	background-color: #B7D3F2;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 16px;
+	font-style: italic;
+	font-weight: bold;
+	font-variant: normal;
+	width: 100%;
+	height: 70px;
+
+
+
+
+}
+.td1 {
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 16px;
+	font-style: normal;
+	font-weight: normal;
+}
+.title1 {
+	font-size: 14px;
+	font-style: italic;
+	font-weight: bold;
+	font-family: Arial, Helvetica, sans-serif;
+	text-decoration: underline;
+}
+.table2 {
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 12px;
+	font-style: normal;
+	line-height: normal;
+	font-weight: normal;
+	background-color: #E2E2E2;
+	position: static;
+	width: 100%;
+	height: auto;
+	color: #000000;
+	border-top: 1px dotted #000000;
+	border-right: 1px none #000000;
+	border-bottom: 1px none #000000;
+	border-left: 1px none #000000;
+
+
+
+}
+.table2top {
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 14px;
+	font-style: italic;
+	line-height: normal;
+	font-weight: bold;
+	font-variant: normal;
+	border: 1px solid #000000;
+	background-color: #D5D5D5;
+
+}

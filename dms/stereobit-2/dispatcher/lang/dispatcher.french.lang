@@ -1,0 +1,37 @@
+vote Vote
+abs Abstention
+respyes Oui
+respno Non
+voter Nombre de votants
+regis Nombre d'inscrits
+abst Abstention
+quest Question
+resp Reponse
+admin_window Fenêtre d'administration
+admin_question Question
+admin_answer1 1ère réponse
+admin_answer2 2ème réponse
+admin_answer3 3ème réponse
+admin_answer4 4ème réponse
+admin_answer5 5ème réponse
+admin_question_default 
+admin_answer1_default Oui
+admin_answer2_default Non
+admin_answer3_default 
+admin_answer4_default
+admin_answer5_default
+admin_check Plusieurs réponses possibles :
+admin_text_default Résultats du vote
+admin_btn_start Lancer
+admin_btn_stop Arrèter
+admin_btn_archive Archive
+admin_btn_quit Quitter
+archive_window Fenêtre de visualisation des archives
+archive_preview <<
+archive_next >>
+archive_empty Tout effacer
+archive_quit Quitter
+archive_vote Les archives des votes
+elector_window Fenêtre de vote
+elector_btn_vote Vote
+elector_btn_abs Abstention

@@ -1,0 +1,508 @@
+/*** vectors 3d math **********************/
+/* 3d math lib - JUNE 2014 - by stereobit */
+
+/*Documents\projects\scol_voyager\c3d-plugins\pngbap*/
+fun convertScolAngToRad(ang)= ((2.0 *. PIf) *. (itof ang)) /. 65536.0;;
+
+fun convertDegFAngToRad(ang)= ((2.0 *. PIf) *. ang) /. 360.0;;
+  
+fun permutXYvec(vec)=  let vec -> [x y z] in [y x z];; 
+
+fun addVectorsF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 +. x2) (y1 +. y2) (z1 +. z2)]
+  ;;
+
+/* 2t3 - 3t2 + 1 */
+fun H1(coef)= (2.0 *. (pow coef 3.0)) -. (3.0 *. (pow coef 2.0)) +. 1.0;;
+
+/* -2t3 + 3t2 */
+fun H2(coef)= (-. 2.0 *. (pow coef 3.0)) +. (3.0 *. (pow coef 2.0));;
+
+/* t3 - 2t2 +t */
+fun H3(coef)= (pow coef 3.0) -. (2.0 *. (pow coef 2.0)) +. coef;;
+
+/* t3 - t2 */
+fun H4(coef)= (pow coef 3.0) -. (pow coef 2.0);;
+
+fun getInterpolateCurve(vec1, vec2, ang1, ang2, coef)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+  let ang1 -> [ax1 ay1 az1] in
+  let ang2 -> [ax2 ay2 az2] in
+
+  let ((H1 coef) *. x1) +. ((H2 coef) *. x2) +. ((H3 coef) *. ax1) +. ((H4 coef) *. ax2) -> x in
+  let ((H1 coef) *. y1) +. ((H2 coef) *. y2) +. ((H3 coef) *. ay1) +. ((H4 coef) *. ay2) -> y in
+  let ((H1 coef) *. z1) +. ((H2 coef) *. z2) +. ((H3 coef) *. az1) +. ((H4 coef) *. az2) -> z in
+  [x y z]
+  ;;
+ 
+fun getGlobalAngle(obj)=
+  let [0.0 0.0 0.0] -> [x y z] in
+  (
+    while (M3getFather session obj) != nil do
+    (
+      let M3getObjAngF session obj -> [nx ny nz] in
+      (
+        set x = x +. nx;
+        set y = y +. ny;
+        set z = z +. nz;
+      );
+      
+      set obj = M3getFather session obj;
+    );
+  
+    [x y z];
+  );;
+  
+/* for debug */
+fun listH3d(father, p)=
+  if father == nil then nil else
+  (
+    _fooS strcat ">>>>>>>>>>>>>> - : " M3objName session father;
+    listH3d M3getFirstSon session father 1;
+    
+    if !p then nil else
+    listH3d M3getBrother session father 1;
+  );
+  0;;  
+  
+  
+/*convert radians to degrees */
+fun rad2deg(r) = r *. (180.0 /. PIf);; 
+
+/*convert degrees to radians */
+fun deg2rad(d) = d *. (PIf /. 180.0);; 
+  
+/*degrees to scol angle Y */
+fun deg3d(d) = ftoi (-.65536.0 *. (d /. 360.0));;
+
+/*radians to scol angle Y*/
+fun rad3d(r) = ftoi (-.65536.0 *. (rad2deg r /. 360.0));;  
+
+/*missing funcs */
+fun _floor(a) = ftoi a;;
+fun _modf(a,b) = a *. (a /. b);; /* (a-.b) * _floor(a/.b)*/
+fun _maxf(a, b) = if (a >. b) then a else b;;
+fun _minf(a, b) = if (a <. b) then a else b;;  
+
+/******* vectors 2d math *****************************/
+
+fun distance2d(x1,y1,x2,y2) =  sqrt (sqr (x2-.x1) +. sqr (y2-.y1));;
+
+fun length2d(x1,y1) = sqrt (sqr x1 +. sqr y1);;
+
+fun normalize2d(x1,y1) = let length2d x1 y1 -> len in [(x1 /. len) (y1 /. len)];;
+
+/*Return the angle between B-A and the positive x-axis.
+  Values go from 0 to pi in the upper half-plane, and from 
+  0 to -pi in the lower half-plane */
+fun angle_wrt_x(ax,ay,bx,by) = atan2 by-.ay bx-.ax;;  
+fun distance2p(ax,ay,bx,by) = [bx-.ax by-.ay];;
+
+/*http://stackoverflow.com/questions/1878907/the-smallest-difference-between-2-angles*/
+fun diffAnglesR(a,b) = PIf -. absf(absf(a -. b) -. PIf);;
+
+/*difangdeg(180.000000 , -180.000000) = 0.000000
+difangdeg(-180.000000 , 180.000000) = -0.000000
+difangdeg(359.000000 , 1.000000) = -2.000000
+difangdeg(1.000000 , 359.000000) = 2.000000
+in radians */
+fun diffAngR(x,y) =
+  let PIf +. PIf -> PIV2 in
+  let _modf (y -. x) PIV2 -> ang in
+  
+  if (ang <. 0.0) then -.(ang +. PIV2) 
+  else if (ang >. 180.0) then -.(ang -. PIV2)
+  else -.ang;; 
+  
+/*in degrees */  
+fun diffAngD(x,y) =
+  let 360.000000 -> C360 in
+  let _modf (y -. x) C360 -> ang in
+  
+  if (ang <. 0.0) then -.(ang +. C360) 
+  else if (ang >. 180.0) then -.(ang -. C360)
+  else -.ang;; 
+
+/*in radians */
+fun pointInCircleR(cx, cy, distance, ang) =
+  let cx +. distance *. (cos -.ang) -> x in
+  let cy +. distance *. (sin -.ang) -> y in
+[x y];;  
+
+/*in degrees */
+fun pointInCircleD(cx, cy, distance, ang) =
+  let ang *. (180.0 /. PIf) -> dang in
+  let cx +. distance *. (cos -.dang) -> x in
+  let cy +. distance *. (sin -.dang) -> y in
+[x y];;  
+
+/*http://stackoverflow.com/questions/7586063/how-to-calculate-the-angle-between-a-line-and-the-horizontal-axis*/
+fun findAngle(x1,y1,x2,y2) =
+  let y2 -. y1 -> deltaY in
+  let x2 -. x1 -> deltaX in  
+  atan2 deltaY deltaX *. 180.0 /. PIf;; 
+
+  
+/*http://gis.stackexchange.com/questions/22966/find-end-of-arc-given-start-end-angles-start-point-and-radius*/
+fun pDirectionVector(a) = [cos a sin a];;
+fun pNormalVector(a) = [-.(sin a) cos a];;
+
+fun pEdge2Center(x, y, distance, a) =
+  let x +. distance *. (-.(sin a)) -> x1 in
+  let y +. distance *. cos a -> y1 in
+  [x1 y1];;
+  
+fun pCenter2Edge(x, y, distance, degrees) =   
+  let x +. distance *. cos (degrees -. 90.0) -> x1 in
+  let y +. distance *. sin (degrees -. 90.0) -> y1 in
+  [x1 y1];;
+  
+/*arc moving - traversing circle positive */ 
+fun pCirclePositive(x,y,distance,ang1,ang2) =   
+  let pEdge2Center x y distance ang1 -> [x1 y1] in
+  let pCenter2Edge x1 y1 distance ang2 -> [x2 y2] in
+  [x2 y2];;
+  
+/*http://stackoverflow.com/questions/1351746/find-a-tangent-point-on-circle*/
+fun tangentCirclePoint (x, y, xCenter, yCenter, rad) =
+  let distance2d x y xCenter yCenter -> dist in
+  let sqrt (dist*.dist -. rad*.rad) -> side in
+  let asin (rad /. dist) -> direction in
+  let -.asin (rad /. dist) -> negativedirection in 
+  /*create x1,y1 and rotate */
+  let (x *. cos (direction *. PIf /. 180.0)) -. (y *. sin (direction *. PIf /. 180.0))  -> x1 in
+  let (x *. sin (direction *. PIf /. 180.0)) -. (y *. cos (direction *. PIf /. 180.0))  -> y1 in
+  /*normalize*/
+  let normalize2d x1 y1 -> [xn yn] in
+  /*give lenght as side ypotinousa */
+  let xn +. side -> x2 in
+  let yn +. side -> y2 in
+  /*tangent point on circle */
+  [x2 y2];;
+  
+/*http://mathworld.wolfram.com/Circle-CircleTangents.html*/
+/*http://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Tangents_between_two_circles*/
+/*code autodesk : http://forums.autodesk.com/t5/NET/how-to-drawing-a-line-tangent-to-two-circles-in-C/td-p/4418373*/
+fun CircleTangents(x1, y1, r1, x2, y2, r2) = 
+  let (x1 -. x2)*.(x1 -. x2)+.(y1 -. y2)*.(y1 -. y2) -> d_sq in
+  if (d_sq <=. (r1 -. r2) *. (r1 -. r2)) then
+    [0.0 0.0 0.0 0.0]
+  else (
+    let sqrt d_sq -> d in
+    let (x2 -. x1) /. d -> vx in
+    let (y2 -. y1) /. d -> vy in
+	
+	let (r1 -. r2) /. d -> c in /*??? render.js*/
+	let sqrt (_maxf 0.0 (1.0 -. c)) -> h in /* maxf > scol 5.0 */
+	
+	let [0.0 0.0 0.0 0.0] -> res in /*!!*/
+    let 1.0 -> i in
+/*
+    for (var sign = 1; sign >= -1; sign -= 2) {
+        nx = vx*c - sign*h*vy;
+        ny = vy*c + sign*h*vx;
+        res.push({
+            x1: c1.x + r1*nx <<0,
+            y1: c1.y + r1*ny <<0,
+            x2: c2.x + r2*nx <<0,
+            y2: c2.y + r2*ny <<0
+        });
+    }
+*/	
+	
+	[i i i i]
+  );;    
+  
+/********* lines ****************************/  
+  
+/*http://geomalgorithms.com/a04-_lines.html */
+// dot product (3D) which  allows vector operations in arguments
+//#define dot(u,v)   ((u).x * (v).x + (u).y * (v).y + (u).z * (v).z)
+//#define norm(v)    sqrt(dot(v,v))  // norm = length of  vector
+//#define d(P,Q)     norm(P-Q)        // distance = norm of difference
+fun dot(u,v) =  
+let u -> [ux uy uz] in
+let v -> [vx vy vz] in
+(ux *. vx +. uy *. vy +. uz *. vz);;
+
+fun norm(v) = sqrt (dot v v);;
+
+fun addLines(u,v) = /* me */
+let u -> [ux uy uz] in
+let v -> [vx vy vz] in 
+[(ux +. vx)  (uy +. vy) (uz +. vz)];;
+fun subLines(u,v) = /* me */
+let u -> [ux uy uz] in
+let v -> [vx vy vz] in 
+[(ux -. vx)  (uy -. vy) (uz -. vz)];;
+fun scalarLine(s,v) = /* me */
+let v -> [vx vy vz] in 
+[(s *. vx)  (s *. vy) (s *. vz)];;
+
+//fun d(P, Q) = norm (P -. Q);; 
+fun distLines(P,Q) = norm (subLines P Q);;
+
+fun distPointToPlane(P, PL) =
+  let PL -> [px py pz nx ny nz] in /*point and normal vector of plane*/
+  let -.dot [nx ny nz] (subLines P [px py pz]) -> sn in
+  let dot [nx ny nz] [nx ny nz] -> sd in
+  let sn /. sd -> sb in 
+  
+  let addLines P (scalarLine sb [nx ny nz]) -> B in
+  distLines P B ;;
+  
+/* http://geomalgorithms.com/a02-_lines.html 
+find the closest 2D Point to a Line
+Input:  an array P[] of n points, and a Line L
+Return: the index i of the Point P[i] closest to L */
+
+fun closestPointToLine( Parray, n, L) = 
+  let L -> [Lx0 _ Ly0 Lx1 _ Ly1] in
+  let Ly0 -. Ly1 -> a in
+  let Lx1 -. Lx0 -> b in
+  let Lx0 *. Ly1 -. Lx1 *. Ly0 -> c in
+
+  /*initialize min index 0 */
+  let 0 -> mi in
+  let hd Parray -> first in
+  let a *. (atof substr first 0 9) +. b *. (atof substr first 10 9) +. c -> min in 
+  let if (min <. 0.0) then -.min else min -> aMin in /* abs val */
+  /*loop through points 1-n*/
+  (
+    let 1 -> i in
+    while (i < n) do
+    (
+      /*read next line */	
+	  set Parray = tl Parray;	
+	  /* just use dist squared (sqrt not  needed for comparison)*/
+	  let hd Parray -> next in
+      let a *. (atof substr next 0 9) +. b *. (atof substr next 10 9) +. c -> dist in
+	  let if (dist <. 0.0) then -.dist else dist -> aDist in /* abs val */
+	  if (aDist <. aMin) then 
+      (
+	    set mi = i;
+		set aMin = aDist;
+	  )
+	  else
+	     nil;
+      set i = i + 1;  /*inc i */   
+    );
+	[mi aMin]
+  );;
+  
+fun distancePointToLine(P, L) =  
+  let L -> [Lx0 Ly0 Lz0 Lx1 Ly1 Lz1] in
+  let subLines [Lx1 Ly1 Lz1] [Lx0 Ly0 Lz0] -> v in
+  let subLines P [Lx0 Ly0 Lz0] -> w in
+  let dot w v -> c1 in
+  let dot v v -> c2 in
+  let c1 /. c2 -> b in
+  
+  let addLines [Lx0 Ly0 Lz0] (scalarLine b v) -> Pb in
+  distLines P Pb;;
+  
+/*** vectors 3d  **********************/
+
+fun minf(a, b)=
+  if a <. b then a else b;;
+
+fun vectorIsZero(vec)=
+  let vec -> [x y z] in
+    x == 0 && y == 0 && z == 0;;	
+
+fun vectorIsZeroF(vec)=
+  let vec -> [x y z] in
+    x == 0.0 && y == 0.0 && z == 0.0;;
+
+fun vectorAverageF(vec)=
+  let vec -> [x y z] in
+    x +. y +. z /. 3.0;;
+
+fun vectorCubeF(vec)=
+  let vec -> [x y z] in
+    x *. y *. z;;
+
+fun subVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 - x2) (y1 - y2) (z1 - z2)];;
+
+fun subVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 -. x2) (y1 -. y2) (z1 -. z2)];;
+
+fun addVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 + x2) (y1 + y2) (z1 + z2)];;
+
+fun addVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 +. x2) (y1 +. y2) (z1 +. z2)];;
+
+fun divideVector(vec1, vec2)=
+  if vectorIsZero vec2 then nil else
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 / x2) (y1 / y2) (z1 / z2)];;
+
+fun divideVectorF(vec1, vec2)=
+  if vectorIsZeroF vec2 then nil else
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 /. x2) (y1 /. y2) (z1 /. z2)];;
+
+fun multiplyVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 * x2) (y1 * y2) (z1 * z2)];;
+
+fun multiplyVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 *. x2) (y1 *. y2) (z1 *. z2)];;
+
+/*Get the shortest angle in degree*/
+fun getShortestAngle(p, q) =
+   let (absf (q -. p)) -> path1 in
+   let (absf (q +. 360.0 -. p)) -> path2 in
+   let (absf (q -. 360.0 -. p)) -> path3 in
+   let minf path1 minf path2 path3 -> minpath in
+      if (minpath == path1) then
+         q
+      else if (minpath == path2) then
+         (q +. 360.0)
+      else
+         (q -. 360.0);;		
+
+/*convert vectors to float and vice versa */
+fun fvec(v) = let v -> [x y z] in [itof x itof y itof z];;
+fun ivec(v) = let v -> [x y z] in [ftoi x ftoi y ftoi z];;  
+
+fun fvecV(v) = 
+  let v -> [x y z] in 
+  let [itof x itof y itof z] -> vret in
+  vret;;
+fun ivecV(v) = 
+  let v -> [x y z] in 
+  let [ftoi x ftoi y ftoi z] ->vret in
+  vret;; 
+
+fun distance3d(x1,y1,z1,x2,y2,z2) =  sqrt (sqr (x2-.x1) +. sqr (y2-.y1) +. sqr (z2 -. z1));;
+  
+fun distance3dV(v1,v2) =  /*!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+  let v1 -> [x1 y1 z1] in
+  let v2 -> [x2 y2 z2] in
+  sqrt (sqr (x2-.x1) +. sqr (y2-.y1) +. sqr (z2-.z1));;
+
+/*magnitude - length of a vector*/
+fun length(v) = 
+ let v -> [x y z] in
+ sqrt (sqr x +. sqr y +. sqr z);;
+ 
+/*calculate the normal vector !!!!!!!!!!!!!!!!!!!!!1*/ 
+fun normalize(v) = 
+ let v -> [x y z] in
+ let length v -> vl in 
+ [(x /. vl) (y /. vl) (z /. vl)];;
+ 
+fun normalizeVectorF(vec)=
+  let vec -> [x y z] in
+  let (absf x) +. (absf y) +. (absf z) -> sum in
+  let if (sum == 0.0) then 1.0 else 1.0 /. sum -> coef in
+    [(x *. coef) (y *. coef) (z *. coef)];; 
+ 
+
+/* dot product of vectors */
+fun dotProduct(v1, v2) = 
+ let v1 -> [x1 y1 z1] in
+ let v2 -> [x2 y2 z2] in
+ ((x1 *. x2) +. (y1 *. y2) +. (z1 *. z2));;
+ 
+/*cross product of vectors */
+/* The cross product will give a vector c that is perpendicular to both a and b.*/
+fun crossProduct(v1, v2) =  
+ let v1 -> [x1 y1 z1] in
+ let v2 -> [x2 y2 z2] in
+ let (y1 *. z2) -. (y2 *. z1) -> x in
+ let (z1 *. x2) -. (z2 *. x1) -> y in
+ let (x1 *. y2) -. (x2 *. y1) -> z in 
+[x y z];; 
+ 
+/*Axis and Angle is one possible way to represent the rotation of a solid 3D object. */ 
+/*http://stackoverflow.com/questions/4879961/calculate-angle-from-two-points-and-a-direction-vector*/ 
+fun axisAng(v1, v2) =
+  let normalize v1 -> nv1 in
+  let normalize v2 -> nv2 in
+  let crossProduct nv1 nv2 -> cp in
+  normalize cp;; 
+  
+/*http://snipd.net/2d-and-3d-vector-normalization-and-angle-calculation-in-c*/  
+/* polar angle theta */  
+fun theta(v) = 
+  let normalize v -> [x y z] in
+  atan2 (sqrt (sqr x) +. (sqr y)) sqr z;; 
+
+/* Azimuthal angle phi*/ 
+fun phi(v) = 
+  let v -> [x y z] in
+  atan2 y x;;
+
+/*YXZ euler angle to matrix*/
+/*http://stackoverflow.com/questions/1568568/how-to-convert-euler-angles-to-directional-vector*/
+fun euler2matrix(ang) = 
+  let ang -> [rx ry rz] in
+  let sin rx -> sx in
+  let sin ry -> sy in
+  let sin rz -> sz in
+  let cos rx -> cx in
+  let cos ry -> cy in
+  let cos rz -> cz in
+[[((cy*.cz)+.(sx*.sy*.sz)) ((cz*.sx)-.(cy*.sz)) (cx*.sy)] 
+ [(cx*.sz) (cx*.cz) (-.sx)] 
+ [((-.cz*.sy)+.(cy*.sx*.sz)) ((cy*.cz*.sx)+.(sy*.sz)) (cx*.cy)]];; 
+
+ 
+ 
+fun test3dmath() = 1;;
+
+
+/*** Angle optimization *********************/ 
+fun OptAng(source, dest) =
+   let (abs (dest - source)) -> path1 in
+   let (abs (dest + 65536 - source)) -> path2 in
+   let (abs (dest - 65536 - source)) -> path3 in
+   let min path1 min path2 path3 -> minpath in
+      if (minpath == path1) then
+         dest
+      else if (minpath == path2) then
+         (dest + 65536)
+      else
+         (dest - 65536);; 
+		 
+fun OptimizeDestOrientation(source, dest) = 
+  let source -> [rX1 rY1 rZ1] in
+  let dest -> [rX2 rY2 rZ2] in
+   [(OptAng rX1 rX2) (OptAng rY1 rY2) (OptAng rZ1 rZ2)];;
+		 
+
+		 
+/* basics on engine zoo */
+
+/* load a Cube */
+fun loadCube(shell) =
+  M3load shell "lib/stereobit/m3d/cube.m3d" nil;
+  M3getObj shell "cube";;
+  
+/* load a m3d file, name of mesh must be set */
+fun loadM3d(name, shell, m3dfile) =
+  M3load shell m3dfile nil;
+  M3getObj shell name;; 
+
+
+ 

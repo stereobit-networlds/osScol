@@ -1,0 +1,365 @@
+/* btscreens av3d August 2014 - by Vasilis Kometes */
+
+typeof plugin   = S;;
+typeof class    = S;;
+
+typeof ed       = PluginEditor;;
+typeof ELfichier= ObjText;;
+typeof ELX      = ObjText;;
+typeof ELY      = ObjText;;
+typeof ELurl    = ObjText;;
+typeof ELalias  = ObjText;;
+typeof ELpath   = ObjText;;
+typeof ELimgNav = ObjText;;
+
+typeof Win      = ObjWin;;
+typeof Bitmap   = ObjBitmap;;
+typeof TRANS2   = ObjCheck;;
+typeof NAVHORIZ   = ObjCheck;;
+typeof nrand    = I;; /* ??? ajouté par moi */
+
+typeof ELAvM3d  = ObjText;;
+typeof ELAvPath  = ObjText;;
+
+
+proto save=fun [ [Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]];;
+
+fun searchSlash(string, pos)=
+  let strfind "/" string pos -> r in
+  if r != nil then
+    searchSlash string r+1
+  else
+    pos;;
+ 
+/* this function create click actions for each image resource */
+fun createIClick(n) =
+  if n == nil then
+    nil
+  else
+    let n -> [first next] in
+    ("actionC"::(strcat "iclick." first)::nil)::createIClick next
+;; 
+
+fun InstName(UI)=
+  UI.nameInst
+;;
+
+fun getSuppLinks(l) =
+  if l == nil then
+    nil
+  else
+    let l -> [first next] in    
+      ("event"::(strcat strcat class ".link." hd first)::nil)::(getSuppLinks next)
+;;
+
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+    ("actionC"::(strcatn class::"."::name::".hide"::nil)::nil)::
+    ("actionC"::(strcatn class::"."::name::".show"::nil)::nil)::
+	("actionC"::(strcatn class::"."::name::".start"::nil)::nil)::	
+	("actionC"::(strcatn class::"."::name::".showRes"::nil)::nil)::
+	("actionC"::(strcatn class::"."::name::".fullscreen"::nil)::nil)::	
+	("actionC"::(strcatn class::"."::name::".keyPressed"::nil)::nil)::
+	("actionC"::(strcatn class::"."::name::".obClicked"::nil)::nil)::	
+	("actionC"::(strcatn class::"."::name::".getMotion"::nil)::nil)::
+    ("action"::(strcatn class::"."::name::".Av3dStartS"::nil)::nil)::  
+    ("action"::(strcatn class::"."::name::".Av3dGetPluginS"::nil)::nil)::
+    ("action"::(strcatn class::"."::name::".Av3dReloadS"::nil)::nil)::
+    ("action"::(strcatn class::"."::name::".Av3dChgLoginS"::nil)::nil)::	
+	("action"::(strcatn class::"."::name::".Av3dLogoutS"::nil)::nil)::
+	("actionC"::(strcatn class::"."::name::".Av3dChangeView"::nil)::nil)::
+    (suppactions nl);;
+
+
+
+fun save(l) =
+
+  let l -> [UI nl] in
+  let 
+    if (InstName UI)==nil then 
+      class 
+    else 
+      InstName UI -> name in
+	  
+  
+  [
+  nil /* registerF */
+  nil /* register */
+  ("plugin"::plugin::nil)::nil /* supplemental Dat */
+  /* dmi */    
+  ("eventC" ::(strcat class ".click")::nil)::
+  ("eventC" ::(strcat class ".startLoad")::nil):: 
+  ("eventC" ::(strcat class ".endLoad")::nil)::  
+  ("eventC" ::(strcat class ".loading")::nil)::  
+  ("eventC" ::(strcat class ".command")::nil):: 
+  ("event"  ::(strcat class ".Av3dChangedS")::nil):: 
+  ("actionC"::(strcat class ".hide")::nil)::
+  ("actionC"::(strcat class ".show")::nil)::
+  ("actionC"::(strcat class ".start")::nil)::	
+  ("actionC"::(strcat class ".showRes")::nil)::
+  ("actionC"::(strcat class ".fullscreen")::nil)::	
+  ("actionC"::(strcat class ".keyPressed")::nil)::
+  ("actionC"::(strcat class ".obClicked")::nil)::	
+  ("actionC"::(strcat class ".getMotion")::nil)::
+  ("action"::(strcat class ".Av3dStartS")::nil)::  
+  ("action"::(strcat class ".Av3dGetPluginS")::nil)::
+  ("action"::(strcat class ".Av3dReloadS")::nil)::
+  ("action"::(strcat class ".Av3dChgLoginS")::nil)::	
+  ("action"::(strcat class ".Av3dLogoutS")::nil)::
+  ("actionC"::(strcat class ".Av3dChangeView")::nil)::  
+  createIClick (_listoffiles _GETtext ELpath)
+  /*(suppactions l) ...per instance*/ 
+  ]
+;;
+
+
+fun openBMP(a, b, fP) =
+
+  let _PtoScol fP->stringF in
+    if (fP != nil && stringF!=nil && ((_FILESize _FILEOpen _channel fP) < 64000)) then
+    (
+	    _SETtext ELfichier stringF;
+	    0
+    ) 
+    else 
+      if (fP != nil && stringF==nil) then 
+      (
+	      _DLGMessageBox _channel Win "" "The image should be in the scol partitions" 0;
+	      0
+	    ) 
+	    else 
+	    if ((_FILESize _FILEOpen _channel fP) >= 64000) then 
+      (
+	      _DLGMessageBox _channel Win "" "file is too big (limit is at 64Ko)" 0;
+	      0
+	    ) 
+	    else   
+	      nil;
+      0
+;;
+
+
+fun cbbutton (button, win) =
+
+  let _DLGOpenFile _channel win "" nil "bitmap (*.bmp,*.jpg,*.png,*.tga)\0*.BMP;*.TGA;*.PNG;*.JPG;*.JPEG\0\0" -> open in _DLGrflopen open @openBMP nil;
+	0                                       
+;;
+
+fun EnableChk (check, ParamU, state) =
+
+  _SETcheck TRANS2 state
+;; 
+
+fun EnableChk2 (check, ParamU, state) =
+
+  _SETcheck NAVHORIZ state
+;; 
+
+fun openedit(win, param) =
+ 
+  let strextr param -> l in
+  let _GETwindowSizePosition win -> [w h x y] in
+  (          
+    set ed = startPluginEditor _channel win 0 0 w h WN_CHILDINSIDE|WN_NOBORDER class;
+
+
+      _CRtext _channel ed.PluginEditorEditWin 5 7 80 20 ET_ALIGN_LEFT "Image : ";
+      set ELfichier = _CReditLine _channel ed.PluginEditorEditWin 85 5 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                      let getInfo l "fichier" -> string in
+                      if (nil == string) then
+                        ""
+                      else
+                        string;
+    
+      _CRtext _channel ed.PluginEditorEditWin 5 32 80 20 ET_ALIGN_LEFT "Position: ";
+      _CRtext _channel ed.PluginEditorEditWin 116 32 150 20 ET_ALIGN_LEFT "% of the width of the screen";
+      set ELX = _CReditLine _channel ed.PluginEditorEditWin 85 30 30 20 ET_ALIGN_LEFT|ET_DOWN
+                let getInfo l "x" -> string in
+                if (nil == string) then
+                  "0"
+                else
+                  string;
+          
+      _CRtext _channel ed.PluginEditorEditWin 116 55 150 20 ET_ALIGN_LEFT "% of the height of the screen";
+      set ELY = _CReditLine _channel ed.PluginEditorEditWin 85 55 30 20 ET_ALIGN_LEFT|ET_DOWN
+                let getInfo l "y" -> string in
+                if (nil == string) then
+                  "0"
+                else
+                  string;
+    
+      _CRtext _channel ed.PluginEditorEditWin 5 82 80 20 ET_ALIGN_LEFT "URL : ";
+      set ELurl = _CReditLine _channel ed.PluginEditorEditWin 85 80 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                  let getInfo l "url" -> string in
+                  if (nil == string) then
+                    ""
+                  else
+                    string;
+                    
+      _CRtext _channel ed.PluginEditorEditWin 5 107 80 20 ET_ALIGN_LEFT "Alias : ";
+      set ELalias = _CReditLine _channel ed.PluginEditorEditWin 85 105 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                  let getInfo l "alias" -> string in
+                  if (nil == string) then
+                    ""
+                  else
+                    string;
+
+      set TRANS2  = _CRcheck _channel ed.PluginEditorEditWin 5 132 93 16 CH_LEFT "Transparency :" ;
+      
+      let getInfo l "trans" -> string in
+        if !strcmp string "1" then
+          _SETcheck TRANS2 1
+        else
+          _SETcheck TRANS2 0;
+      
+      _CBcheck TRANS2 @EnableChk nil;
+	  
+	    
+      _CRtext _channel ed.PluginEditorEditWin 5 160 80 20 ET_ALIGN_LEFT "Resources path : ";
+      set ELpath = _CReditLine _channel ed.PluginEditorEditWin 85 160 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                  let getInfo l "rpath" -> string in
+                  if (nil == string) then
+                    ""
+                  else
+                    string;
+					
+      _CRtext _channel ed.PluginEditorEditWin 5 185 80 20 ET_ALIGN_LEFT "Nav image : ";
+      set ELimgNav = _CReditLine _channel ed.PluginEditorEditWin 85 185 150 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL
+                  let getInfo l "imgNav" -> string in
+                  if (nil == string) then
+                    ""
+                  else
+                    string;		
+
+      set NAVHORIZ  = _CRcheck _channel ed.PluginEditorEditWin 240 185 93 16 CH_LEFT "Horizontal nav :" ;
+      
+      let getInfo l "navHoriz" -> string in
+        if !strcmp string "1" then
+          _SETcheck NAVHORIZ 1
+        else
+          _SETcheck NAVHORIZ 0;
+      
+      _CBcheck NAVHORIZ @EnableChk2 nil;
+
+      /*av 3d */
+      _CRtext _channel ed.PluginEditorEditWin 5 210 80 20 ET_ALIGN_LEFT "3D Av :";
+      set ELAvM3d = _CReditLine _channel ed.PluginEditorEditWin  85 210 150 20 ET_DOWN|ET_AHSCROLL
+                  let getInfo l "AvM3d" -> string in
+                  if (nil == string) then
+                    "meshAv3d"
+                  else
+                    string;	  
+					
+      _CRtext _channel ed.PluginEditorEditWin 240 210 80 20 ET_ALIGN_LEFT "3D Av path :";
+      set ELAvPath = _CReditLine _channel ed.PluginEditorEditWin  320 210 150 20 ET_DOWN|ET_AHSCROLL                                 
+	              let getInfo l "AvPath" -> string in
+                  if (nil == string) then
+                    "Avatars/"
+                  else
+                    string;	  
+    	  
+					
+	  
+      /* callback */
+      _CBbutton (_CRbutton _channel ed.PluginEditorEditWin 250 5 60 20 0 "Selection") @cbbutton win;
+    
+      set nrand = (atoi getInfo l "nrand"); /* ??? ajouté par moi */
+      
+      0
+  )
+;;
+
+
+fun Extension(fi) =
+	let 0->j in
+	let 0->find in
+	(
+	  while ((set find=strfind "." fi j)!=nil) do 
+		 set j=find+1;
+	substr fi j (strlen fi)-j
+	)
+;;
+
+fun CheckBMP(file) =
+  let _checkpack file -> fP in
+  let Extension file -> ext in
+    if fP == nil then
+      0
+    else
+	    if !strcmpi ext "png" then
+		    let _LDalphaBitmap _channel fP -> alphabmp in
+		    let if alphabmp == nil then 0 else 1 -> res in
+		    (
+		      _DSalphaBitmap alphabmp;
+		      res		      
+		    )		    	    
+	    else if !strcmpi ext "jpg" then 	      
+		    let _LDjpeg _channel fP -> bmp in		    
+		    let if bmp == nil then 0 else 1 -> res in  
+		    (
+		      _DSbitmap bmp;
+		      res
+		    )	      
+	    else if !strcmpi ext "bmp" then 	        
+		    let _LDbitmap _channel fP -> bmp in
+		    let if bmp == nil then 0 else 1 -> res in  
+		    (
+		      _DSbitmap bmp;
+		      res
+		    )		        
+      else if !strcmpi ext "tga" then 	        
+        let _LDtga _channel fP -> bmp in		        
+        let if bmp == nil then 0 else 1 -> res in  
+		    (
+		      _DSbitmap bmp;
+		      res
+		    )
+		  else
+		    0
+;;
+
+fun verifyPosition (text) = 
+  let atoi (_GETtext text) -> number in
+    itoa  if number > 100 then
+            100
+          else if number < 0 then
+            0
+          else
+            number
+;;
+
+fun closeedit() =
+  let _GETtext ELfichier -> tmp in
+  let if tmp == nil || (!strcmp tmp "") then "logo.bmp" else tmp -> tmp in     
+  let if CheckBMP tmp then tmp else (_DLGMessageBox _channel nil "Warning" "The image is invalid, it has been replaced by logo.bmp" 0;"logo.bmp") -> tmp in
+  let if nrand == 0 then rand else nrand -> nrand in /* ??? ajouter par moi */
+  (
+ 	  _storepack (_getpack _checkpack tmp) (strcatn "tmp/logo/"::(substr _getlongname strcat (itoa nrand) (substr tmp 0 (strfind "." tmp 1)) "" "#" 1 8)::"."::(Extension tmp)::nil);  /* ??? modifié par moi */
+
+     strbuild ("fichier"::tmp::nil)::
+              ("nrand"   ::(itoa nrand)::nil):: /* ??? ajouter par moi */
+              ("x"      ::(verifyPosition ELX)::nil)::
+              ("y"      ::(verifyPosition ELY)::nil)::
+              ("url"    ::(_GETtext ELurl)::nil)::
+              ("alias"  ::(_GETtext ELalias)::nil)::
+              ("rpath"  ::(_GETtext ELpath)::nil)::			  
+			  ("imgNav" ::(_GETtext ELimgNav)::nil)::
+              ("trans"  ::(if _GETcheck TRANS2 then "1" else "0")::nil)::
+			  ("navHoriz"  ::(if _GETcheck NAVHORIZ then "1" else "0")::nil)::
+			  ("AvM3d"::(_GETtext ELAvM3d)::nil)::
+              ("AvPath"::(_GETtext ELAvPath)::nil)::nil
+  )
+;;
+
+
+
+fun IniPlug(file) =
+
+  set plugin=file;
+  set class=getInfo strextr _getpack _checkpack file "name";
+  PlugRegister class @save nil @openedit @closeedit
+;;

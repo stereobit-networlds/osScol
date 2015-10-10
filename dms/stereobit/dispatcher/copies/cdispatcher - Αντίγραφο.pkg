@@ -1,0 +1,36 @@
+/* Dispatcher Client - DMS - june 2014 - by stereobit */
+
+defcom Canswer=answer S;;
+
+var iniPath="locked/conf/stereobit/";;
+
+fun _echo(x,s)= 
+_DMSevent this "hear" strcat strcat ">> " x "\n" nil;;  
+
+fun checkPosition (position) = 
+  let strextr position -> l in
+  _echo strcatn "Client dispatcher:"::position::nil
+0;; 
+
+fun activate(from,action,param,rep)=
+ if !strcmp action "setPos" then
+ (
+  let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> posfile in	 
+  let _getpack _checkpack posfile -> position in 
+  
+  _echo strcat "Client dispatcher:" position
+  
+  0;
+ ) 
+ else nil;;
+ 
+fun __getPos(s) = 
+
+  let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> posfile in	 
+  let _getpack _checkpack posfile -> position in   
+  _DMSsend this Canswer [position]
+;;
+
+fun IniDMI(param)=
+ _DMSregisterDMI this @activate nil;
+ 0;;

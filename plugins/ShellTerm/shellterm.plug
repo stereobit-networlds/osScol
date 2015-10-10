@@ -1,0 +1,9 @@
+name ShellTerm
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/ShellTerm/shellterms.pkg
+serverScript _load\ "Dms/3d/Plugins/ShellTerm/shellterms.pkg"
+clientNeeded Dms/3d/Plugins/ShellTerm/shelltermc.pkg
+clientScript _load\ "Dms/3d/Plugins/ShellTerm/shelltermc.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/ShellTerm/shellterme.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/ShellTerm/shellterme.pkg"
+version 2 3

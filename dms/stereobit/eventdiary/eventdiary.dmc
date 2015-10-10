@@ -1,0 +1,10 @@
+name EventDiary
+version 1 0
+
+serverLoad locked/lib/_mlistlib.pkg ./eventdiarys.pkg 
+clientNeeded Dms/stereobit/eventdiary/eventdiaryc.pkg
+clientScript _load\ "Dms/stereobit/eventdiary/eventdiaryc.pkg"
+editorLoad  Dms/L/templateEdit1.pkg ./eventdiarye.pkg
+
+helpFile ./help/help.htm
+bitmap ./eventdiary.bmp

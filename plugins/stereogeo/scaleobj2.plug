@@ -1,0 +1,8 @@
+name ScaleObj2
+help ./help/help.htm
+clientNeeded dms/3d/plugins/stereogeo/cscaleobj2.pkg
+clientScript _load\ "dms/3d/plugins/stereogeo/cscaleobj2.pkg"
+editorNeeded dms/3d/plugins/stereogeo/escaleobj2.pkg
+editorScript _load\ "dms/3d/plugins/stereogeo/escaleobj2.pkg"
+version 1 0
+ 

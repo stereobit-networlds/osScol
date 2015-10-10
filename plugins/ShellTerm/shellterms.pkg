@@ -1,0 +1,217 @@
+/* rev July 14 - stereobit */
+
+typeof class = S;;
+typeof CLname = S;;
+
+typeof clis = [[S I] r1];; /* login color */
+typeof color = I;;         /* default */
+
+typeof pathCtrl1 = S;;
+typeof pathCtrl2 = S;;
+typeof pathLogo = S;;
+
+var pathImages = "dms/3d/plugins/stereobit/";;
+
+var NbPluginInstance = 0;;
+
+fun myreplace_in_list (list, old, new)=
+  if list == nil then
+    nil
+  else
+    let list -> [first next] in
+    let first -> [a b] in
+    let old -> [c d] in
+    if !strcmp a c then
+      new::next
+    else
+      first::myreplace_in_list next old new;;
+
+fun replace_nth_in_list (list, n, x)=
+  if n < 0
+  then
+    list
+  else
+    let list -> [first next] in
+      if n==0
+      then
+        x::next
+      else
+        first::replace_nth_in_list next n-1 x;;
+
+fun remove_nth_from_list (list, n)=
+  if n < 0
+  then
+    list
+  else
+    let list -> [first next] in
+      if n==0
+      then
+        next
+      else
+        first::remove_nth_from_list next n-1;;
+
+fun remove_from_clis(l, p)=
+ if l == nil then
+   l
+ else
+   let l -> [[login col] suite] in
+   if !strcmp login p then
+     suite
+   else
+     [login col]::remove_from_clis suite p;;
+
+fun myreplace_login_in_listS(ll, newLogin, oldLogin)=
+  if ll == nil then
+    nil
+  else
+    (let ll -> [[login c] q] in
+     if !strcmp login oldLogin then
+       set clis = myreplace_in_list clis [login c] [newLogin c]   
+     else
+       myreplace_login_in_listS q newLogin oldLogin);;
+	   
+fun searchColor(list, login)=
+  if list == nil then
+    nil
+  else
+    let list -> [[l c] suite] in
+    if !strcmp login l then
+      c
+    else
+      searchColor suite login;;	   
+
+fun newUser(lCli, cli, o)=
+  if lCli == nil then
+    0
+  else
+    let lCli -> [[name col] q] in
+    (
+     if (sizelist lCli) == (sizelist clis) then
+       
+       UsendMessage ObUi o nil "addUser" linebuild name::(itoa col)::nil /* (1)(2) */
+       //apply_on_list clis @broadMsg o
+     else
+       UsendMessage ObUi o cli "addUser" linebuild name::(itoa col)::nil; /* (2) */
+     newUser q cli o
+    )
+  ;;
+
+fun cbRegister (cli, col, p) =
+  let p -> [o] in
+  (set clis = [_DMSgetLogin cli col]::clis;
+   UsendMessage ObUi o cli "registered" itoa col;
+
+   UsendMessage ObUi o cli "addUser" linebuild (_DMSgetLogin cli)::(itoa col)::nil;
+   newUser clis cli o;
+   0)
+;;
+
+fun activate(o, from, cli, action, param, reply)=
+  if !strcmp action (strcat class ".privateMsg") then
+    (UsendMessage ObUi o cli "incomingMsg" param;  /* param : message */
+     0)
+  else if !strcmp action (strcat class ".broadInfo") then
+    (UsendMessage ObUi o nil "broadInfo" param;    /* param = message */
+     0)
+  else if !strcmp action (strcat class ".!chgLogin") then
+    (set clis = myreplace_login_in_listS clis _DMSgetLogin cli param;   /* param = old login */
+     UsendMessage ObUi o nil "loginChanged" linebuild (_DMSgetLogin cli)::param::nil;
+     UsendMessage ObUi o cli "chgPseudo" param;
+     0)
+  else if !strcmp action (strcat class ".!updateAv") then
+    (UsendMessage ObUi o nil "updateAv" nil;
+     0)
+  else if !strcmp action (strcat class ".fromColorTerm") then /* passerelle avec le ColorTerm */
+    let strcatn "<"::(_DMSgetLogin cli)::"> "::param::nil -> string in
+    let searchColor clis _DMSgetLogin cli -> c in
+    (UsendMessage ObUi o nil "incomingMsg" string;
+     _DMSevent this cli strcat class ".getColorToColorTerm" itoa c nil;
+     _DMSevent this cli strcat class ".toColorTerm" strcat string "\n" nil;
+     0)
+  else if !strcmp action (strcat class ".!chgColorFromColorTerm") then
+    (UsendMessage ObUi o nil "colorChanged" linebuild (_DMSgetLogin cli)::(param)::nil;
+     set clis = myreplace_in_list clis [(_DMSgetLogin cli) nil] [(_DMSgetLogin cli) atoi param];
+     0)
+  else
+    nil;;
+
+fun cbcomm(ui, cli, action, param, p)=
+
+ if !strcmp action "command" then
+ ( _DMSevent this nil strcat class ".toColorTerm" strcat param "\n" nil; /* passerelle avec le ColorTerm */
+   UsendMessage ui nil "incomingMsg" param )
+ else if !strcmp action "chgColor" then
+   nil
+ else if !strcmp action "updatedAv" then
+   nil
+ else if !strcmp action "register" then
+   (cbRegister cli if param == nil then color else atoi param p;
+    0)
+ else
+   0;;
+   
+fun unRegister(o, doc)=
+  _RSunregister this doc;  
+  0;;  
+
+fun cbDestroy(o,cli) =
+  set clis = remove_from_clis clis _DMSgetLogin cli;
+  unRegister o pathCtrl1;
+  unRegister o pathCtrl2;
+  unRegister o pathLogo;  
+  0;;  
+
+fun newOb(o)=
+ if (NbPluginInstance == 0) then
+ ( 
+  set CLname = (ObName o);
+  set NbPluginInstance = NbPluginInstance + 1;
+  let hd UgetParam o.uiOb "Background" ->  file in
+   _RSregisterfiles this file::nil RSfile|RScontrol;
+   
+  /* control images */ 
+  set pathCtrl1 = strcat pathImages "ctrl1.jpg";
+  set pathCtrl2 = strcat pathImages "ctrl2.jpg";
+  if (_checkpack pathCtrl1) != nil then
+    nil
+  else
+    set pathCtrl1 = "dms/3d/plugins/stereobit/ctrl1.jpg";
+  if (_checkpack pathCtrl2) != nil then
+    nil
+  else
+    set pathCtrl2 = "dms/3d/plugins/stereobit/ctrl2.jpg";
+  _RSregisterfiles this pathCtrl1::nil RSfile|RScontrol;
+  _RSregisterfiles this pathCtrl2::nil RSfile|RScontrol;   
+  
+  /* logo image */
+  set pathLogo = strcat pathImages "logo.jpg";
+  _RSregisterfiles this pathLogo::nil RSfile|RScontrol; 
+
+  UcbComm this ObUi o mkfun5 @cbcomm [o];
+  OB_CBclientDestroyed o @cbDestroy;   
+  
+  ObRegisterAction o (strcat class ".privateMsg") @activate;
+  ObRegisterAction o (strcat class ".broadInfo") @activate;
+  ObRegisterAction o (strcat class ".!chgLogin") @activate;
+  ObRegisterAction o (strcat class ".!updateAv") @activate;
+  ObRegisterAction o (strcat class ".fromColorTerm") @activate;
+  ObRegisterAction o (strcat class ".!chgColorFromColorTerm") @activate;
+    
+  0
+ )
+ else
+ (
+  _DLGMessageBox _channel nil "Warning" 
+  "  Too many Bubble instanced.\n    Only one instance per C3d\n    module instance is possible.\nOnly the first instance will be used."
+  0;
+  _fooS "<Bubble Plugin> Warning: Only on instance of this module";
+  set NbPluginInstance = NbPluginInstance + 1; 
+ );  
+ 0;;  
+
+/* ****** main part ****** */
+
+fun IniPlug(file)=
+  set class=getInfo strextr _getpack _checkpack file "name";
+  PlugRegister class @newOb nil;
+ 0;;

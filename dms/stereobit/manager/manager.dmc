@@ -1,0 +1,24 @@
+# Template
+# Authors: Sebastien DENEUX & Julien ZORKO
+# Last update: 28.02.01
+# Version: 1.12
+# This is a module template
+
+name manager
+version 1 0
+
+#server
+register
+registerF
+serverNeeded
+serverLoad ./smanager.pkg
+
+#client
+clientNeeded
+clientLoad ./cmanager.pkg
+
+#editor
+editorNeeded
+editorLoad dms/L/templateEdit1.pkg ./emanager.pkg
+bitmap ./manager.scs.bmp
+helpFile ./help/help.htm

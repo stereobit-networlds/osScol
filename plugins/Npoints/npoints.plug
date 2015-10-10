@@ -1,0 +1,10 @@
+name Npoints
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/npoints/npointss.pkg
+serverScript _load\ "Dms/3d/Plugins/npoints/npointss.pkg"
+clientNeeded dms/3d/plugins/npoints/npointsc.pkg
+clientScript _load\ "dms/3d/plugins/npoints/npointsc.pkg"
+editorNeeded dms/3d/plugins/npoints/npointse.pkg
+editorScript _load\ "dms/3d/plugins/npoints/npointse.pkg"
+version 1 0
+ 

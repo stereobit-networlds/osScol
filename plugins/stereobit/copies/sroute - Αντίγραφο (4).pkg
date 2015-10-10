@@ -1,0 +1,159 @@
+/* Camera Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof class = S;;
+
+var maxDownloadSize=204800;;
+var iniPath="locked/conf/stereobit/";;
+
+/*******************************************************************************
+ cbTick() - Instance timer callback function
+ tmr -> Timer           : Instance timer
+ a -> [S I I I I Timer] : [ObName PlayFlag PlayOnceFlag ServerActionFlag TimerPeriod Timer]
+   <- I                 : Not used
+*******************************************************************************/
+fun cbTick(tmr, a) =
+   _rfltimer tmr nil nil;
+   _deltimer tmr;
+   mutate a <- [_ 0 _ 0 _ nil];
+   0;;
+
+/*******************************************************************************
+ StartTimer() - Starts instance timer
+  a -> [S I I I I Timer] : [ObName PlayFlag PlayOnceFlag ServerActionFlag TimerPeriod Timer]
+    <- I                 : Not used
+*******************************************************************************/
+fun StartTimer(a) =
+   let a -> [_ _ _ _ period _] in
+      mutate a <- [_ _ _ _ _ (_rfltimer _starttimer _channel period @cbTick a)];
+   0;;
+
+/*******************************************************************************
+ ResetTimer() - Destroy instance existing timer
+ a -> [S I I I I Timer] : [ObName PlayFlag PlayOnceFlag ServerActionFlag TimerPeriod Timer]
+   <- I                 : Not used
+*******************************************************************************/
+fun ResetTimer(a) =
+   let a -> [_ _ _ _ _ tmr] in
+      if (tmr != nil) then
+      (
+         _rfltimer tmr nil nil;
+         _deltimer tmr;
+         mutate a <- [_ 0 _ _ _ nil];
+         0;
+      )
+      else
+         0;;
+
+
+/*******************************************************************************
+ cbActivate() - Standard callback function for plugin actions
+ o      -> Ob       : Ob to which the action is associated
+ from   -> DMI      : Not used
+ cli    -> CLIENT   : Client who triggered the action
+ action -> S        : Action
+ param  -> S        : Parameter
+ reply  -> S        : Not used
+ a      -> TrajAnim : Trajectory structure associated with Ob
+        <- I        : Not used
+*******************************************************************************/
+fun cbActivate(o,from,cli,action,param,reply,a)=
+   if (!strcmp action (strcat (ObName o) ".gpsonceS")) then
+   (
+      ResetTimer a;
+      mutate a <- [_ 1 1 1 _ _]; 
+      UsendCli this nil (ObUi o) "gpsonce" (ObName o); 
+      StartTimer a;
+      0;
+   )
+   else if (!strcmp action (strcat (ObName o) ".gpsloopS")) then
+   (
+      ResetTimer a;
+      mutate a <- [_ 1 0 1 _ _]; 
+      UsendCli this nil (ObUi o) "gpsloop" (ObName o); 
+      0;
+   )  
+   else if (!strcmp action (strcat (ObName o) ".gpsstopS"))then
+   (
+      ResetTimer a;
+      mutate a <- [_ 0 _ 1 _ _]; 
+      UsendCli this nil (ObUi o) "gpsstop" (ObName o); 
+      0;
+   )
+   else
+      0;;
+ 
+/*******************************************************************************
+ cbComm() - Standard cbcomm callback function for intra plugin messages
+ ui     -> UserI    : User Instance linked to Ob
+ cli    -> CLIENT   : Client who sent the action
+ action -> S        : Action
+ param  -> S        : Parameter
+ a      -> TrajAnim : Trajectory structure associated with Ob
+        <- u0       : Not used
+*******************************************************************************/ 
+/*
+fun cbComm(ui,cli,action,param,a)=
+   if !strcmp action "newclient" then
+      let a -> [_ playFlag playOnceFlag srvActionFlag _ tmr] in
+         if (playFlag && playOnceFlag && srvActionFlag && (tmr != nil)) then
+            UsendCli this cli ui "gpsonce" param
+         else if (playFlag && !playOnceFlag && srvActionFlag) then
+            UsendCli this cli ui "gpsloop" param
+         else if (!playFlag && srvActionFlag) then
+            UsendCli this cli ui "gpsstop" param
+         else
+            UsendCli this cli ui "noaction" param
+   else
+      nil;;
+*/	  
+
+fun cbcomm(ui,cli,action,param,b)=
+ if !strcmp action "getFile" then
+  let b -> [name long] in
+   if name==nil then nil
+   else
+    UsendCli this cli ui "setFile" linebuild name::long::nil
+ else nil;;	  
+ 
+/*******************************************************************************
+ cbNewOb() - New object creation
+ o -> Ob : New Ob
+   <- I  : Not used
+*******************************************************************************/ 
+fun cbNewOb(o)=	
+
+   let atoi hd UgetParam ObUi o "NbFrames" -> nf in
+   let atoi hd UgetParam ObUi o "Framerate" -> fr in
+   let [(ObName o) 0 0 0 (1000 * nf / fr) nil] -> a in
+   (
+      /*UcbComm this ObUi o mkfun5 @cbComm a;*/
+      ObRegisterAction o (strcatn (ObName o)::".gpsonceS"::nil) mkfun7 @cbActivate a;
+      ObRegisterAction o (strcatn (ObName o)::".gpsloopS"::nil) mkfun7 @cbActivate a;
+      ObRegisterAction o (strcatn (ObName o)::".gpsstopS"::nil) mkfun7 @cbActivate a;
+   );
+
+ let hd UgetParam ObUi o "GpsBuf" -> name in
+  if name==nil then nil
+  else
+   let _checkpack name -> p in
+     if p==nil then nil
+     else
+      let _fileSize p -> long in
+      (
+       if long <= maxDownloadSize then
+         _RSregister this name RSfile+RScontrol name
+       else nil;
+       UcbComm this ObUi o mkfun5 @cbcomm [name itoa long];
+       0;
+      );;
+
+
+/*******************************************************************************
+ IniPlug() - Function called when plugin is initialized
+ file -> S : .plug file
+      <- I : Not used
+*******************************************************************************/
+fun IniPlug(file)=
+   set class = getInfo strextr _getpack _checkpack file "name";
+   PlugRegister class @cbNewOb nil;
+   0;;

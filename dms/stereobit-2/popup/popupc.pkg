@@ -1,0 +1,245 @@
+/*
+-----------------------------------------------------------------------------
+Copyright (c) 2014 stereobit
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*
+  Version : 1.0
+  First version : 24/07/2014
+  Author : stereobit
+*/
+
+typeof port = S;;
+typeof speed = S;;
+typeof bytesize = S;;
+typeof parity = S;;
+typeof stopbits = S;;
+typeof lastchar = S;;
+typeof refresh = S;;
+
+typeof slastchar = S;; /*holds string last char */
+//typeof scom = S;; /*com object ?*/
+typeof myUI=UserI;;
+
+typeof sno = I;;	   
+typeof nsno = S;;
+typeof sesfile = S;;
+typeof sesdata = [[S r1] r1];;
+
+typeof timer = Timer;;
+
+var serialCheck = 10000;;   /*is ob param.. check every n seconds for serial data */
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+var sesfname = "session_";;
+
+
+fun getSessionParam(line, word) = 
+  let nth_list sesdata (line-1) -> l in 
+  nth_list l (word-1);;  
+
+fun sessionpath() = 
+  strcatn iniPath::DMSname::"/"::(nsno)::"/"::nil;;
+  
+fun getSessionData() = 
+   let strcatn sesfname::(itoa sno)::".txt"::nil -> ses in
+   let strcat sessionpath ses -> sesfile in
+   strextr _getpack _checkpack sesfile
+;;  
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (sessionpath)::fname::nil -> logBuf in
+ 
+	let _appendpack s _getmodifypack logBuf -> append in
+	if (append==-1) then
+		_createpack s _getmodifypack logBuf
+	else nil
+ )
+ else nil;;
+
+fun _echo(x,s)= 
+_DMSevent this "hear" strcat strcat ">> " x "\n" nil;;
+
+
+  
+fun deleteOb() = 
+	//_closeSIO scom;
+	_deltimer timer;
+	_DMSevent this "destroy" nil nil;
+	0;;
+
+fun cbShow(inst, from, action, param, reply, p)=
+
+  0;;
+  
+fun cbHide(from, action, param, reply, p)=
+
+  0;;  
+
+
+/*read local presets, override session file*/  
+fun readLocalPresets(sno, param) =
+  let strcatn sesfname::(itoa sno)::".txt"::nil -> ses in
+  let strcat sessionpath ses -> sesfile in
+  
+  let strcatn iniPath::DMSname::"/serialio.ini"::nil -> comfile in
+  let _getpack _checkpack comfile -> comSettings in 
+  
+  if (comSettings!=nil) then
+	_storepack comSettings sesfile  
+  else 
+    _storepack param sesfile;;  
+	
+	
+	
+	
+	
+fun _okDisplay(btn, u)=
+  let u -> [textX textY textW textH z wn] in
+  let _GETsurfaceSize w3d.V3dbuf -> [w3 h3] in
+  let atoi _GETtext textX -> x in
+  let atoi _GETtext textY -> y in
+  let atoi _GETtext textW -> w in
+  let atoi _GETtext textH -> h in
+/*  let h3-y-h -> y in */
+  (
+   if w > 100 then
+     set z.D_width = w
+   else
+     set z.D_width = 100;
+   if h > 100 then
+     set z.D_heigth = h
+   else
+     set z.D_heigth = 100;
+   if (x+z.D_width) < w3 then
+     set z.D_posX = x
+   else
+     set z.D_posX = w3-z.D_width;
+   if (y-h3) < 0 then
+     set z.D_posY = h3-h-y
+   else
+     set z.D_posY = z.D_heigth;
+   _DSbitmap z.D_fond;
+   set z.D_fond = _CRbitmap _channel z.D_width z.D_heigth;
+   _DSwindow wn;
+   0
+  );;
+
+fun _defaultDisplay(btn, u)=
+  let u -> [textX textY textW textH] in
+  let defaultSize -> [x y w h] in
+  (
+   _SETtext textX itoa x;
+   _SETtext textY itoa y;
+   _SETtext textW itoa w;
+   _SETtext textH itoa h;
+   0
+  );;
+
+fun configDisplay(z, o)=
+  let [350 180] -> [w h] in
+  let _GETsurfaceSize w3d.V3dbuf -> [w3 h3] in
+  let _CRwindow _channel w3d.V3dwin 200 200 w h WN_MENU "Configuration display" -> winDisplay in
+  (
+   _CRtext _channel winDisplay 5 5 w-10 40 ET_ALIGN_CENTER|ET_BORDER (_loc this "term3d_displayText" nil);
+   _CRtext _channel winDisplay 5 50 w-60 20 0 (_loc this "term3d_displayPosX" nil);
+   _CRtext _channel winDisplay 5 75 w-60 20 0 (_loc this "term3d_displayPosY" nil);
+   _CRtext _channel winDisplay 5 100 w-60 20 0 (_loc this "term3d_displayW" nil);
+   _CRtext _channel winDisplay 5 125 w-60 20 0 (_loc this "term3d_displayH" nil);
+   let _CReditLine _channel winDisplay w-55 50 50 20 ET_DOWN|ET_NUMBER itoa z.D_posX -> posX in
+   let _CReditLine _channel winDisplay w-55 75 50 20 ET_DOWN|ET_NUMBER itoa (h3-z.D_posY-z.D_heigth) -> posY in
+   let _CReditLine _channel winDisplay w-55 100 50 20 ET_DOWN|ET_NUMBER itoa z.D_width -> posW in
+   let _CReditLine _channel winDisplay w-55 125 50 20 ET_DOWN|ET_NUMBER itoa z.D_heigth -> posH in
+   (
+    _CBbutton _CRbutton _channel winDisplay 5 160 w-60 20 0 (_loc this "term3d_displayDefault" nil) @_defaultDisplay [posX posY posW posH];
+    _CBbutton _CRbutton _channel winDisplay w-55 160 50 20 0 "OK" @_okDisplay [posX posY posW posH z winDisplay];
+    _CBwinDestroy winDisplay @_endText 0
+  ));
+  0;;	
+	
+	
+	
+
+fun activate(from,action,param,rep)=
+ if !strcmp action "Show" then 
+ (
+   //saveLog "serial_write.txt" strcatn "Serial IO (Send):"::param::">>"::port::","::speed::","::bytesize::","::parity::","::stopbits::","::slastchar::nil;
+   0;
+ ) 
+ else if !strcmp action "Hide" then
+ (
+   //saveLog "serial_write.txt" strcatn "Serial IO (SetCOM):"::param::">>"::port::","::speed::","::bytesize::","::parity::","::stopbits::","::slastchar::nil;
+   0;
+ )
+ else 
+   nil;;  	
+	
+fun cbcomm(ui,action,param)=
+ if !strcmp action "Show" then 
+  nil
+ else if !strcmp action "Hide" then
+  nil
+ else 0;;	
+		
+fun newInst(ui)=
+ UcbComm this ui @cbcomm;
+ 0;;	
+   
+/*Read the parameters from editor values and connect the serial port*/  
+fun IniDMI(param)=    
+ _DMSregisterDMI this @activate @deleteOb;
+  UcbCreate this @newInst;   
+ 
+  //_DMSevent this "in" nil nil;   
+  //_DMSevent this "hear" strcat strcat ">> Serial ON " _DMSgetName this "\n" nil;   
+  
+  (  
+    /*begin session*/
+    set sno = rand;
+    set nsno = strcatn "popup"::"/"::(itoa sno)::nil;
+
+    /*in this file write static params */
+    let strcatn sesfname::(itoa sno)::".txt"::nil -> ses in
+    /let strcat sessionpath ses -> sesfile in
+	_storepack param sesfile;
+	
+	/*override session com params */
+	//readLocalPresets sno param;
+   
+    /*read session to variable */   
+    set sesdata = getSessionData;
+    //_echo strcatn "Session init ("::DMSname::"):"::(strbuild sesdata)::nil 
+	
+	/*set com settings */
+    set port = getSessionParam 1 1;
+    set speed = getSessionParam 2 1;
+    set bytesize = getSessionParam 3 1;	
+    set parity = getSessionParam 4 1;
+    set stopbits = getSessionParam 5 1;
+    set lastchar = getSessionParam 6 1; 
+	set refresh = getSessionParam 7 1; 
+	
+	_DMSdefineActions this (["Show" @cbShow])::
+                           (["Hide" @cbHide])::
+	   				        nil;
+	  
+  	0;
+  );;  

@@ -1,0 +1,80 @@
+/* Transfer Plugin - DMS2 - Jul 14 - by Alexiou Basil stereobit */
+typeof class=S;;
+
+var defaultDMsphere=2000;;/*default value of the sphere radius*/
+var defaultRP=200;;/*default refresh Period (200 ms)*/
+
+/*----------------*/
+/*calculate if the avatar is in a virtual box of distance 
+(anchor center+r) around the position (x,y,z)*/
+
+fun box(x,y,z,r) =
+0;;
+
+fun verifyDistObj(x,y,z,b)=
+ let b -> [r _ current_in _ _] in
+  if current_in then nil else
+   let M3getObjVec session (M3getFather session ObGetMain owner) -> [player_x player_y player_z] in
+    if player_x==nil then nil else /*at nil at the beginning*/
+     let (player_x - x) -> dx in
+     let (player_z - z) -> dz in
+     let (player_y - y) -> dy in
+      if ((abs dx)>=r)||((abs dy)>=r)||((abs dz)>=r) then nil
+      else
+       if ((ftoi sqrt itof ((dx * dx) + (dz * dz) + (dy * dy))) <= r) then
+         mutate b <- [_ _ 1 _ _]
+       else nil;;
+
+/*----------------*/
+/*calculate if the avatar is in a sphere of radius r around the position (x,y,z)*/
+fun verifyDist(x,y,z,b)=
+ let b -> [r _ current_in _ _] in
+  if current_in then nil else
+   let M3getObjVec session (M3getFather session ObGetMain owner) -> [player_x player_y player_z] in
+    if player_x==nil then nil else /*at nil at the beginning*/
+     let (player_x - x) -> dx in
+     let (player_z - z) -> dz in
+     let (player_y - y) -> dy in
+      if ((abs dx)>=r)||((abs dy)>=r)||((abs dz)>=r) then nil
+      else
+       if ((ftoi sqrt itof ((dx * dx) + (dz * dz) + (dy * dy))) <= r) then
+         mutate b <- [_ _ 1 _ _]
+       else nil;;
+
+/*----------------*/
+fun calcDist2(x,b)=
+  match x with  
+  (objAnchor [h _ _ _] ->
+    (let M3getObjVec session h -> [x y z] in verifyDist x y z b))
+ |(posAnchor[_ [x y z] _] ->
+    (verifyDist x y z b));;
+
+/*----------------*/
+fun calcDist(o,b)=
+ let b -> [r old_in current_in refreshPeriod oldTick] in
+  let _tickcount -> currentTick in
+   if (currentTick-oldTick)>=refreshPeriod then   
+   (mutate b <- [_ _ 0 _ _];
+    apply_on_list ObAnchor o @calcDist2 b;
+    if old_in!=current_in then
+     if current_in then _DMSevent this (strcat (ObName o) ".in") nil nil
+     else _DMSevent this (strcat (ObName o) ".out") nil nil
+    else nil;
+    mutate b <- [_ current_in _ _ currentTick];0)
+   else
+    (mutate b <- [_ _ _ _ _];0);;
+
+/*----------------*/
+fun newOb(o)=
+ let hd UgetParam ObUi o "RefreshPeriod" -> tmp in
+ let (if tmp==nil then defaultRP else atoi tmp) -> refreshPeriod in
+ let hd UgetParam ObUi o "DMsphere" -> tmp in
+ let if tmp==nil then defaultDMsphere else atoi tmp -> r in
+   ObCbAnim o mkfun2 @calcDist [r 0 0 refreshPeriod _tickcount];
+ 0;;
+
+/*----------------*/
+fun IniPlug(file)=
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @newOb nil;
+ 0;;

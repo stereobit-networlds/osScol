@@ -1,0 +1,10 @@
+name PopUp
+version 1 0
+
+serverLoad locked/lib/_mlistlib.pkg ./popups.pkg 
+clientNeeded Dms/stereobit/popup/popupc.pkg
+clientScript _load\ "Dms/stereobit/popup/popupc.pkg"
+editorLoad  Dms/L/templateEdit1.pkg dms/lib/_mcolormap.pkg ./popupe.pkg
+
+helpFile ./help/help.htm
+bitmap ./popup.bmp

@@ -1,0 +1,14 @@
+# stereobit 2014
+# rev : 5/08/2014
+
+name RouteCam2
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/routecam2/routecam2s.pkg
+serverScript _load\ "Dms/3d/Plugins/routecam2/routecam2s.pkg"
+clientLoad Dms/3d/Plugins/stereobit/3dmath.pkg
+clientLoad Dms/3d/Plugins/routecam2/routecam2c.pkg
+clientNeeded Dms/3d/plugins/routecam2/cam.jpg Dms/3d/Plugins/routecam2/routecam2c.pkg Dms/3d/Plugins/routecam2/av.m3d
+clientScript _load\ "Dms/3d/Plugins/routecam2/routecam2c.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/routecam2/routecam2e.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/routecam2/routecam2e.pkg"
+version 2 0

@@ -1,0 +1,116 @@
+/**************************************************
+ Module Template
+ Editor part
+ Version: 1.0
+ Author: Sebastien DENEUX & Julien Zorko
+ Last update: 28/02/2001 
+ Template Module
+**************************************************/
+
+typeof TemplateEditor = Editor;;
+typeof TemplateText = CompText;;
+
+/*******************************************************************************
+ save modifications
+ a      -> S      : not used
+ b      -> S      : not used
+ editor -> Editor : editor
+        <- [[S r1] r1] : the dmi contents
+*******************************************************************************/
+fun cbSave (a, b) =
+  /* info2 is only dynamicaly edited but has to be copied in order to not be 
+     lost, all the definitions have to be rewritten in this callback */
+  let getDef TemplateEditor "Data" -> dataDef in
+  let getInfo dataDef "info2" -> info2 in
+    setDef TemplateEditor "Data" ("info1"::(_GETcompText TemplateText)::nil)::
+                                 ("info2"::info2::nil)::nil;
+    
+  ("action"::"start"::nil)::
+  ("action"::"destroy"::nil)::
+  ("action"::"write"::nil)::
+  ("action"::"register"::nil)::
+  ("action"::"unregister"::nil)::
+  ("actionC"::"show"::nil)::
+  ("actionC"::"hide"::nil)::
+  ("actionC"::"validText"::nil)::
+  ("event"::"entering"::nil)::
+  ("eventC"::"in"::nil)::
+  ("event"::"out"::nil)::
+  ("eventC"::"shown"::nil)::
+  ("eventC"::"hidden"::nil)::
+  ("eventC"::"log"::nil)::
+  ("eventC"::"validatedText"::nil)::
+  ("zoneC"::"Text"::nil)::  
+  nil
+;;
+
+/*******************************************************************************
+ load the parameters for a module instance
+ p      -> [[S r1] r1] : the dmi contents
+ editor -> Editor      : editor
+        <- I           : nothing special
+*******************************************************************************/
+fun cbLoad (p) =
+  let getDef TemplateEditor "Data" -> dataDef in
+  let getInfo dataDef "info1" -> info1 in
+    _SETcompText TemplateText info1 nil nil 1;
+  0
+;; 
+
+/*******************************************************************************
+ Redraw the the text background when it is resized
+ compBitmap -> CompBitmap              : component 
+ param      -> u0                      : not used here
+ w          -> I                       : new width
+ h          -> I                       : new height
+ stretch    -> [I I I I]               : [sx sy sw sh] not used here
+            <- [AlphaBitmap [I I I I]] : new image with position and size 
+*******************************************************************************/
+fun cbDrawBackground (compBitmap, param, w, h, stretch) =
+  let _DRAWrectangle (_CRbitmap _channel w h) 
+    0 0 w h DRAW_SOLID 1 0 DRAW_SOLID 0xffffff -> bmp in 
+  let _CRalphaBitmap _channel bmp nil nil nil -> backgroundBitmap in
+  (
+    _DSbitmap bmp;
+    [backgroundBitmap [0 0 w h]]
+  )
+;;
+
+
+/*******************************************************************************
+ main function called when the editor is starting.
+ The openDMI function must be called at the end in order to load the data if the
+ module has already been edited.
+ s -> S : obsolete (unused)
+   <- I : nothing special
+*******************************************************************************/
+fun IniEditor (s) =
+  set TemplateEditor = startEditor _channel nil nil nil 315 150 WN_NORMAL EDITOR_NORMAL s nil nil nil @cbLoad @cbSave nil;
+  let getEditCont TemplateEditor -> editorCont in
+  let _GETcontainerPositionSize editorCont -> [x y w h] in
+  let _CRfont _channel 14 0 0 _locEditor "FONT_TYPE" nil -> font in
+  
+  let _CRcompText _channel editorCont nil [5 5] 
+                  OBJ_ENABLE|OBJ_VISIBLE|CT_LEFT|CT_WORDWRAP|CT_LABEL|OBJ_MW_FLEX|OBJ_MH_FLEX 0
+                  w 30 
+                  (_locEditor "LABEL_TEXT" nil) 
+                  font [0 0 0 0] [0 0] nil nil -> compTextLabel in
+
+  let [0 35 w h-35] -> [xTextZone yTextZone wTextZone hTextZone] in
+  let cbDrawBackground nil nil wTextZone hTextZone [0 0 wTextZone hTextZone] -> [backgroundBitmap _] in
+
+  let _CRcompBitmap _channel editorCont nil [xTextZone yTextZone] 
+    OBJ_ENABLE|OBJ_VISIBLE|OBJ_MW_FLEX|OBJ_MH_FLEX 0 
+    backgroundBitmap 0 0 wTextZone hTextZone -> compBitmap in
+  (
+    set TemplateText = _CRcompText _channel editorCont nil [xTextZone yTextZone] 
+      OBJ_ENABLE|OBJ_VISIBLE|CT_CENTER|CT_WORDWRAP|CT_MULTIEDITLINE|OBJ_MW_FLEX|OBJ_MH_FLEX 0
+      wTextZone hTextZone nil font [0 0 0 0] [0 0] nil nil;
+
+    _CBcompBitmapResizeResource compBitmap @cbDrawBackground nil;
+    _DSfont font;
+    openDMI TemplateEditor;
+    0
+  )
+;;
+

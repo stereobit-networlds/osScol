@@ -1,0 +1,365 @@
+/* Camera GPS Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof plugin=S;;
+typeof class=S;;
+
+/* vvv shall be removed when available in the UserInstance API vvv */
+fun InstName(UI)=UI.nameInst;;
+fun InstParam(UI)=UI.paramInst;;
+/* ^^^ shall be removed when available in the UserInstance API ^^^ */
+
+typeof ed = PluginEditor;;
+typeof SrvAnimAutoStart = ObjCheck;;
+typeof CHini            = ObjCheck;;
+typeof CHloop           = ObjCheck;;
+typeof Interpolate      = ObjCheck;;
+typeof CHpos            = ObjCheck;;
+typeof CHall            = ObjCheck;;
+typeof LBPosAng         = ObjText;;
+typeof LBNbFrames       = ObjText;;
+typeof NbFrames         = ObjText;;
+typeof LBframerate      = ObjText;;
+typeof Framerate        = ObjText;;
+typeof LBframeEvents    = ObjText;;
+typeof LSframeEvents    = ObjList;;
+typeof frameEventslist  = [I r1];;
+typeof frameEvent       = ObjText;;
+typeof AddFrameEvent    = ObjButton;;
+typeof RemoveFrameEvent = ObjButton;;
+
+typeof LBGpsUrl         = ObjText;;
+typeof GpsUrl           = ObjText;;
+typeof LBGpsBuf         = ObjText;;
+typeof GpsBuf           = ObjText;;
+typeof LBGpsRec         = ObjText;;
+typeof GpsRec           = ObjCheck;;
+typeof LBGpsLog         = ObjText;;
+typeof GpsLog           = ObjCheck;;
+typeof LBinitSession = ObjText;;
+typeof InitSession = ObjText;;
+typeof LBinitParser = ObjText;;
+typeof InitParser = ObjText;;
+typeof LBBufReload  = ObjText;;
+typeof BufReload  = ObjCheck;;
+
+var maxDownloadSize=204800;;
+
+var openBmp = "dms/3d/plugins/stereobit/open.bmp";;
+
+fun _rflOpen(o,T,Pa)=let _PtoScol Pa -> s in if s==nil then nil else _SETtext T _PtoScol Pa;;
+
+fun _rflButton(b,T)=
+ _DLGrflopen _DLGOpenFile _channel ed.PluginEditorEditWin nil nil "txt (*.txt)\0*.TXT\0\0" @_rflOpen T;;
+
+
+proto save=fun [[Inst r1]] [[S r1] [S r1] [[S r1] r1] [[S r1] r1]];;
+
+/* generates a list of strings containing the number of the frames
+   coming from the FrameEvent parameters of a given instance of the
+   plugin.
+ */
+fun paramFrames(paramlist)=
+if paramlist == nil then
+ nil
+else
+ let paramlist -> [[name r] nparamlist] in
+ (
+  if !strcmp name "FrameEvent" then
+   let r -> [frameNum _] in
+    (strcat ".Frame#" (itoa (atoi frameNum)))::(paramFrames nparamlist)
+  else
+   (paramFrames nparamlist)
+ );;
+
+
+/* generates a list of events corresponding to the FrameEvent parameters
+   of a given instance of the plugin.
+ */
+fun suppframes(l,UIname)=
+if l == nil then
+ nil
+else
+ let l -> [currentFrame nl] in
+  ("eventC"::(strcatn UIname::currentFrame::nil)::nil)::
+  (suppframes nl UIname);;
+
+/* generates the list of supp. events for all the instances of the 
+   plugin.
+ */  
+fun suppevents(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   listcat
+    (suppframes (paramFrames strextr (InstParam UI)) name)
+    (suppevents nl);;
+  
+/* generates the list of supp. actions for all the instances of the
+   plugin.
+ */ 
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   ("actionC"::(strcatn name::".gpsonce"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpsloop"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpsstop"::nil)::nil)::
+   ("action"::(strcatn name::".gpsonceS"::nil)::nil)::
+   ("action"::(strcatn name::".gpsloopS"::nil)::nil)::
+   ("action"::(strcatn name::".gpsstopS"::nil)::nil)::(suppactions nl);;
+
+fun save(l)=
+	if l==nil then [nil nil nil nil]
+	else
+		[
+		/* registerF */
+		nil
+		/* register */
+		nil
+		/* supplemental dat */
+		("plugin"::plugin::nil)::nil
+		/* supplemental dmi */
+		listcat (suppactions l) (suppevents l)
+		];;
+
+fun AddFrameEventInList(l,frame,pos)=
+if l == nil then
+  (
+   _ADDlist LSframeEvents pos itoa frame;
+   [frame nil]
+  ) 
+else
+ let l -> [currentframe nl] in
+   (
+    if frame == currentframe then
+     l
+    else if frame < currentframe then
+    (
+     _ADDlist LSframeEvents pos itoa frame;
+     [frame [currentframe nl]]
+    )
+    else
+     [currentframe (AddFrameEventInList nl frame pos+1)];
+   );; 
+   
+fun RemoveFrameEventFromList(l,frame,pos)=
+if l == nil then
+ nil
+else
+ let l -> [currentframe nl] in
+ (
+  if frame == currentframe then
+  (
+   _DELlist LSframeEvents pos;
+   nl
+  )
+  else
+   currentframe::(RemoveFrameEventFromList nl frame pos+1)
+ );;
+   
+fun _CBaddFrameEvent(a,b)=
+ set frameEventslist = AddFrameEventInList frameEventslist atoi _GETtext frameEvent 0;
+ _SETtext frameEvent nil;;
+
+fun _CBremoveFrameEvent(a,b)=
+ let _GETlist LSframeEvents -> [_ frame] in
+ set frameEventslist = RemoveFrameEventFromList frameEventslist atoi frame 0;;
+
+fun _CBeditlineOk(a,b,c)=
+_CBaddFrameEvent 0 0;;
+
+fun getFrameEventList(l)=
+if l == nil then
+ nil
+else
+ let l -> [[param [value _]] nl] in
+  if !strcmp param "FrameEvent" then
+   let getFrameEventList nl -> fel in
+   (
+    _ADDlist LSframeEvents 0 value;
+    [atoi value fel]
+   )
+  else
+   getFrameEventList nl;;   
+
+fun openedit(win,param)=
+let strextr param -> l in
+let _GETwindowSizePosition win -> [w h x y] in
+( 
+ set ed = startPluginEditor _channel win 0 0 w h WN_CHILDINSIDE|WN_NOBORDER class;
+
+ set SrvAnimAutoStart = _CRcheck _channel ed.PluginEditorEditWin 5 5 120 20 0 "SrvAnimAutoStart";
+ let getInfo l "SrvAnimAutoStart" -> string in
+ if string == nil then
+  _SETcheck SrvAnimAutoStart 1
+ else if (atoi string) then
+  _SETcheck SrvAnimAutoStart 1 
+ else
+  _SETcheck SrvAnimAutoStart 0;
+ 
+ set CHini = _CRcheck _channel ed.PluginEditorEditWin 5 35 80 16 0 "AutoStart";
+ let getInfo l "Ini" -> string in
+ if string == nil then
+  _SETcheck CHini 1
+ else if (atoi string) then
+  _SETcheck CHini 1 
+ else
+  _SETcheck CHini 0;
+
+ set CHloop = _CRcheck _channel ed.PluginEditorEditWin 85 65 60 16 0 "Loop";
+ let getInfo l "Loop" -> string in
+ if string == nil then
+  _SETcheck CHloop 1
+ else if (atoi string) then
+  _SETcheck CHloop 1 
+ else
+  _SETcheck CHloop 0;
+
+ set Interpolate = _CRcheck _channel ed.PluginEditorEditWin 5 65 120 16 0 "Interpolate";
+ let getInfo l "Interpolate" -> string in
+ if string == nil then
+  _SETcheck Interpolate 1
+ else if (atoi string) then
+  _SETcheck Interpolate 1 
+ else
+  _SETcheck Interpolate 0;
+  
+ set LBPosAng = _CRtext _channel ed.PluginEditorEditWin 5 95 150 16 ET_ALIGN_LEFT "From Anchor, use : ";
+ set CHall = _CRcheck _channel ed.PluginEditorEditWin 5 110 150 16 CH_RADIO "Positions and orientations";
+ set CHpos = _CRcheck _channel ed.PluginEditorEditWin 5 125 150 16 CH_RADIO "Positions only";
+ let getInfo l "PosAng" -> string in
+  if (string == nil) || (!strcmp string "All") then
+  (
+   _SETcheck CHall 1;
+   _SETcheck CHpos 0   
+  )
+  else
+  (
+   _SETcheck CHall 0;
+   _SETcheck CHpos 1   
+  );  
+
+ set LBNbFrames = _CRtext _channel ed.PluginEditorEditWin 5 145 80 16 ET_ALIGN_LEFT "NbFrames : ";
+ set NbFrames = _CReditLine _channel ed.PluginEditorEditWin 85 144 40 18 ET_DOWN|ET_NUMBER
+ let getInfo l "NbFrames" -> string in
+ if (nil == string) then
+  "0"
+ else
+  string;
+
+ set LBframerate = _CRtext _channel ed.PluginEditorEditWin 5 165 80 16 ET_ALIGN_LEFT "framerate : ";
+ set Framerate = _CReditLine _channel ed.PluginEditorEditWin 85 164 40 18 ET_DOWN|ET_NUMBER
+ let getInfo l "Framerate" -> string in
+ if (nil == string) then
+  "30"
+ else
+  string;
+  
+ /*new fields ******************************************/
+ set LBGpsUrl = _CRtext _channel ed.PluginEditorEditWin 130 5 40 16 ET_ALIGN_LEFT "Url:";
+ set GpsUrl = _CReditLine _channel ed.PluginEditorEditWin 170 5 320 18 ET_DOWN
+ let getInfo l "GpsUrl" -> string in
+ if (nil == string) then
+  ""
+ else
+  string;
+
+ set LBGpsBuf = _CRtext _channel ed.PluginEditorEditWin 130 25 40 16 ET_ALIGN_LEFT "File:";
+ let getInfo l "GpsBuf" -> buf in 
+ set GpsBuf = _CReditLine _channel ed.PluginEditorEditWin 170 25 299 16 ET_ALIGN_LEFT|ET_DOWN buf;
+ _CBbutton _CRbuttonBitmap _channel ed.PluginEditorEditWin _LDbitmap _channel _checkpack openBmp 470 25 20 20 0 @_rflButton GpsBuf; 
+  
+ set BufReload = _CRcheck _channel ed.PluginEditorEditWin 200 45 60 16 0 "Reload";
+ let getInfo l "BufReload" -> string in
+ if string == nil then
+  _SETcheck BufReload 1
+ else if (atoi string) then
+  _SETcheck BufReload 1 
+ else
+  _SETcheck BufReload 0;   
+  
+ set GpsRec = _CRcheck _channel ed.PluginEditorEditWin 300 45 60 16 0 "Gps Rec";
+ let getInfo l "GpsRec" -> string in
+ if string == nil then
+  _SETcheck GpsRec 1
+ else if (atoi string) then
+  _SETcheck GpsRec 1 
+ else
+  _SETcheck GpsRec 0;  
+  
+ set GpsLog = _CRcheck _channel ed.PluginEditorEditWin 400 45 60 16 0 "Gps Log";
+ let getInfo l "GpsLog" -> string in
+ if string == nil then
+  _SETcheck GpsLog 1
+ else if (atoi string) then
+  _SETcheck GpsLog 1 
+ else
+  _SETcheck GpsLog 0;   
+  
+ set LBinitSession = _CRtext _channel ed.PluginEditorEditWin 170 45 40 20 ET_ALIGN_LEFT "Init : ";
+ set InitSession = _CReditLine _channel ed.PluginEditorEditWin 170 65 320 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "initsession" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;		
+		
+ set LBinitParser = _CRtext _channel ed.PluginEditorEditWin 170 90 40 20 ET_ALIGN_LEFT "Parser : ";
+ set InitParser = _CReditLine _channel ed.PluginEditorEditWin 170 110 320 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "initparser" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;			
+		  
+  
+ /******************************************************/ 
+
+ set LBframeEvents = _CRtext _channel ed.PluginEditorEditWin 170 145 80 16 ET_ALIGN_LEFT "Frame Events";
+ set LSframeEvents = _CRlist _channel ed.PluginEditorEditWin 170 165 325 100 LB_DOWN|LB_VSCROLL;
+ set frameEvent = _CReditLine _channel ed.PluginEditorEditWin 10 205 130 20 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER nil;
+ set AddFrameEvent = _CRbutton _channel ed.PluginEditorEditWin 10 225 130 20 0 "Add Frame Event";
+ set RemoveFrameEvent = _CRbutton _channel ed.PluginEditorEditWin 10 250 130 20 0 "Remove Frame Event";
+ _CBbutton AddFrameEvent @_CBaddFrameEvent 0;
+ _CBlineOk frameEvent @_CBeditlineOk 0;
+ _CBbutton RemoveFrameEvent @_CBremoveFrameEvent 0;
+ 
+ set frameEventslist = getFrameEventList l; 
+ 0
+);;
+
+fun genFrameEventsStrings(l)=
+if l == nil then
+ nil
+else
+ let l-> [currentframe nl] in
+   ("FrameEvent"::(itoa currentframe)::nil)::(genFrameEventsStrings nl);;
+  
+
+fun closeedit()=
+ strbuild
+  listcat
+   ("SrvAnimAutoStart"::(itoa _GETcheck SrvAnimAutoStart)::nil)::
+   ("Ini"::(itoa _GETcheck CHini)::nil)::
+   ("Loop"::(itoa _GETcheck CHloop)::nil)::
+   ("Interpolate"::(itoa _GETcheck Interpolate)::nil)::
+   ("PosAng"::(if _GETcheck CHall then "All" else "Pos")::nil)::
+   ("NbFrames"::(_GETtext NbFrames)::nil)::
+   ("Framerate"::(_GETtext Framerate)::nil)::   
+   ("GpsUrl"::(_GETtext GpsUrl)::nil)::
+   ("GpsBuf"::(_GETtext GpsBuf)::nil)::
+   ("BufReload"::(itoa _GETcheck BufReload)::nil)::   
+   ("GpsRec"::(itoa _GETcheck GpsRec)::nil)::
+   ("GpsLog"::(itoa _GETcheck GpsLog)::nil)::
+   ("initsession"::(_GETtext InitSession)::nil)::
+   ("initparser"::(_GETtext InitParser)::nil)::nil    
+   genFrameEventsStrings frameEventslist;;
+
+fun IniPlug(file)=
+ set plugin=file;
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @save nil @openedit @closeedit;;

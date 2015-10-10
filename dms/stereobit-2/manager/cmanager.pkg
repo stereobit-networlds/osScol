@@ -1,0 +1,220 @@
+/*******************************************************************************
+ Module Template
+ Client part
+ Version: 1.0
+ Authors: Sebastien DENEUX & Julien Zorko
+ Last update: 28/02/2001
+ Template Module
+*******************************************************************************/
+
+/*******************************************************************************
+ 
+ * All the global variables are grouped in a structure.
+ 
+ * Some message boxes are in comment in the callback functions in order to see
+ exactly when these callback are called.
+ 
+*******************************************************************************/
+
+struct TtextZone =
+[
+  TEXTZONE_Container: ObjContainer,/* container where texts will be displayed */
+  TEXTZONE_zone1    : CompText    ,/* first text zone                         */
+  TEXTZONE_zone2    : CompText     /* second text zone                        */
+] mkTextZone;;
+
+typeof TextZone = TtextZone;; /* main global struct */
+
+defcom SModifyZone2 = ModifyZone2 S;;
+
+
+/*******************************************************************************
+  Zone destruction
+       <- I : always 0
+*******************************************************************************/
+fun DestroyTextZone () =
+  _DScontainer TextZone.TEXTZONE_Container;
+  0
+;;
+
+/*******************************************************************************
+  This fonction is called if the module try to use an alredy used zone
+  zone -> S : zone name
+       <- I : always 0
+*******************************************************************************/
+fun cbConflictZone (zone) =
+  _DMSreleaseZone this zone;
+  _DMSdelete this;
+  0
+;;
+
+/*******************************************************************************
+  Interface resize callback
+  coord -> [ObjWin I I I I] : zone objwin position and size
+  zone  -> S                : zone name
+        <- I                : always 0
+*******************************************************************************/
+fun cbResizeZone (coord, zone) =
+  let coord -> [win x y w h] in
+    _SIZEEXcontainer TextZone.TEXTZONE_Container x y w h;
+  0
+;;
+
+/*******************************************************************************
+  Zone is released
+  zone -> S : zone name
+       <- I : always 0
+*******************************************************************************/
+fun cbDestroyZone (zone) =
+  /* _DLGMessageBox _channel nil "cbDestroyZone" "cbDestroyZone" 0; */
+  DestroyTextZone;
+  0
+;;
+
+/*******************************************************************************
+  The client part of the module will be closed
+       <- I : always 0
+*******************************************************************************/
+fun cbBeforeClose () =
+  /* _DLGMessageBox _channel nil "cbBeforeClose" "cbBeforeClose" 0; */
+  DestroyTextZone;
+  0  
+;;
+
+/*******************************************************************************
+  Text zone creation
+  fontParameters -> S         : parameters for the font (extracted by a strextr)
+                 <- TtextZone : the created text zone.
+*******************************************************************************/
+fun CreateTextZone (fontParameters) =
+  let strextr fontParameters -> l in
+  let atoi getInfo l "fontSize" -> size in
+  let atoi getInfo l "fontColor" -> color in
+  let atoi getInfo l "fontFlag" -> flag in
+  let getInfo l "fontType" -> name in
+  let getInfo l "textZone1" -> info1 in
+  let getInfo l "textZone2" -> info2 in
+  let mkTextZone [nil nil nil] -> textZone in
+  let _CRfont _channel size 0 flag name -> font in
+  (
+    let _DMSgetZone this "Text" @cbConflictZone @cbResizeZone @cbDestroyZone -> [win x y w h] in
+    if win != nil then
+    (
+      set textZone.TEXTZONE_Container = _CRcontainerFromObjWin _channel win x y w h CO_CHILDINSIDE 0xFFFFFF nil;
+      set textZone.TEXTZONE_zone1 = _CRcompText _channel textZone.TEXTZONE_Container nil [0 0]
+        OBJ_ENABLE|OBJ_VISIBLE|CT_CENTER|CT_WORDWRAP|CT_LABEL|OBJ_MW_FLEX|OBJ_MH_FLEX|OBJ_RH_FLEX 0
+        w h/2 info1 font [0 0 0 0] [0 0] nil nil;
+      set textZone.TEXTZONE_zone2 = _CRcompText _channel textZone.TEXTZONE_Container nil [0 h/2]
+        OBJ_ENABLE|OBJ_VISIBLE|CT_CENTER|CT_WORDWRAP|CT_MULTIEDITLINE|OBJ_MW_FLEX|OBJ_MH_FLEX|OBJ_LH_FLEX 0
+        w h/2 info2 font [color 0 0 0] [50 50] nil nil;
+      _PAINTcontainer textZone.TEXTZONE_Container;
+    )
+    else
+      nil;
+    _DSfont font;
+    textZone
+  )
+;;
+
+
+/*******************************************************************************
+ defcom which allows to write a text in a zone
+ id       -> I : zone number
+ text     -> S : text to write
+ fontType -> S : Type of font (Arial...)
+ color    -> I : Font color
+ style    -> I : Flag for the font style (bold, italic...)
+          <- I : nothing special
+*******************************************************************************/
+fun __FillTextZone (id, text) =
+  let (if id == 1 then TextZone.TEXTZONE_zone1 else TextZone.TEXTZONE_zone2) -> compText in
+  (
+    _SETcompText compText text nil nil nil;
+    _PAINTcontainer TextZone.TEXTZONE_Container;
+    0
+  )
+;;
+
+
+/*******************************************************************************
+ called when a tag reply is received from a module which used the validated
+ text.
+ param  -> S         : replay tag parameter
+ others -> [User r1] : not used
+        <- I         : nothing special         
+*******************************************************************************/
+fun cbTextUsed (param, others) =
+  let strextr param -> list in
+  let getInfo list "name" -> moduleName in
+    _DLGMessageBox _channel nil "Text used in..." moduleName 1;
+  0
+;;
+
+ 
+/*******************************************************************************
+ open the admistration interface
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : not used
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbValidText (from, action, param, others, tag) =
+  let _GETcompText TextZone.TEXTZONE_zone2 -> text in
+  let strbuild ("text"::text::nil)::nil -> eventParam in
+  (
+    _DMSsend this SModifyZone2 [_GETcompText TextZone.TEXTZONE_zone2];
+    _DMSeventTag this "validatedText" eventParam nil [@cbTextUsed 0 20000]
+  );
+  0
+;;
+
+/*******************************************************************************
+ open the admistration interface
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : not used
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbHide (from, action, param, others, tag) =
+  _SHOWcontainer TextZone.TEXTZONE_Container CONTAINER_HIDDEN;
+  _DMSeventTag this "hidden" nil nil nil;
+  0
+;;
+
+/*******************************************************************************
+ open the admistration interface
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : not used
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbShow (from, action, param, others, tag) =
+  _SHOWcontainer TextZone.TEXTZONE_Container CONTAINER_UNHIDDEN;
+  _DMSeventTag this "shown" nil nil nil;
+  0
+;;
+
+/*******************************************************************************
+  Global comments about the SCOL file structure
+  parameter -> S : String sent by the server by calling _DMScreateClientDMI
+            <- I : nothing special
+*******************************************************************************/
+fun IniDMI (parameter) =
+  set TextZone = CreateTextZone parameter;
+  _DMSdefineActions this (["show" @cbShow])::
+                         (["hide" @cbHide])::
+                         (["validText" @cbValidText])::nil;
+  _DMSregister this @cbBeforeClose;
+  _DMSeventTag this "in" nil nil nil;
+  0
+;;
+

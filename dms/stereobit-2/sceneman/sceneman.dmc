@@ -1,0 +1,12 @@
+name SceneMan
+func SceneMan
+register Dms/stereobit/sceneman/scenemanc.pkg
+serverNeeded Dms/stereobit/sceneman/scenemans.pkg
+serverScript _load\ "Dms/stereobit/sceneman/scenemans.pkg"
+clientNeeded Dms/stereobit/sceneman/scenemanc.pkg
+clientScript _load\ "Dms/stereobit/sceneman/scenemanc.pkg"
+editorScript _load\ "Dms/L/templateEdit1.pkg"\n_load\ "dms/lib/_mlistlib.pkg"\n_load\ "Dms/stereobit/sceneman/textedit.pkg"\n_load\ "dms/lib/enterbox.pkg"\n_load\ "Dms/stereobit/sceneman/scenemanedit.pkg"
+helpFile ./help/help.htm
+bitmap Dms/stereobit/sceneman/sceneman.scs.bmp
+tree Dms/stereobit/sceneman/sceneman.scs.bmp
+version 1 0

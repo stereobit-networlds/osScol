@@ -1,0 +1,216 @@
+/*******************************************************************************
+ Module Template
+ Server par
+ Version: 1.0
+ Authors: Sebastien DENEUX & Julien Zorko
+ Last update: 28/02/2001
+ Template Module
+*******************************************************************************/
+
+/*******************************************************************************
+ 
+ * All the global variables are grouped in a structure.
+ 
+ * Some message boxes are in comment in the callback functions in order to see
+ exactly when these callbacks are called.
+ 
+*******************************************************************************/
+
+/* Here are all the data used in the module */
+struct Ttemplate =
+[
+  TEMPLATE_Clients : [CLIENT r1], /* registered clients list                  */
+  TEMPLATE_Info1   : S          , /* First info text                          */
+  TEMPLATE_Info2   : S            /* Second info text                         */
+]mkTemplate;;
+
+typeof Template = Ttemplate;; /* main global variable */
+
+defcom CfillTextZone = FillTextZone I S;; /* write a text in on the client */
+
+/*******************************************************************************
+  Broad a message to the client part, it allows to use the function _DMSsend 
+  with the function apply_on_list.
+  function       -> defcom : function called in the client part
+  parameterTuple -> tuple  : this tuple gives the defcom parameters
+                 <- nothing special
+*******************************************************************************/
+fun Broad (com, comParam) =
+  _DMSsend this com comParam
+;;
+
+/*******************************************************************************
+ the client part of the module has been deleted
+ cli -> CLIENT : the client
+     <- I      : nothing special (always 0)
+*******************************************************************************/
+fun cbDeleteClient (cli) =
+  /* _DLGMessageBox _channel nil "cbDeleteClient" "cbDeleteClient" 0; */
+  _DMSeventTag this CtoU cli "out" nil nil nil;
+  set Template.TEMPLATE_Clients = remove_from_list Template.TEMPLATE_Clients cli;
+  0
+;;
+
+/*******************************************************************************
+ the client has been disconnected
+ cli -> CLIENT : the client
+     <- I      : nothing special (always 0)
+*******************************************************************************/
+fun cbLogoutClient (cli) =
+  /* _DLGMessageBox _channel nil "cbLogoutClient" "cbLogoutClient" 0; */
+  0
+;;
+
+/*******************************************************************************
+ the module instance will be closed (server and all client parts)
+ cli -> CLIENT : the client
+     <- I      : always 0 (not used)
+*******************************************************************************/
+fun cbBeforeClose () =
+  /* _DLGMessageBox _channel nil "cbBeforeClose" "cbBeforeClose" 0; */
+  /* Save modifications in the DMS file */
+  _DMSupdateDef this "Data" ("info1"::Template.TEMPLATE_Info1::nil)::
+                            ("info2"::Template.TEMPLATE_Info2::nil)::nil;
+  _DEFsave;
+  0
+;;
+
+
+/*******************************************************************************
+ create a client
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : parameters of the action
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbStart (from, user, action, param, others, tag) =
+  let strbuild
+    ("fontSize"::"16"::nil)::
+    ("fontFlag"::"0"::nil)::
+    ("fontType"::"Arial"::nil)::
+    ("fontColor"::"255"::nil)::
+    ("textZone1"::(Template.TEMPLATE_Info1)::nil)::
+    ("textZone2"::(Template.TEMPLATE_Info2)::nil)::
+    nil -> fontParam in
+  (
+    if _DMScreateClientDMI this UtoC user fontParam then
+      _DMSeventTag this user "entering" nil nil nil
+    else
+      nil
+  )
+;;
+
+
+/*******************************************************************************
+ destroy a client
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : not used
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbDestroy (from, user, action, param, others, tag) =
+  /* _DLGMessageBox _channel nil "cbDestroy" "cbDestroy" 0; */
+  let UtoC user -> cli in
+  (
+    _DMSdelClientDMI this cli;
+    cbDeleteClient cli
+  )
+;;
+
+
+/*******************************************************************************
+ a client wants to register the module
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : not used
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbRegister (from, user, action, param, others, tag) =
+  let UtoC user -> cli in
+    set Template.TEMPLATE_Clients = cli::(remove_from_list Template.TEMPLATE_Clients cli);
+  0
+;;
+
+
+/*******************************************************************************
+ a client wants to unregister the module
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : not used
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbUnregister (from, user, action, param, others, tag) =
+  let UtoC user -> cli in
+    set Template.TEMPLATE_Clients = remove_from_list Template.TEMPLATE_Clients cli;
+  0
+;;
+
+
+/*******************************************************************************
+ open the admistration interface
+ from   -> DMI       : not used
+ user   -> User      : the user that run the action
+ action -> S         : not used
+ param  -> S         : not used
+ others -> [User r1] : not used
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun cbWrite (from, user, action, param, others, tag) =
+  let strextr param -> l in
+  let getInfo l "text" -> text in
+  let strbuild ("name"::(_DMSgetName this)::nil)::nil -> reply in
+  (
+    apply_on_list Template.TEMPLATE_Clients @Broad CfillTextZone [2 text];
+    _DMSreplyTag tag reply others 0
+  );
+  0
+;;
+
+/*******************************************************************************
+ This defcom allows to broad a new text in all the client text zone 2
+ text   -> S         : new text
+ tag    -> Tag       : not used
+        <- I         : nothing special
+*******************************************************************************/
+fun __ModifyZone2 (text) =
+  set Template.TEMPLATE_Info2 = text;
+  apply_on_list Template.TEMPLATE_Clients @Broad CfillTextZone [2 text];
+  0
+;;
+
+
+/*******************************************************************************
+ main function, called when the server part of the module is initialized
+ file -> S : not used
+      <- I : nothing special
+*******************************************************************************/
+fun IniDMI (file) =
+  let _DMSgetDef this "Data" -> dataDef in
+  let getInfo dataDef "info1" -> info1 in
+  let getInfo dataDef "info2" -> info2 in
+  (
+    set Template = mkTemplate [nil info1 info2];
+    _DMSregister this @cbLogoutClient @cbDeleteClient @cbBeforeClose;
+
+    _DMSdefineActions this (["start"      @cbStart      ])::
+                           (["destroy"    @cbDestroy    ])::
+                           (["write"      @cbWrite      ])::
+                           (["register"   @cbRegister   ])::
+                           (["unregister" @cbUnregister ])::
+                           nil
+  );
+  0
+;;

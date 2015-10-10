@@ -1,0 +1,116 @@
+/* ChatRoom Editor - DMS - feb 98 - by Sylvain HUET */
+/* Rev. Aug. '98 - by Marc BARILLEY */
+/* rev March 00 - by Sebastien DENEUX*/
+
+typeof bannerll=ObjText;;
+typeof ll=ObjList;;
+typeof addll= ObjButton;;
+typeof delll = ObjButton;;
+typeof editll = ObjButton;;
+typeof links=[S r1];;
+typeof intro=S;;
+
+typeof editWin=ObjWin;;
+
+fun suppevent(l)=
+ if l==nil then nil
+ else let l->[a n] in ("event"::a::nil)::suppevent n;;
+
+fun _endh(s)=
+ if s==nil then nil
+ else set intro=s;
+ 0;;
+
+fun _edintro(a,b)=
+/* loc( iniText _channel editWin 300 300 "Intro Editor" "Intro Editor" @_endh intro;; ) */
+ iniText _channel editWin 300 300 "Intro Editor" "Intro Editor" @_endh intro;;
+
+fun save (filename, n)=
+  ("action"::"start"::"start"::nil)::
+  ("action"::"destroy"::"destroy"::nil)::
+  ("action"::"!chgLogin"::"chgLogin"::nil)::
+  ("action"::"broadMsg"::"broadMsg"::nil)::
+  ("actionC"::"privateMsg"::"privateMsg"::nil)::
+  ("actionC"::"!speak"::"speak"::nil)::
+  ("event"::"entering"::"entering"::nil)::
+  ("event"::"destroyed"::"destroyed"::nil)::  
+  ("event"::"log"::"log"::nil)::
+  ("event"::"spy"::nil)::
+  ("eventC"::"hear"::nil)::
+  ("eventC"::"getDialog"::nil)::
+  ("rule"::"1"::"Chatroom"::"0"::"log"::"2"::"Log"::"1"::"log"::nil)::
+  ("rule"::"1"::"Chatroom"::"0"::"getDialog"::"2"::"Term"::"1"::"getDialog"::nil)::
+  ("rule"::"2"::"Authentification"::"1"::"loginChanged"::"1"::"Chatroom"::"0"::"!chgLogin"::nil)::
+  ("Intro"::intro::nil)::
+  suppevent links;;
+
+fun updatel2(s,b)=
+ _ADDlist ll 1000 s;;
+
+fun updatel()=
+ _RSTlist ll;
+ apply_on_list links @updatel2 0;;
+
+fun addr(s)=
+ if (s==nil)||(!strcmp s "in")||(!strcmp s "out")||(!strcmp s "log")||(!strcmp s "spy")||(!strcmp s "entering")||(!strcmp s "destroyed") then nil
+ else
+ (set links=listcat links s::nil;
+  updatel);;
+
+fun _add(a,b)=
+/* loc( iniEnterBox _channel editWin nil nil "New Event" @addr "Enter a new event name" ;; ) */
+ iniEnterBox _channel editWin nil nil "New Event" @addr "Enter a new event name" ;;
+
+fun _rem(x,b)=
+ let _GETlist ll ->[i _] in
+ let nth_list links i -> a in
+ if a==nil then nil else
+ (set links=remove_from_list links a;
+  updatel);;
+
+fun fdlink(a,b)=
+ if strcmp hd a "event" then 0
+ else let hd tl a -> n in
+ if (strcmp n "in")&&(strcmp n "out")&&(strcmp n "log")&&(strcmp n "spy")&&(strcmp n "entering")&&(strcmp n "destroyed")then
+ (set links=listcat links n::nil; 0)
+ else 0;;
+
+fun load (l) =
+  set links=nil;
+  set intro=getInfo l "Intro";
+  apply_on_list l @fdlink 0;
+  updatel;;
+
+fun rflSizeEditWin (wn, blurp, w, h)=
+  _SIZEtext bannerll w-10 20 5 5;
+  _SIZElist ll w-10 h-55 5 25;
+  _SIZEbutton addll 45 20 5 h-25;
+  _SIZEbutton delll 45 20 70 h-25;
+  _SIZEbutton editll 85 20 150 h-25;;
+
+fun IniEditor(s)=
+  let [315 230] -> [w h] in
+  let startEditor 
+    _channel nil nil nil w h WN_MENU EDITOR_NORMAL
+    s "dms/stereobit/sceneman.dmc" nil nil
+    @load @save nil
+  -> ed in
+  (
+    set editWin = getEditWin ed;
+    
+    _CBwinSize editWin @rflSizeEditWin 0;
+  
+/* loc(    set bannerll = _CRtext _channel editWin 5 5 w-10 20 ET_ALIGN_CENTER "Additional events :"; ) */
+    set bannerll = _CRtext _channel editWin 5 5 w-10 20 ET_ALIGN_CENTER "Additional events :";
+    set ll=_CRlist _channel editWin 5 25 w-10 h-55 LB_DOWN+LB_VSCROLL;
+/* loc(    set addll = _CBbutton _CRbutton _channel editWin 5 h-25 45 20 0 "Add" @_add 0; ) */
+    set addll = _CBbutton _CRbutton _channel editWin 5 h-25 45 20 0 "Add" @_add 0;
+/* loc(    set delll = _CBbutton _CRbutton _channel editWin 70 h-25 45 20 0 "Remove" @_rem 0; ) */
+    set delll = _CBbutton _CRbutton _channel editWin 70 h-25 45 20 0 "Remove" @_rem 0;
+/* loc(    set editll = _CBbutton _CRbutton _channel editWin 150 h-25 85 20 0 "Edit Intro" @_edintro 0; ) */
+    set editll = _CBbutton _CRbutton _channel editWin 150 h-25 85 20 0 "Edit Intro" @_edintro 0;
+  
+    if s==nil then nil else openDMI ed
+  );
+0;;
+

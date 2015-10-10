@@ -1,0 +1,10 @@
+name Nguards
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/nguards/nguardss.pkg
+serverScript _load\ "Dms/3d/Plugins/nguards/nguardss.pkg"
+clientNeeded dms/3d/plugins/nguards/nguardsc.pkg
+clientScript _load\ "dms/3d/plugins/nguards/nguardsc.pkg"
+editorNeeded dms/3d/plugins/nguards/nguardse.pkg
+editorScript _load\ "dms/3d/plugins/nguards/nguardse.pkg"
+version 1 0
+ 

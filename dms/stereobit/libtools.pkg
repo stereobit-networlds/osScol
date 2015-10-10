@@ -1,0 +1,907 @@
+
+fun lcat(p, q)=
+  if p==nil then
+    q
+  else
+    (hd p)::lcat (tl p) q;;
+
+fun splitList(l, pos)=
+  let if pos < 0 then ((sizelist l) + (pos + 1)) else pos -> pos in
+  if (((pos + 1) > (sizelist l)) || (pos == 0)) then [nil l] else
+  let nil -> l1 in
+  let nil -> l2 in
+  (
+    let sizelist l -> size in
+    let size - 1 -> i in
+    while (i >= 0) do
+    (
+      let nth_list l i -> elt in
+      if (i < pos) then
+        set l1 = elt::l1
+      else
+        set l2 = elt::l2;
+      
+      set i = i - 1;
+    );
+    
+    [l1 l2];
+  );;
+
+fun moveListElement(l, pos, to)=
+  if (to < 0) || (to >= (sizelist l)) || (pos < 0) || (pos >= (sizelist l)) then l else
+  let nil -> newlist in
+  (
+    let (sizelist l) - 1 -> i in
+    while i >= 0 do
+    (
+      let nth_list l i -> elt in
+      if (i == pos) then
+        set newlist = (nth_list l to)::newlist
+      else if (i == to) then
+        set newlist = (nth_list l pos)::newlist
+      else
+        set newlist = elt::newlist;
+      
+      set i = i - 1;
+    );
+    newlist;
+  );;
+
+fun divideList(x,p,r1,r2,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let exec f with [a x] -> r in
+  if r==0 then divideList x n r1 r2 f
+  else if r<0 then divideList x n a::r1 r2 f
+  else divideList x n r1 a::r2 f;;  
+  
+fun quicksort(l,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideList vl nl nil nil f->[va na] in
+  lcat quicksort va f vl::quicksort na f;;
+  
+fun divideListPos(x,p,r1,r2,pos,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let exec f with [(nth_list a pos) (nth_list x pos)] -> r in
+  if r==0 then divideListPos x n r1 r2 pos f
+  else if r<0 then divideListPos x n a::r1 r2 pos f
+  else divideListPos x n r1 a::r2 pos f;;  
+  
+fun quicksortByPos(l,pos,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideListPos vl nl nil nil pos f->[va na] in
+  lcat quicksortByPos va pos f vl::quicksortByPos na pos f;;
+  
+fun divideListString(x,p,r1,r2,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let exec f with [strcatn a strcatn x] -> r in
+  if r==0 then divideListString x n r1 r2 f
+  else if r<0 then divideListString x n a::r1 r2 f
+  else divideListString x n r1 a::r2 f;;  
+
+fun quicksortList(l,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideListString vl nl nil nil f->[va na] in
+  lcat quicksortList va f vl::quicksortList na f;;
+
+fun divideList3(x,p,r1,r2,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let a->[aa _] in
+  let x->[xx _] in
+  let exec f with [aa xx] -> r in
+  if r==0 then divideList3 x n r1 r2 f
+  else if r<0 then divideList3 x n a::r1 r2 f
+  else divideList3 x n r1 a::r2 f;;  
+  
+fun quicksort3(l,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideList3 vl nl nil nil f->[va na] in
+  lcat quicksort3 va f vl::quicksort3 na f;;
+
+fun sortlist(l,f)=
+  if l == nil then nil else
+    let l -> [head tail] in
+    let extractList tail head f -> [left right] in
+    lcat (sortlist left f) head::(sortlist right f);;
+	
+fun getPathFile(longfile, file)=
+  if (longfile==nil) || (strlen longfile)==0 || (nth_char longfile ((strlen longfile)-1)) == '/ then
+  (
+    if (strfind "." file 0) != nil then
+      [longfile file]
+    else if file != nil then
+      [strcatn longfile::file::"/"::nil nil]
+    else
+      [longfile nil];
+  )
+  else
+    getPathFile
+      substr longfile 0 (strlen longfile)-1
+      strcat
+        substr longfile ((strlen longfile)-1) 1
+        file;;
+
+fun getlastPathDir(path)=
+  while ((strfind "/" path 0) != nil) do
+    set path = substr path ((strfind "/" path 0) + 1) 2048;
+  path;;
+
+fun getFileExt(file)=
+  let getPathFile file "" -> [_ file2] in
+  let 0 -> pos in
+  (
+    while (strfind "." file2 pos + 1) != nil do
+    (
+      set pos = strfind "." file2 pos + 1;
+    );
+    if pos == 0 then nil else
+      substr file2 (pos + 1) 1024;
+  );;
+
+fun getFilePathWithoutExt(file)=
+  substr file 0 (strfind "." file 0);;
+  
+fun getFileDirectory(file)=
+  let getPathFile file "" -> [dir _] in
+    dir;;
+	
+fun getFileNameWithoutExt(file)=
+  let getPathFile file "" -> [_ file2] in
+    substr file2 0 (strfind "." file2 0);;
+
+fun listLowercase(l)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+        set ndata = lcat ndata (strlowercase elem)::nil;
+      
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+fun getDirListFromPath(path)=
+  let nil -> lpaths in
+  (
+    let _listofsubdir path -> ldirs in
+    let sizelist ldirs -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list ldirs i -> dir in
+      set lpaths = lcat lpaths dir::(getDirListFromPath dir);
+      
+      set i = i + 1;
+    );
+    lpaths
+  );;
+
+fun isLastWordfromString(word, string)= !strcmpi word (substr string ((strlen string) - (strlen word)) (strlen word));;
+  
+fun getFilesFromDirRecursive(dir)=
+  if (isLastWordfromString ".svn" dir) then nil else 
+  let _listoffiles dir -> lfiles in
+  let _listofsubdir dir -> lsubdirs in
+  (
+    let sizelist lsubdirs -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lsubdirs i -> elem in
+        set lfiles = lcat lfiles (getFilesFromDirRecursive elem);
+      set i = i + 1;
+    );
+    
+    lfiles;
+  );;
+  
+fun isStringInListi(l, string)=
+  (l!=nil)&&((!strcmpi string hd l)||(isStringInListi tl l string));;
+
+fun getFilesFromDir(dir, mask)=
+  let _listoffiles dir -> files in
+  let nil -> lfiles in
+  let sizelist files -> size in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list files i -> file in
+      let getFileExt file -> ext in
+      if (mask != nil) && !(isStringInListi mask ext) then nil else
+        set lfiles = lcat lfiles file::nil;
+      
+      set i = i + 1;
+    );
+    lfiles;
+  );;  
+
+fun apply_on_list(l,f,x)=
+ if l==nil then 0
+ else let l -> [a nxt] in
+  (exec f with [a x];
+   apply_on_list nxt f x);;
+
+
+fun rev_apply_on_list(l,f,x)=
+ if l==nil then 0
+ else let l -> [a nxt] in
+  (rev_apply_on_list nxt f x;
+   exec f with [a x];0);;
+   
+   
+fun search_in_list(l,f,x)=
+ if l==nil then nil
+ else let l -> [a nxt] in
+  if exec f with [a x] then a
+  else search_in_list nxt f x;;
+
+fun remove_from_list(l,p)=
+ if l==nil then nil
+ else let l -> [a nxt] in
+  if a==p then nxt
+  else a::remove_from_list nxt p;;
+
+fun remove_string_from_list(l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> elm in
+    if !strcmpi elm elt then
+      tl l
+    else
+      (hd l)::remove_string_from_list tl l elt;;
+
+fun pos_in_list(l,p,n)=
+ if l==nil then nil
+ else let l -> [a nxt] in
+  if a==p then n
+  else pos_in_list nxt p n+1;;
+
+
+fun create_tab(n,f,x)=
+ let mktab n nil -> t in
+ (let 0->i in while i<n do
+  (set t.i=exec f with [i x];
+   set i=i+1);
+  t);;
+
+fun strreplace(s, from, to)=
+  let 0 -> pos in
+  let strlen from -> fsize in
+  let strlen to -> tsize in
+  if ((fsize <= 0) || (tsize <= 0)) then nil else
+  while ((set pos = strfind from s pos) != nil) do
+  (
+    set s = strcatn (substr s 0 pos)::to::(substr s (pos + fsize) ((strlen s) - pos))::nil;
+    set pos = pos + tsize;
+  );
+  s;;
+
+
+fun strreplacei(s, from, to)=
+  let 0 -> pos in
+  let strlen from -> fsize in
+  let strlen to -> tsize in
+  if ((fsize <= 0) || (tsize <= 0)) then s else
+  while ((set pos = strfindi from s pos) != nil) do
+    set s = strcatn (substr s 0 pos)::to::(substr s (pos + fsize) ((strlen s) - pos))::nil;
+  s;;
+
+fun addSlashes(s)=
+  let "" -> ret in
+  (
+    let strlen s -> size in
+    let 0 -> i in
+    while (i < size) do
+    (
+      let nth_char s i -> char in
+      if (char == 34) || (char == 39) || (char == 92) then
+        set ret = strcatn ret::(ctoa 92)::(ctoa char)::nil
+      else
+        set ret = strcat ret (ctoa char);
+      
+      set i = i + 1;
+    );
+    ret;
+  );;
+  
+/*Concat a string list with a defined separator*/  
+fun strcatnSep(l, sep)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+      if i == 0 then
+        set ndata = elem
+      else
+        set ndata = strcatn ndata::sep::elem::nil;
+        
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+/*Concat a string list with a defined separator and a line feed*/  
+fun strcatnlSep(l, sep)=
+  if l == nil then nil else
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+      if i == 0 then
+        set ndata = (strcatnSep elem sep)
+      else
+        set ndata = strcatn ndata::"\n"::(strcatnSep elem sep)::nil;
+        
+      set i = i + 1;
+    );
+    ndata;
+  );;  
+
+fun strTruncate(s, maxlen, rp)=
+  if (strlen s) > maxlen then
+    strcat substr s 0 (maxlen - (strlen rp)) rp
+  else
+    s;;
+
+fun strQuote(s, q)= strcatn q::(strtrim s)::q::nil;;
+
+fun listQuote(l, q)=
+  let nil -> nl in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list l i -> elt in
+        set nl = lcat nl (strQuote elt q)::nil;
+      
+      set i = i + 1;
+    );
+    nl;
+  );;
+  
+fun strToList(s)=
+  let nil -> ret in
+  let strextr s -> l in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while (i < size) do
+    (
+      let nth_list l i -> line in
+        set ret = lcat ret (strcatnSep line " ")::nil;
+      
+      set i = i + 1;
+    );
+    ret;
+  );;
+  
+  
+  
+/* ********************************************************************************************* /
+  HTTP DOWNLOAD
+/ ********************************************************************************************* */
+
+typeof lHTTP_COOKIES = [[S S] r1];;
+typeof lHTTP_REQUEST = [ObjCURL r1];;
+
+
+fun strIsUrl(url)= if ((!strcmp (substr url 0 8) "https://") || (!strcmp (substr url 0 7) "http://") || (!strcmp (substr url 0 7) "file://") || (!strcmp (substr url 0 6) "ftp://") || (!strcmp (substr url 0 7) "scol://")) && ((strlen url) > 10) then 1 else 0;;
+
+
+fun clearHttpRequest()=
+  let lHTTP_REQUEST -> l in
+  while (l != nil) do
+  (
+    _KILLcurlRequest hd l;
+    set l = tl l;
+  );
+  set lHTTP_REQUEST = nil;
+  0;;
+
+
+fun killHttpRequest(req)=
+  if (req == nil) then nil else
+  (
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST req;
+    _KILLcurlRequest req;
+  );
+  0;;
+
+fun clearHttpCookies()=
+  set lHTTP_COOKIES = nil;
+  0;;
+
+fun getHttpDomain(url)=
+  let if (!strcmp (substr url 0 8) "https://") then
+        substr url 8 ((strlen url) - 8)
+      else if (!strcmp (substr url 0 7) "http://") then
+        substr url 7 ((strlen url) - 7)
+      else if (!strcmp (substr url 0 7) "file://") then
+        substr url 7 ((strlen url) - 7)
+      else if (!strcmp (substr url 0 6) "ftp://") then
+        substr url 6 ((strlen url) - 6)
+      else url    
+  -> baseurl in
+    substr baseurl 0 (strfind "/" baseurl 0);;
+
+fun getHtmlHeader(cont)=
+  let strextr cont -> lcont in
+  let sizelist lcont -> size in
+  let 0 -> i in
+  let 0 -> pos in
+  (
+    while ((i < size) && (pos <= 0)) do
+    (
+      let hd nth_list lcont i -> word in
+      if word != nil then nil else
+        set pos = i;
+      
+      set i = i + 1;
+    );
+    let splitList lcont pos -> [l1 l2] in
+      [(strbuildn l1) (strbuildn tl l2)];
+  );;
+
+fun decompHtmlCookie(cookie)=
+  let strToListSep cookie ";" -> l in
+  let [nil nil nil 0 0] -> pout in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list l i -> elt in
+      if (!strcmpi "Domain=" (substr elt 0 7)) then
+        mutate pout <- [_ (substr elt 7 ((strlen elt) - 7)) _ _ _]
+      else if (!strcmpi "Path=" (substr elt 0 5)) then
+        mutate pout <- [_ _ (substr elt 5 ((strlen elt) - 5)) _ _]
+      else if (!strcmpi "Secure" (substr elt 0 6)) then
+        mutate pout <- [_ _ _ 1 _]
+      else if (!strcmpi "HttpOnly" (substr elt 0 8)) then
+        mutate pout <- [_ _ _ _ 1]
+      else
+        mutate pout <- [elt _ _ _ _];
+      
+      set i = i + 1;
+    );
+    pout;
+  );;
+
+fun getHtmlStatus(header)=
+  let getNextToValue header "status:" -> status in
+  let atoi (hd lineextr status) -> code in
+  (
+    if (code != nil) then nil else
+      let getNextToValue header "HTTP/1.1" -> status in
+        set code = atoi (hd lineextr status);
+    
+    if (code != nil) then nil else
+      let getNextToValue header "HTTP/1.0" -> status in
+        set code = atoi (hd lineextr status);
+    
+    code;
+  );;
+
+fun setHtmlCookie(url, header)=
+  let getHttpDomain url -> baseurl in
+  let getNextToValue header "Set-Cookie:" -> cookie in
+  if (cookie == nil) then nil else
+  (
+    //_fooS strcatn ">>>>>>>>> add cookie : "::cookie::" on "::baseurl::nil;
+    set lHTTP_COOKIES = remove_sid_from_list lHTTP_COOKIES baseurl;
+    set lHTTP_COOKIES = [baseurl cookie]::lHTTP_COOKIES;
+  );
+  0;;
+
+fun makeHtmlCookieHeader(url)=
+  let getHttpDomain url -> baseurl in
+  let switchstri lHTTP_COOKIES baseurl -> cookie in
+  if (cookie == nil) then nil else
+    strcatn "Cookie: "::cookie::(ctoa 13)::(ctoa 10)::nil;;
+
+
+fun makeHtmlCookie(url)=
+  let getHttpDomain url -> baseurl in
+  let switchstri lHTTP_COOKIES baseurl -> cookie in
+    cookie;;
+
+
+fun getHtmlCookie(url)=
+  let getHttpDomain url -> baseurl in
+    switchstri lHTTP_COOKIES baseurl;;
+
+
+fun cbDownloadFile(curlobj, p, data, code)=
+  let p -> [str url cbfun] in
+  if (code == -1) then
+  (
+    mutate p <- [(strcat str data) _ _];
+    0;
+  )
+  // download finished
+  else if (code == 0) then
+  (
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;   
+    exec cbfun with [url str];
+  )
+  else
+  (
+    _fooS strcatn ">>>>>>>>> Http download failed : "::url::" whith code : "::(itoa code)::nil;
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;
+    exec cbfun with [url nil];
+    0;
+  );
+  0;;
+
+fun downloadFile(file, cbfun)=
+  if strIsUrl file then
+  let makeHtmlCookie file -> cookie in
+  let _CRcurlRequest _channel file -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+        
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbDownloadFile ["" file cbfun])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [file nil];
+    nil;
+  );;
+  
+
+fun cbGetUrlContent(curlobj, p, data, code)=
+  let p -> [str url cbfun fullres] in
+  if (code == -1) then
+  (
+    mutate p <- [(strcat str data) _ _ _];
+    0;
+  )
+  // download finished
+  else if (code == 0) then
+  (
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;
+    let getHtmlHeader str -> [header cont] in
+    (
+      setHtmlCookie url header;
+      exec cbfun with [url (if fullres then str else cont)];
+    );
+  )
+  else
+  (
+    _fooS strcatn ">>>>>>>>> Http download failed : "::url::" whith code : "::(itoa code)::nil;
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;
+    exec cbfun with [url nil];
+    0;
+  );
+  0;;
+
+
+
+ fun deleteUrlEx(url, params, cbfun, headeradd, fullres)=
+  let makeHtmlCookie url -> cookie in
+  if strIsUrl url then
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    if !fullres then nil else
+      _SETcurlOption objcurl CURLOPT_HEADER 1;
+    
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    _SETcurlOptionS objcurl CURLOPT_CUSTOMREQUEST "DELETE";
+   
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    if (params == nil || (!strcmp (strtrim params) "")) then nil else
+    (
+      _SETcurlOption objcurl CURLOPT_POST 1;
+      _SETcurlOptionS objcurl CURLOPT_POSTFIELDS params;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+
+ fun postUrlEx(url, params, cbfun, headeradd, fullres)=
+  let makeHtmlCookie url -> cookie in
+  if strIsUrl url then
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_HEADER 1;
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    if (params == nil || (!strcmp (strtrim params) "")) then nil else
+    (
+      _SETcurlOption objcurl CURLOPT_POST 1;
+      _SETcurlOptionS objcurl CURLOPT_POSTFIELDS params;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+
+ fun getUrlEx(url, params, cbfun, headeradd, fullres)=
+  let makeHtmlCookie url -> cookie in
+  if strIsUrl url then
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_HEADER 1;
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    if (params == nil || (!strcmp (strtrim params) "")) then nil else
+    (
+      _SETcurlOption objcurl CURLOPT_HTTPGET 1;
+      _SETcurlOptionS objcurl CURLOPT_POSTFIELDS params;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;  
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+
+ fun postUrlMultiPartEx(url, lparams, cbfun, headeradd, fullres)=
+  if strIsUrl url then
+  let makeHtmlCookie url -> cookie in
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_HEADER 1;
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    let sizelist lparams -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lparams i -> [name value file] in
+      (
+        if(file == nil) then
+        (
+          _ADDcurlFormField objcurl name value;
+        )
+        else
+        (
+          _ADDcurlFileFormField objcurl name _checkpack file;
+        );
+      );
+      set i = i + 1;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+/*Download an url using the GET method
+params = "login=toto&pass=tata"*/
+fun getUrl(url, params, cbfun)=
+  getUrlEx url params cbfun nil 0;;
+
+/*Download an url using the POST method*/
+fun postUrl(url, params, cbfun)=
+  postUrlEx url params cbfun nil 0;;
+
+/*Download an url using the POST method with multipart
+param [[S S S] r1]: list of parameters [name value file]
+param fun [S S] u0 : the callback with url and data */  
+fun postUrlMultiPart(url, lparams, cbfun)=
+  postUrlMultiPartEx url lparams cbfun nil 0;;  
+  
+fun postUrlMultiPart(url, lparams, cbfun)=
+  postUrlMultiPartEx url lparams cbfun nil 0;;
+  
+fun deleteUrl(url, params, cbfun)=
+  deleteUrlEx url params cbfun nil 0;;
+
+
+
+/* ********************************************************************************************* /
+  Vector  
+/ ********************************************************************************************* */
+
+
+fun normalizeVectorF(vec)=
+  let vec -> [x y z] in
+  let (absf x) +. (absf y) +. (absf z) -> sum in
+  let if (sum == 0.0) then 1.0 else 1.0 /. sum -> coef in
+    [(x *. coef) (y *. coef) (z *. coef)];;
+
+
+fun vectorAverageF(vec)=
+  let vec -> [x y z] in
+    x +. y +. z /. 3.0;;
+
+fun vectorCubeF(vec)=
+  let vec -> [x y z] in
+    x *. y *. z;;
+
+fun subVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 - x2) (y1 - y2) (z1 - z2)];;
+
+fun subVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 -. x2) (y1 -. y2) (z1 -. z2)];;
+
+fun addVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 + x2) (y1 + y2) (z1 + z2)];;
+
+fun addVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 +. x2) (y1 +. y2) (z1 +. z2)];;
+
+fun divideVector(vec1, vec2)=
+  if vectorIsZero vec2 then nil else
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 / x2) (y1 / y2) (z1 / z2)];;
+
+fun divideVectorF(vec1, vec2)=
+  if vectorIsZeroF vec2 then nil else
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 /. x2) (y1 /. y2) (z1 /. z2)];;
+
+fun multiplyVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 * x2) (y1 * y2) (z1 * z2)];;
+
+fun multiplyVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 *. x2) (y1 *. y2) (z1 *. z2)];;
+
+/*Get the shortest angle in degree*/
+fun getShortestAngle(p, q) =
+   let (absf (q -. p)) -> path1 in
+   let (absf (q +. 360.0 -. p)) -> path2 in
+   let (absf (q -. 360.0 -. p)) -> path3 in
+   let minf path1 minf path2 path3 -> minpath in
+      if (minpath == path1) then
+         q
+      else if (minpath == path2) then
+         (q +. 360.0)
+      else
+         (q -. 360.0);;	
+		 
+		 
+/* ********************************************************************************************* /
+  Date  
+/ ********************************************************************************************* */
+fun getMonthDays(month, year)=
+  if (month <= 0) then nil else
+  let if ((mod year 4)==0 && (mod year 100) != 0) || (mod year 400)==0 then 29 else 28 -> feb in
+  let 0::31::feb::31::30::31::30::31::31::30::31::30::31::nil -> nbdays in
+    nth_list nbdays month;;
+
+/*the date in string format ("Tue Jan 21 11:24:53 1997")*/	
+fun isDateString(date)=
+  let hd strextr date -> [dayname [monthname [day [hour [year _]]]]] in
+    ((strfind dayname "SunMonTueWedThuFriSat" 0) != nil) &&
+    ((strfind monthname "JanFebMarAprMayJunJulAugSepOctNovDec" 0) != nil) &&
+    ((atoi day) != 0) &&
+    ((strlen hour) == 8) &&
+    (!strcmp (substr hour 2 1) ":") &&
+    (!strcmp (substr hour 5 1) ":") &&
+    (let (atoi (substr hour 0 2)) -> H in (H>=0) && (H<24)) &&
+    (let (atoi (substr hour 3 2)) -> M in (M>=0) && (M<60)) &&
+    (let (atoi (substr hour 6 2)) -> Sc in (Sc>=0) && (Sc<60)) &&
+    ((strlen year) == 4) &&
+    ((atoi year) != 0);;
+
+fun getSecondsFromDateTime(day, month, year, hours, minutes, seconds)=
+  (((((((year-1969) / 4) + 365 * (year - 1970) + (getMonthDays month year) + day - 1) * 24 + hours - 2) * 60) + minutes) * 60) + seconds;;
+  
+/*the date in string format ("Tue Jan 21 11:24:53 1997")*/	
+fun getDateTimeFromString(date)=
+  if (!isDateString date) then nil else
+//  let ["Mon" 1]::["Tue" 2]::["Wed" 3]::["Thu" 4]::["Fri" 5]::["Sat" 6]::["Sun" 7]::nil -> ldays in
+  let ["Jan" 1]::["Feb" 2]::["Mar" 3]::["Apr" 4]::["May" 5]::["Jun" 6]::["Jul" 7]::["Aug" 8]::["Sep" 9]::["Oct" 10]::["Nov" 11]::["Dec" 12]::nil -> lmonths in
+  let hd strextr date -> [dayname [monthname [day [hour [year _]]]]] in
+  let atoi (substr hour 0 2) -> hours in
+  let atoi (substr hour 3 2) -> minutes in
+  let atoi (substr hour 6 2) -> seconds in
+    [(atoi day) (switchstr lmonths monthname) (atoi year) hours minutes seconds];;
+
+fun getCurrentDateTime(mode)=
+  let if (mode >= 1) then (gmtime time) else (localtime time) -> [seconds minutes hours day month year _ _] in
+    [day month year hours minutes seconds]
+  ;;
+
+
+fun getCurrentTime(mode)=
+  let if (mode >= 1) then (gmtime time) else (localtime time) -> [seconds minutes hours day month year _ _] in
+    [hours minutes seconds]
+  ;;
+  
+
+
+/*DHDMS definitions 
+typeof s3dMainSession = V3Dsession;; //!< the default 3D session structure
+typeof v3dMain = V3Dview;;           //!< the default 3D view structure
+
+ 
+fun c3dXsession()= s3dMainSession;;  //!< the default 3D session structure
+fun c3dXview()= v3dMain;;            //!< the default 3D view structure
+fun c3dXwin()= v3dMain.V3D_win;;     //!< the default 3D window
+fun DMSwin()= v3dMain.V3D_win;;      //!< the default 3D window (alias)
+  
+// used for AR plugITs, this value can be changed by the camera input plugIT
+var c3dxCameraSize = [640 480];;    //!< the default web cam size, this can be changed by AR plugIT for example
+var c3dxCameraFlip = 0;;            //!< the default web cam flip state, this can be changed by AR plugIT for example
+  
+*/  
+	
+  
+  

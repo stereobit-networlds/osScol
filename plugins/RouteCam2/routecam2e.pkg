@@ -1,0 +1,268 @@
+/* Camera GPS Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof plugin=S;;
+typeof class=S;;
+typeof ed = PluginEditor;;
+typeof LBinitAv = ObjText;;
+typeof InitAv = ObjText;;
+typeof LBinitOr = ObjText;;
+typeof InitOr = ObjText;;
+typeof LBinitLi = ObjText;;
+typeof InitLi = ObjText;;
+typeof LBinitCa = ObjText;;
+typeof InitCa = ObjText;;
+typeof LBstartUrl = ObjText;;
+typeof StartUrl = ObjText;;
+typeof CHauto   = ObjCheck;;
+typeof LBautoRefresh = ObjText;;
+typeof AutoRefresh = ObjText;;
+typeof LBinitSession = ObjText;;
+typeof InitSession = ObjText;;
+typeof LBinitParser = ObjText;;
+typeof InitParser = ObjText;;
+typeof LBGpsBuf = ObjText;;
+typeof GpsBuf = ObjText;;
+typeof LBGpsRec = ObjText;;
+typeof GpsRec   = ObjCheck;;
+typeof BufReload  = ObjCheck;;
+typeof ShowCompass  = ObjCheck;;
+typeof CheckRange  = ObjCheck;;
+typeof fView  = ObjCheck;;
+typeof LBinfoDistance = ObjText;;
+typeof InfoDistance = ObjText;;
+
+fun InstName(UI)=UI.nameInst;;
+fun InstParam(UI)=UI.paramInst;;
+
+var maxDownloadSize=3145728;;//1048576;; //204800;;
+
+proto save=fun [ [Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]];;
+
+var openBmp = "dms/3d/plugins/stereobit/open.bmp";;
+
+fun _rflOpen(o,T,Pa)=let _PtoScol Pa -> s in if s==nil then nil else _SETtext T _PtoScol Pa;;
+
+fun _rflButton(b,T)=
+ _DLGrflopen _DLGOpenFile _channel ed.PluginEditorEditWin nil nil "txt (*.txt)\0*.TXT\0\0" @_rflOpen T;;
+
+
+/*----------------*/
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   ("eventC"::(strcatn class::".start"::nil)::nil)::
+   ("eventC"::(strcatn class::".inCompassSet"::nil)::nil)::
+   ("eventC"::(strcatn class::".inCompass"::nil)::nil)::
+   ("eventC"::(strcatn class::".inRange"::nil)::nil)::
+   ("eventC"::(strcatn class::".keyF1"::nil)::nil)::   
+   ("eventC"::(strcatn class::".keyF7"::nil)::nil)::
+   ("eventC"::(strcatn class::".keyF8"::nil)::nil)::
+   ("eventC"::(strcatn class::".keyF9"::nil)::nil)::
+   ("eventC"::(strcatn class::".keyF10"::nil)::nil):: 
+   ("eventC"::(strcatn class::".keyF11"::nil)::nil)::
+   ("eventC"::(strcatn class::".keyF12"::nil)::nil)::   
+   ("actionC"::(strcatn name::".gpsupdate"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpswalkview"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpsinit"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpstopview"::nil)::nil)::
+   (suppactions nl);;
+
+   
+fun testinst(l, c) =
+  if l==nil then 
+    0 
+  else 
+    let l->[a n] in
+  if !strcmp a.classInst c then
+    1
+  else 
+    testinst n c
+;;
+
+   
+/*----------------*/
+fun save(l)=
+ if l==nil then [nil nil nil nil]
+ else
+ [
+  nil /* registerF */
+  nil /* register */
+  ("plugin"::plugin::nil)::nil /* supplemental Dat */
+  suppactions l /* supplemental Dmi */
+ ];;
+
+
+fun openedit(win, param) =
+
+  let strextr param -> l in
+  let _GETwindowSizePosition win -> [w h x y] in
+  ( 
+    set ed = startPluginEditor _channel win 0 0 w h WN_CHILDINSIDE|WN_NOBORDER class;
+
+    set LBinitAv = _CRtext _channel ed.PluginEditorEditWin 5 5 80 20 ET_ALIGN_LEFT "Avatar : ";
+    set InitAv = _CReditLine _channel ed.PluginEditorEditWin 85 5 w-85 20 ET_ALIGN_LEFT|ET_DOWN 
+    let getInfo l "initav" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+ 
+    set LBinitOr = _CRtext _channel ed.PluginEditorEditWin 5 30 80 20 ET_ALIGN_LEFT "Orientation : ";
+    set InitOr = _CReditLine _channel ed.PluginEditorEditWin 85 30 w-85 20 ET_ALIGN_LEFT|ET_DOWN 
+    let getInfo l "initor" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+        
+    set LBinitLi = _CRtext _channel ed.PluginEditorEditWin 5 55 80 20 ET_ALIGN_LEFT "Light : ";
+    set InitLi = _CReditLine _channel ed.PluginEditorEditWin 85 55 w-85 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "initli" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+ 
+    set LBinitCa = _CRtext _channel ed.PluginEditorEditWin 5 80 80 20 ET_ALIGN_LEFT "Camera : ";
+    set InitCa = _CReditLine _channel ed.PluginEditorEditWin 85 80 w-85 20 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER
+    let getInfo l "initca" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+		
+    set LBstartUrl = _CRtext _channel ed.PluginEditorEditWin 5 105 80 20 ET_ALIGN_LEFT "Url : ";
+    set StartUrl = _CReditLine _channel ed.PluginEditorEditWin 85 105 w-85 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "starturl" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+		
+    set LBGpsBuf = _CRtext _channel ed.PluginEditorEditWin 5 130 40 20 ET_ALIGN_LEFT "File:";
+    let getInfo l "GpsBuf" -> buf in 
+    set GpsBuf = _CReditLine _channel ed.PluginEditorEditWin 85 130 390 20 ET_ALIGN_LEFT|ET_DOWN buf;
+    _CBbutton _CRbuttonBitmap _channel ed.PluginEditorEditWin _LDbitmap _channel _checkpack openBmp 480 130 20 20 0 @_rflButton GpsBuf;  	
+				
+		
+   set CHauto = _CRcheck _channel ed.PluginEditorEditWin 85 155 40 16 0 "Auto";
+   let getInfo l "auto" -> string in
+   if string == nil then
+    _SETcheck CHauto 0
+   else if (atoi string) then
+    _SETcheck CHauto 1 
+   else
+    _SETcheck CHauto 0;	
+	
+    set GpsRec = _CRcheck _channel ed.PluginEditorEditWin 150 155 60 16 0 "Rec";
+    let getInfo l "GpsRec" -> string in
+    if string == nil then
+      _SETcheck GpsRec 1
+    else if (atoi string) then
+      _SETcheck GpsRec 1 
+    else
+      _SETcheck GpsRec 0;	
+
+    set BufReload = _CRcheck _channel ed.PluginEditorEditWin 215 155 60 16 0 "Reload";
+    let getInfo l "BufReload" -> string in
+    if string == nil then
+      _SETcheck BufReload 1
+    else if (atoi string) then
+      _SETcheck BufReload 1 
+    else
+      _SETcheck BufReload 0;  	  
+
+    set LBautoRefresh = _CRtext _channel ed.PluginEditorEditWin 375 155 50 20 ET_ALIGN_LEFT "Refresh : ";
+    set AutoRefresh = _CReditLine _channel ed.PluginEditorEditWin 425 155 50 16 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER
+    let getInfo l "refresh" -> string in
+      if (nil == string) then
+        "1000"
+      else
+        string;		
+		
+    set LBinitSession = _CRtext _channel ed.PluginEditorEditWin 5 175 80 20 ET_ALIGN_LEFT "Init : ";
+    set InitSession = _CReditLine _channel ed.PluginEditorEditWin 85 175 w-85 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "initsession" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;		
+		
+    set LBinitParser = _CRtext _channel ed.PluginEditorEditWin 5 200 80 20 ET_ALIGN_LEFT "Parser : ";
+    set InitParser = _CReditLine _channel ed.PluginEditorEditWin 85 200 w-85 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "initparser" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;	
+		
+    set LBinfoDistance = _CRtext _channel ed.PluginEditorEditWin 5 225 80 20 ET_ALIGN_LEFT "Info distance : ";
+    set InfoDistance = _CReditLine _channel ed.PluginEditorEditWin 85 225 80 16 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER
+    let getInfo l "infoDistance" -> string in
+      if (nil == string) then
+        "500"
+      else
+        string;	
+		
+    set CheckRange = _CRcheck _channel ed.PluginEditorEditWin 175 225 100 16 0 "Check Range";
+    let getInfo l "CheckRange" -> string in
+    if string == nil then
+      _SETcheck CheckRange 0
+    else if (atoi string) then
+      _SETcheck CheckRange 1 
+    else
+      _SETcheck CheckRange 0;		
+
+    set ShowCompass = _CRcheck _channel ed.PluginEditorEditWin 275 225 100 16 0 "Show Compass";
+    let getInfo l "ShowCompass" -> string in
+    if string == nil then
+      _SETcheck ShowCompass 0
+    else if (atoi string) then
+      _SETcheck ShowCompass 1 
+    else
+      _SETcheck ShowCompass 0; 	
+
+    set fView = _CRcheck _channel ed.PluginEditorEditWin 375 225 100 16 0 "F View";
+    let getInfo l "fView" -> string in
+    if string == nil then
+      _SETcheck fView 0
+    else if (atoi string) then
+      _SETcheck fView 1 
+    else
+      _SETcheck fView 0; 	  
+
+    0
+  )
+;;
+ 
+ 
+fun closeedit() =
+
+ strbuild
+ ("initav"::(_GETtext InitAv)::nil)::
+ ("initor"::(_GETtext InitOr)::nil)::
+ ("initli"::(_GETtext InitLi)::nil)::
+ ("initca"::(_GETtext InitCa)::nil)::
+ ("starturl"::(_GETtext StartUrl)::nil)::
+ ("auto"::(itoa _GETcheck CHauto)::nil)::
+ ("infoDistance"::(_GETtext InfoDistance)::nil):: 
+ ("CheckRange"::(itoa _GETcheck CheckRange)::nil)::
+ ("fView"::(itoa _GETcheck fView)::nil)::
+ ("ShowCompass"::(itoa _GETcheck ShowCompass)::nil):: 
+ ("refresh"::(_GETtext AutoRefresh)::nil)::
+ ("initsession"::(_GETtext InitSession)::nil)::
+ ("initparser"::(_GETtext InitParser)::nil)::
+ ("BufReload"::(itoa _GETcheck BufReload)::nil)::  
+ ("GpsBuf"::(_GETtext GpsBuf)::nil):: 
+ ("GpsRec"::(itoa _GETcheck GpsRec)::nil)::nil
+;; 
+
+/*----------------*/
+fun IniPlug(file)=
+ set plugin=file;
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @save nil @openedit @closeedit
+ ;;

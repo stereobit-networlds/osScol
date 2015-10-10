@@ -1,0 +1,70 @@
+/* Distance Plugin Editor - DMS - Jun 99 - by Sébastien DENEUX */
+
+typeof plugin=S;;
+typeof class=S;;
+
+typeof ed = PluginEditor;;
+typeof DMsphere=ObjText;;
+typeof RefreshPeriod=ObjText;;
+
+fun InstName(UI)=UI.nameInst;;
+
+proto save=fun [ [Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]];;
+
+/*----------------*/
+fun openedit(win,param)=
+let strextr param -> l in
+let _GETwindowSizePosition win -> [w h x y] in
+( 
+ set ed = startPluginEditor _channel win 0 0 w h WN_CHILDINSIDE|WN_NOBORDER class;
+
+  _CRtext _channel ed.PluginEditorEditWin 5 5 110 20 ET_ALIGN_LEFT "Sphere radius : ";
+ set DMsphere = _CReditLine _channel ed.PluginEditorEditWin 120 5 w-120 20 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER 
+ let getInfo l "DMsphere" -> string in
+ if (nil == string) then
+  "2000"
+ else
+  string;
+ _CRtext _channel ed.PluginEditorEditWin 5 30 110 20 ET_ALIGN_LEFT "Refresh period : ";
+ set RefreshPeriod = _CReditLine _channel ed.PluginEditorEditWin 120 30 w-120 20 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER 
+ let getInfo l "RefreshPeriod" -> string in
+ if (nil == string) then
+  "200"
+ else
+  string;
+ 0
+);;
+
+/*----------------*/
+fun closeedit()=
+ strbuild
+ ("DMsphere"::(_GETtext DMsphere)::nil)::  
+ ("RefreshPeriod"::(_GETtext RefreshPeriod)::nil)::nil;;
+
+/*----------------*/
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   ("eventC"::(strcatn name::".in"::nil)::nil)::
+   ("eventC"::(strcatn name::".out"::nil)::nil)::
+   (suppactions nl);;
+
+/*----------------*/
+fun save(l)=
+ if l==nil then [nil nil nil nil]
+ else
+ [
+  nil /* registerF */
+  nil /* register */
+  ("plugin"::plugin::nil)::nil /* supplemental Dat */
+  suppactions l /* supplemental Dmi */
+ ];;
+
+/*----------------*/
+fun IniPlug(file)=
+ set plugin=file;
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @save nil @openedit @closeedit;;

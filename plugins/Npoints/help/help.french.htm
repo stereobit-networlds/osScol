@@ -1,0 +1,109 @@
+<html>
+<head>
+<title>Scale2</title>
+<link href="help.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="frametop"> <img width=21 height=21 src="french/image001.jpg"> <sup> 
+  Scale2 1.0</sup></div>
+  <br>
+<table class="table1">
+  <tr> 
+    <td width="37%">Catégorie / Domaine :</td>
+    <td width="62%" class="td1">Plugin du C3D3</td>
+  </tr>
+  <tr> 
+    <td width="37%">Compatibilité SCOL Voy@ger :</td>
+    <td width="62%" class="td1">V 2.0c et supérieure</td>
+  </tr>
+  <tr> 
+    <td width="37%">Mise à jour :</td>
+    <td width="62%" class="td1">
+      <p>02/2003</p>
+      </td>
+  </tr>
+</table>
+<br>
+<div class="title1">Fonction</div>
+<p>Ce module applique un changement d'échelle en boucle à la 
+  liste d'objets spécifiés dans l'ancre pour donner un 
+  effet de pulsation.</p>
+<p>Le changement d'échelle s'exprime en pourcentage de la taille 
+  de chaque objet et oscille entre une taille maximum et une taille minimum. La 
+  variation est linéaire (c'est à dire pas d'accélération) 
+  et dépend de la vitesse d'affichage de la carte graphique.</p>
+<div class="title1">Configuration</div>
+<p><img width=516 height=432 src="french/image.jpg"><br>
+  Figure 1&nbsp;: Interface du plugin Scale</p>
+
+
+<table cellpadding="5" cellspacing="5" class="table2" summary="">
+<tr>
+<td>(1)</td>
+<td><b>ScaleFactorMax</b></td>
+<td>Pourcentage maximum (limite supérieure) de la taille de l'objet). Exemple : 200 pour 200% de la taille initiale</td>
+</tr>
+<tr>
+<td>(2)</td>
+<td><b>ScaleFactorMin</b></td>
+<td>Pourcentage minimum (limite inférieure)de la taille de l'objet. Exemple : 50 pour 50% de la taille initiale</td>
+</tr>
+<tr>
+<td>(3)</td>
+<td><b>ScaleFactorIncrement</b></td>
+<td>Vitesse de la pulsation. Exemple : 10 pour varier de 10% la taille de l'objet à chaque cycle vidéo.</td>
+</tr>
+<tr>
+<td>(4)</td>
+<td><b>Framerate</b></td>
+<td>Donne le nombre de cadres d'images par seconde (plus il y a de cadres, plus le mouvement paraîtra fluide) ;<br>si l'ordinateur n'est pas assez puissant pour afficher toutes les cadres d'images, quelques cadres seront sautées<br>pour garantir que le mouvement ne sera pas plus lent que prévu (la valeur par défaut est 30)
+</td>
+</tr>
+</table><BR><BR><BR>
+
+<p> </p>
+<div class="title1">Mise en oeuvre</div>
+<p>Créez un lien sur l'objet concerné<br>
+  Créez l'ancre avec ces liens.<br>
+  Créez l'instance "Scale2(1.0)" et associez-lui l'ancre.<br>
+</p>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Action</td>
+    <td width="64%">Fonction</td>
+  </tr>
+ <tr> 
+    <td>Aucune</td>
+    <td>&nbsp;</td>
+  </tr>
+
+</table>
+<br>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Evénement</td>
+    <td width="64%">Fonction</td>
+  </tr>
+ <tr> 
+    <td>Aucun</td>
+    <td>&nbsp;</td>
+  </tr>
+
+</table>
+<br>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td>Zone</td>
+    <td>Fonction</td>
+    <td>Interface</td>
+    <td>Affectation</td>
+  </tr>
+  <tr valign="top"> 
+    <td>Aucune</td>
+    <td>&nbsp; </td>
+    <td>&nbsp;</td>
+    <td>&nbsp;</td>
+  </tr>
+</table>
+</body>
+</html>

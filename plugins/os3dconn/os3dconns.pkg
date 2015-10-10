@@ -1,0 +1,42 @@
+/* os3dconn Okt 2015 - by stereobit */
+
+typeof class   = S;;
+
+defcom Cscore=score I;;
+
+fun __scoreS(i) = 
+  if (i==nil) then
+    nil
+  else
+    let i -> reference in
+    let i -> name in
+	let _DMSfindItem DMSsender reference -> currentItem in
+	if (currentItem.countItem>0) then
+	(
+	  _DMSsend this DMSsender Cscore [currentItem.countItem];
+	  1
+	)
+	else  
+    let mkItem [reference name 1 nil] -> myItem in   
+    (   
+      _DMSsend this DMSsender Cscore [0];
+      0
+	);;
+
+fun cbdel(ui,z)=
+ 0;;
+
+fun cbcomm(ui,cli,action,param,z)=
+0;;
+
+fun newOb(o) =
+
+  UcbComm this ObUi o mkfun5 @cbcomm [o nil];
+  UcbDel this ObUi o mkfun2 @cbdel nil;
+0;; 
+
+fun IniPlug(file) =
+  set class=getInfo strextr _getpack _checkpack file "name";  
+  PlugRegister class @newOb nil;
+  0
+;;

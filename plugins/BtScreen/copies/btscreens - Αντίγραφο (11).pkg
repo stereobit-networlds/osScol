@@ -1,0 +1,208 @@
+/* Photo3 Server - DMS - march 99 - by Sylvain HUET */
+/* av3d January 2000 - by Sébastien DENEUX */
+/* btscreens av3d August 2014 - by stereobit-Vasilis Kometes */
+
+typeof class   = S;;
+typeof files = [S r1];;
+typeof infofiles = [S r1];;
+typeof fontfiles = [S r1];;
+
+var defaultRadius=2000;;
+
+
+fun broadCircle(o,z)=
+ let z->[[aa bb cc] d ui sign] in
+ /*let ObPos o ->[a b c] in
+ let (abs aa-a)+(abs bb-b)+(abs cc-c) -> dd in
+  if ((dd!=nil && dd<d) || (ObUi o)==ui) then
+    UsendCli this (UgetClient UgetUser ObUi o) ui "PhotoChg" sign
+  else nil;;*/
+  
+  UsendCli this (UgetClient UgetUser ObUi o) ui "PhotoChg" sign;;
+
+fun addbitmap(ui,z,s)=
+ let z->[o cur sign file d] in
+ if s!=nil then
+ (mutate z<-[_ if cur!=nil && (strlen cur)>40000 then cur else strcat cur s _ _ _];
+  0)
+ else
+ let munzip cur -> fs in
+ let _getlongname fs "face" "#" -> sign in
+ (
+  _RSunregister this file;
+  _RSregister this file RScontrol fs;
+  mutate z<-[_ nil sign _ _];  
+  apply_on_list ObList @broadCircle [(ObPos o) d ui sign];    
+  nil);;
+  
+
+
+fun cbdel(ui,file)=
+ _RSunregister this file;
+ 0;;
+  
+fun cbDestroy(o,docName) =
+  _RSunregister this docName;  
+  0
+;;
+
+fun extension(fi) =
+	let 0->j in
+	let 0->find in
+	(
+	  while ((set find=strfind "." fi j)!=nil) do 
+	  (
+		  set j=find+1
+	  );
+	substr fi j (strlen fi)-j
+	)
+;;  
+  
+fun lcat(p, q)=
+  if p==nil then
+    q
+  else
+    (hd p)::lcat (tl p) q;;
+	
+/* re-reverse read of _listoffiles which reads reverse the files from z to a */ 
+fun getReverseFiles(dir, ext)=
+  let _listoffiles dir -> files in
+  let nil -> lfiles in
+  let sizelist files -> size in
+  let (size-1) -> i in
+  (
+    while i >= 0 do
+    (
+      let nth_list files i -> file in
+	  if (ext != nil) && (!strcmp (extension file) ext) then
+        set lfiles = lcat lfiles file::nil
+	  else if (ext==nil) then
+	    set lfiles = lcat lfiles file::nil
+      else 
+	    nil;	  
+	    
+      set i = i - 1;
+    );
+    lfiles;
+  );;  
+  
+fun getImages(path)=
+  set files =  _listoffiles path;
+  _RSregisterfiles this files RSfile+RScontrol;
+  0;;  
+  
+fun getInfoImages(path)=
+  //set infofiles =  _listoffiles path;
+  set infofiles = getReverseFiles path "png";
+  _RSregisterfiles this infofiles RSfile+RScontrol;
+  0;;  
+
+fun getFontImages(path)=
+  set fontfiles = getReverseFiles path "png";
+  _RSregisterfiles this fontfiles RSfile+RScontrol;
+  0;;    
+  
+fun checkPassword(param)= 
+  if (!strcmp param "4321") then 
+    1 
+  else nil;; 
+  
+fun cbcomm(ui,cli,action,param,z)=
+ let z->[o _ sign file _] in
+ if !strcmp action "addPhoto" then addbitmap ui z param
+ else if !strcmp action "Name?" then UsendCli this cli ui "setName" file
+ else if !strcmp action "Photo?" then UsendCli this cli ui "PhotoChg" sign 
+ else if !strcmp action "downloadInfoImages" then 
+ (
+   /*register info files to download*/
+   let hd UgetParam ObUi o "rpath" -> path in 
+   let strcatn path::"/"::param::nil -> infopath in
+	 
+   getInfoImages infopath;
+   
+   if infofiles != nil then
+     UsendCli this cli ui "showInfoDialog" linebuild infofiles
+   else
+	 nil
+ ) 
+ else if !strcmp action "downloadFontImages" then 
+ ( 
+   /*register font files to download*/
+   let hd UgetParam ObUi o "rpath" -> path in 
+   let strcatn path::"/"::param::nil -> fontpath in
+	 
+   getFontImages fontpath;
+   
+   if fontfiles != nil then
+     UsendCli this cli ui "getFonts" linebuild fontfiles
+   else
+	 nil
+ )  
+ else if !strcmp action "checkPassword" then
+ (
+   let checkPassword param -> pass in
+   if pass != nil then
+     UsendCli this cli ui "validPassword" nil
+   else
+	 UsendCli this cli ui "invalidPassword" nil 
+ )  
+ else nil;;
+
+
+fun cbRegister (ui, cli, action, param, z) =
+  let z -> [o fileName nrand] in
+  let if fileName == nil then "logo.bmp" else fileName -> fileName in
+  (
+    let (strcatn "tmp/logo/"::(substr _getlongname strcat nrand (substr fileName 0 (strfind "." fileName 1)) "" "#" 1 8)::"."::(extension fileName)::nil) -> fileNameOnClient in 
+      if (_checkpack fileNameOnClient) == nil then
+        UsendMessage ui cli "registered" "logo.bmp"
+      else
+        UsendMessage ui cli "registered" fileNameOnClient;
+		
+	  /*send msg to download files*/	
+	  if files != nil then
+	  (
+        UsendMessage ObUi o cli "donwloadImages" linebuild files;
+		0
+	  )	
+      else
+        0;		
+    0
+  )
+;;
+
+fun newOb(o) =
+  let hd UgetParam ObUi o "fichier" -> fileName in
+  let hd UgetParam ObUi o "nrand" -> nrand in /* ??? ajouté par moi */
+    
+  let strcat ObName o fileName -> docName in
+  (
+    _RSregister this docName RScontrol+RSfile (strcatn "tmp/logo/"::(substr _getlongname strcat nrand (substr fileName 0 (strfind "." fileName 1)) "" "#" 1 8)::"."::(extension fileName)::nil); /*??? modifié par moi */	
+    ObCbDestroy o mkfun2 @cbDestroy docName;
+    UcbMessage ObUi o  
+        ["register" mkfun5 @cbRegister [o fileName nrand]]:: 
+        nil;
+	
+	/*register files to download */
+    let hd UgetParam ObUi o "rpath" -> path in
+    getImages path;	
+    0
+  );
+  
+  /*snap radius and save path*/
+  let hd Obgetglobalress strcat class ".radius" -> tmp in
+  let if tmp==nil then defaultRadius else atoi tmp -> d in
+  let strcat "tmp/snap/" substr _getlongname strcatn DMSname::(itoa UgetId UgetUser ObUi o)::nil "" "#" 1 8 -> file in  
+  (
+    UcbComm this ObUi o mkfun5 @cbcomm [o nil nil file d];
+    UcbDel this ObUi o mkfun2 @cbdel file;
+    0
+  );
+0;;  
+
+
+fun IniPlug(file) =
+  set class=getInfo strextr _getpack _checkpack file "name";  
+  PlugRegister class @newOb nil;
+  0
+;;

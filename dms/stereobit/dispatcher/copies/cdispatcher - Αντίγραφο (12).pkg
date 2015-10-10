@@ -1,0 +1,156 @@
+/* Dispatcher Client - DMS - june 2014 - by stereobit */
+
+defcom CsetPos=setPos S;;
+defcom CchangeCell=changeCell I S;;
+
+typeof iCellA = S;;
+typeof iCellB = S;;
+typeof iCellC = S;;
+typeof iCellD = S;;
+typeof iCellE = S;;
+typeof iCellF = S;;
+typeof defaultCell = I;;    /*default cell entry when no client position */
+typeof iCellNumber = I;;     /* the number of c3d3 cells */
+
+typeof paramList = [S r1];;
+typeof timer = Timer;;
+typeof cellActive = I;;     /* active cell */
+
+var posCheckTime = 20000;;   /* check every n seconds for jumping to other 3d cell */
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (iniPath)::fname::nil -> file in
+ 
+	let _appendpack s _getmodifypack file ->append in
+	if (append==-1) then
+		_createpack s _getmodifypack file
+	else nil
+ )
+ else nil;;
+
+fun _echo2(x,s)= 
+  saveLog "_echo.txt" strcat x "\n";;
+  
+fun _echo(x,s)= 
+ if (log==1) then
+	_DMSevent this "hear" strcat strcat ">>[cdispacher] " x "\n" nil
+ else nil;;  
+  
+/*convert radians to degrees */
+fun rad2deg(r) = r *. (180.0 /. PIf);;  
+ 
+/*convert degrees to radians */
+fun deg2rad(d) = d *. (PIf /. 180.0);; 
+  
+fun distanceP (lat1, lon1, lat2, lon2) =
+
+  let 6371.0 -> R in /*(Mean) radius of earth in km */
+  let deg2rad lat1 -> f1 in
+  let deg2rad lon1 -> g1 in
+  let deg2rad lat2 -> f2 in
+  let deg2rad lon2 -> g2 in
+  
+  let (g2-.g1) *. cos (f1+.f2/.2.0) -> x in
+  let (f2-.f1) -> y in
+  (sqrt ((x*.x) +. (y*.y))) *. R;;  
+  
+//read data from line 
+fun GetData(line, n) =
+  let 1 -> i in
+  let 0 -> ind1 in
+  let 0 -> ind2 in
+  (
+    while (i < n) do
+    (
+      set ind1 = 1 + strfind "," line ind1;
+      set i = i + 1;
+    );
+    set ind1 = 1 + strfind "," line ind1;
+    set ind2 = strfind "," line ind1;
+    substr line ind1 (ind2 - ind1);
+  );;  
+   
+fun activate(from,action,param,rep)=
+ if !strcmp action "setPos" then /*NOT USED*/
+ (
+  //let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> posfile in	 
+  let strcatn iniPath::DMSname::"/clocation.txt"::nil -> posfile in
+  let _getpack _checkpack posfile -> position in 
+  
+  _echo strcat "Dispatcher:" position
+  
+  0;
+ ) 
+ else nil;;
+  
+fun __savePos(coords) =
+  /*let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> flocation in	*/
+  let strcatn iniPath::DMSname::"/clocation.txt"::nil -> flocation in
+  _createpack coords _getmodifypack flocation
+;;  
+ 
+fun __getPos(s) = 
+  //let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> posfile in	 
+  let strcatn iniPath::DMSname::"/clocation.txt"::nil -> posfile in
+  let _getpack _checkpack posfile -> position in 
+  
+  _DMSsend this CsetPos [position]
+;;
+
+/*update active-now in cell variable from server */
+fun __setActiveCell(c) = set cellActive = c;;
+
+
+/* check position per n sec */
+fun checkPosition (x,position) =
+  if (x==nil) then
+    nil
+  else 
+  ( 
+    let atof GetData x 1 -> centerX in
+    let atof GetData x 2 -> centerY in
+    let atof GetData x 3 -> radius in
+    let hd position -> coords in
+    //_echo strcatn "Dispatcher:"::x::"->"::(coords)::nil   
+  
+    let substr coords 0 9 -> latitude in
+    let substr coords 10 9 -> longitude in 
+    //_echo strcatn "Coords:"::(latitude)::"->"::(longitude)::nil
+  
+    let distanceP (atof latitude) (atof longitude) centerX centerY -> dist in
+	let if dist>=.radius then " YES " else " NO" -> say in
+    _echo strcatn "Radius ("::(itoa cellActive)::")"::(ftoa dist)::" > "::(ftoa radius)::say::nil    
+  
+    if (dist>=.radius) then
+    (
+      let strcatn "data:"::","::(latitude)::","::(longitude)::","::(ftoa centerX)::","::(ftoa centerY)::","::(ftoa radius)::","::nil -> datal in				
+      _DMSsend this CchangeCell [cellActive datal]	
+	)  
+    else 0; 
+  );;  
+
+fun rflTimer (t, param)=
+  //let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> posfile in	 
+  let strcatn iniPath::DMSname::"/clocation.txt"::nil -> posfile in	 
+  let _getpack _checkpack posfile -> position in
+  
+  let lineextr position -> p in
+  let lineextr param -> pl in  
+  //_echo strcatn "Dispatcher:"::posfile::"-"::position::"-"::param::nil  
+  
+  checkPosition nth_list pl (cellActive-1) p;
+  0;; 
+	
+fun __hear(s)=
+ _DMSevent this "hear" s nil;;
+
+fun IniDMI(param)=   
+ 
+  _DMSregisterDMI this @activate nil;
+  
+  set timer = _rfltimer _starttimer _channel posCheckTime @rflTimer param;
+  0;;

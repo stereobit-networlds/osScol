@@ -1,0 +1,1018 @@
+/* gps object Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof class=S;;
+struct TrajAnim = [TAname:S,
+                   TAframerate:I,
+                   TAplay:I,
+                   TAplayOnce:I,
+                   TAtick:I,
+                   TAfel:[I r1],
+                   TAinit:I] mkTrajAnim;; 
+				   
+var iIX = -24700;;   // 25700 pour 100%
+var iIY = 15500;;
+var iIZ = 3300;;
+var sIX = "00202.5776";;
+var sIY = "510.0";;
+var sIZ =  "4846.0024";;
+var sIAng = "164.3";;
+
+typeof iX = I;;
+typeof iY = I;;
+typeof iZ = I;;
+typeof rX = I;;
+
+typeof iOldX = I;;
+typeof iOldY = I;;
+typeof iOldZ = I;;
+var iMaxDHor = 500;;
+var iMaxDVer = 500;;
+typeof iErrH = I;;
+typeof iErrV = I;;
+
+var sFoot   = "30.48";;		
+var sMScale = "25000.0";;
+var sWScale = "0.204";;
+var sHScale = "0.135";;
+
+typeof sno = I;;	   
+			
+typeof lInpData = [S r1];;				   
+var iniPath="locked/conf/stereobit/";;
+
+typeof sesfile = S;;
+var sesfile = "gpsbuf.txt";;
+
+var log=1;;
+var verbose=0;;	
+var gps_verbose=0;;	
+
+fun sessionpath() = 
+   strcatn iniPath::DMSname::"/"::(itoa sno)::"/"::nil;;	
+   
+fun fooCoord (coord) =
+	let coord -> [iX iY iZ] in
+	strcatn (itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for local client */
+fun C3D_IsPhysicsActivated () = cel.Cel3dphysics;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for server */
+fun C3D_IsGlobalPhysicsActivated () = cel.Cel3dglobalphysics;;	
+				   
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (sessionpath)::fname::nil -> logBuf in
+ 
+	let _appendpack s _getmodifypack logBuf ->append in
+	if (append==-1) then
+		_createpack s _getmodifypack logBuf
+	else nil
+ )
+ else nil;;
+
+fun echo(x,s)= 
+  saveLog "echo.txt" strcat x "\n";
+  if (verbose == 1) then
+	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+  else nil;;
+
+fun _echo(x,s)= 
+_DMSevent this "hear" strcat strcat ">> " x "\n" nil;
+saveLog "_echo.txt" strcat x "\n";;
+
+fun gps_echo(x,s)= 
+  if (gps_verbose == 1) then
+	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+  else nil;;
+
+fun recordLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (sessionpath)::fname::nil -> logBuf in
+ 
+	let _appendpack s _getmodifypack logBuf ->append in
+	if (append==-1) then
+		_createpack s _getmodifypack logBuf
+	else nil
+ )
+ else nil;;   
+
+//read data from line array	
+fun GetData(line, n) =
+  let 1 -> i in
+  let 0 -> ind1 in
+  let 0 -> ind2 in
+  (
+    while (i < n) do
+    (
+      set ind1 = 1 + strfind "," line ind1;
+      set i = i + 1;
+    );
+    set ind1 = 1 + strfind "," line ind1;
+    set ind2 = strfind "," line ind1;
+    substr line ind1 (ind2 - ind1);
+  );; 
+
+fun CheckNumChars(str, sta, end) =
+  if (sta == end) then
+    0 
+  else
+    let nth_char str sta -> c in
+      if (((c >= '0) && (c <= '9)) || (c == '.)) then
+        CheckNumChars str (sta + 1) end
+      else
+        1;;
+		
+proto CheckLine = fun [S] [S r1];;
+fun CheckLine(line) =	
+      if (!strcmp (substr line 0 3) "Pos") then
+      (
+        let GetData line 1 -> data in
+          if ((atoi data) != nil) then
+            line::nil
+          else
+            nil;
+      )	
+      else if (!strcmp (substr line 0 3) "Ang") then
+      (
+        line::nil
+      )
+      else
+        nil;;	  
+		
+//read route scenario
+fun ReadRouteScenario (O3d, rmode, sesfile) =	
+    //_echo strcat "RMODE:" rmode
+	
+    //read data file here
+	let strcatn (sessionpath)::"_"::(sesfile)::nil -> tempBuf in
+	//set mytempline = lineextr _getpack _checkpack tempBuf;
+	
+	/*alt method, fetch all lines of file as list in param rmode*/
+	/*read one by one keep track of pointer temp file */
+	/*tick cycle must be defined by another source than frames events */
+    //set mytempline = lineextr _getpack _checkpack "routes/testroute.txt";
+
+	let hd lInpData -> line in
+	//let hd rmode -> line in
+    let CheckLine line -> l in
+    (	
+	  let M3objName session O3d -> O3Name in   
+      //_echo strcatn "Object name:"::(O3Name)::nil
+
+      if (l == nil) then
+      (
+	    _echo strcatn "NULL (" :: (O3Name) :: "):0" :: nil
+        M3setObjVec session O3d [100 500 100];		
+        0;
+      )
+      else if (!strcmp (hd l) "Pos") then
+      (
+        let GetData line 1 -> iX in
+        let GetData line 2 -> iY in
+        let GetData line 3 -> iZ in	  
+	  
+	    M3setObjVec session O3d [(atoi iX) (atoi iY) (atoi iZ)];
+	    gps_echo strcatn "GPGGA ("::(O3Name)::"):"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil		
+        0;
+      )		  
+      else if (!strcmp (hd l) "Ang") then
+      (
+	    let GetData line 1 -> rX in
+	  
+	    M3setObjAng session O3d [(atoi rX) 0 0];		
+	    gps_echo strcatn "GPRMC (" :: (O3Name) :: "):0" :: nil		
+        0;
+      )	
+      else
+        0;
+		
+	  //set lInpData = tl lInpData;	
+    );;	  
+
+//read and check data lines		
+proto CheckIntegrity = fun [S] [S r1];;
+fun CheckIntegrity(line) =
+
+      /* SAVE OBJECT ROUTE LOG IN SESSION DIR */
+      saveLog "backroute.txt" strcat line "\n";
+
+      if (!strcmp (substr line 0 6) "$PGRME") then
+      (
+        nil;
+      )
+      else if (!strcmp (substr line 0 6) "$PGRMZ") then
+      (
+        let GetData line 1 -> data in
+          if ((atoi data) != nil) then
+            "$PGRMZ"::data::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "$GPRMC") then
+      (
+        //_fooS line;
+        let GetData line 1 -> dataTim in
+        let GetData line 2 -> dataVal in
+        let GetData line 3 -> dataLat in
+        let GetData line 4 -> dataNor in
+        let GetData line 5 -> dataLon in
+        let GetData line 6 -> dataEas in
+        let GetData line 7 -> dataRun in
+        let GetData line 8 -> dataAng in
+        let if ((strlen dataTim) == 6) then 0 else 1 -> errTim in
+        let if !strcmp dataVal "A" then 0 else 1 -> errVal in
+        let if (((strlen dataLat) == 9) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
+        let if !strcmp dataNor "N" then 0 else 1 -> errNor in
+        let if (((strlen dataLon) == 10) && (dataLon != nil) && (strcmp dataLon nil) && (strcmp dataLon "")) then 0 else 1 -> errLon in
+        let if !strcmp dataEas "E" then 0 else 1 -> errEas in
+        // No control for dataRun
+        let (errTim + errVal + errLat + errNor + errLon + errEas) -> error in
+        let strfind "." dataAng 0 -> ind in
+        let strlen dataAng -> len in
+          if ((error == 0) && ((atof dataAng) != nil) && (ind == (len - 2)) && (ind != 0) && ((CheckNumChars dataAng 0 len) == 0)) then
+            "$GPRMC"::dataAng::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "$GPGGA") then
+      (
+        let GetData line 1 -> dataTim in
+        let GetData line 2 -> dataLat in
+        let GetData line 3 -> dataNor in
+        let GetData line 4 -> dataLon in
+        let GetData line 5 -> dataEas in
+        let if ((strlen dataTim) == 6) then 0 else 1 -> errTim in
+        let if (((strlen dataLat) == 9) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
+        let if !strcmp dataNor "N" then 0 else 1 -> errNor in
+        let if (((strlen dataLon) == 10) && (dataLon != nil) && (strcmp dataLon nil) && (strcmp dataLon "")) then 0 else 1 -> errLon in
+        let if !strcmp dataEas "E" then 0 else 1 -> errEas in
+        let (errTim + errLat + errNor + errLon + errEas) -> error in
+          if (error ==0) then
+            "$GPGGA"::dataLat::dataLon::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "cbTick") then
+      (
+        "cbTick"::nil;
+      )
+      else
+        nil;;
+		
+//calculate - transfrom lat lot ang to vectors
+fun TranslateGeo (O3d, rmode, sesfile) =
+
+	//_echo strcatn "TranslateGeo:"::(sesfile)::nil	
+			
+    let strcatn (sessionpath)::(sesfile)::nil -> gBuf in
+    let _getpack _checkpack gBuf -> GpsLine in
+
+	set lInpData = lineextr GpsLine;
+	let hd lInpData -> line in
+    let CheckIntegrity line -> l in
+    (
+	  let "" -> out in /*init string */
+	
+	  let M3objName session O3d -> O3Name in   
+      //_echo strcatn "Object name:"::(O3Name)::nil
+
+      if (l == nil) then
+      (
+	    gps_echo strcatn "LINE (" :: (O3Name) :: "):0" :: nil
+		
+	    /* SAVE OBJECT ROUTE IN GPS CMD */
+	    let strcatn "LINE 0,0,0"::nil -> vline in
+        recordLog "backroute-gps.txt" strcat vline "\n";		
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRME") then
+      (
+	    gps_echo strcatn "PGRME (" :: (O3Name) :: "):0" :: nil
+		
+	    /* SAVE OBJECT ROUTE IN GPS CMD */
+	    let strcatn "PGRME 0,0,0"::nil -> vline in
+        recordLog "backroute-gps.txt" strcat vline "\n";			
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRMZ") then
+      (
+        let (hd tl l) -> data in
+        let ftoi (((itof atoi data) -. (atof sIY)) *. (atof sFoot)) -> delta in
+        (
+          set iY = iIY + delta;
+          if ((atoi data) == nil) then
+          (
+            set iErrV = iErrV + 1;
+            0;
+          )
+          else if ((iOldY != nil) && ((abs (iY - iOldY)) > (iMaxDVer * iErrV))) then
+          (
+            set iErrV = iErrV + 1;
+            0;
+          )
+          else
+          (
+            set iErrV = 1;
+            set iOldY = iY;
+			M3setObjVec session O3d [iX iY iZ];
+			gps_echo strcatn "PGRMZ ("::(O3Name)::"):"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil
+
+	        /* SAVE OBJECT ROUTE IN GPS CMD / VECTORS */
+	        let strcatn "PGRMZ:"::(itoa iX)::","::(itoa iX)::","::(itoa iZ)::nil -> vline in
+            recordLog "backroute-gps.txt" strcat vline "\n";				
+			
+			let strcatn "Pos,"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil -> out in
+			recordLog "backroute-vectors.txt" strcat out "\n";
+						
+            0;
+          );
+        );
+        0;
+      )
+      else if (!strcmp (hd l) "$GPRMC") then
+      (
+        let (hd tl l) -> data in
+        (
+          if ((atof data) == nil) then
+		  (
+		    set rX = 0;
+            0;
+		  )	
+          else
+          (
+			M3setObjAng session O3d [(ftoi (-.65536.0 *. ((atof data) /. 360.0))) 0 0];		
+			let (ftoi (-.65536.0 *. ((atof data) /. 360.0))) -> rX in			
+			gps_echo strcatn "GPRMC (" :: (O3Name) ::"):":: (itoa rX) :: ",0,0" ::nil
+			
+	        /* SAVE OBJECT ROUTE IN GPS CMD / VECTORS */
+	        let strcatn "GPRMC:"::(itoa rX)::",0,0"::nil -> vline in
+            recordLog "backroute-gps.txt" strcat vline "\n";				
+						
+			let strcatn "Ang,"::(itoa rX)::",0,0"::nil -> out in
+			recordLog "backroute-vectors.txt" strcat out "\n";
+            0;
+          );
+        );
+        0;
+      )
+      else if (!strcmp (hd l) "$GPGGA") then
+      (
+        let (hd tl l) -> dataH in
+        let strlen substr dataH 2 7 -> chkH in
+        let atof substr dataH 2 7 -> mntH in
+        let atof substr sIZ 2 7 -> mntZ in
+        let ftoi ((mntH -. mntZ) *. ((atof sMScale) /. (atof sHScale))) -> deltaH in
+        let (hd tl tl l) -> dataW in
+        let strlen substr dataW 3 7 -> chkW in
+        let atof substr dataW 3 7 -> mntW in
+        let atof substr sIX 3 7 -> mntX in
+        let ftoi ((mntW -. mntX) *. ((atof sMScale) /. (atof sWScale))) -> deltaW in
+        (
+          set iX = iIX + deltaW;
+          set iZ = iIZ + deltaH;
+          if ((mntH == nil) || (mntW == nil) || ((chkH + chkW) != 14)) then 
+          (
+            set iErrH = iErrH + 1;
+            0;
+          )
+          else if (((iOldX != nil) && (iOldZ != nil)) && ((ftoi sqrt (sqr itof (iX - iOldX)) +. (sqr itof (iZ - iOldZ))) > (iMaxDHor * iErrH)))then
+          (
+            set iErrH = iErrH + 1;
+            0;
+          )
+          else
+          (
+            set iErrH = 1;
+            set iOldX = iX;
+            set iOldZ = iZ;
+			M3setObjVec session O3d [iX iY iZ];
+			gps_echo strcatn "GPGGA ("::(O3Name)::"):"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil
+
+	        /* SAVE OBJECT ROUTE IN GPS CMD / VECTORS */
+	        let strcatn "GPGGA:"::(itoa iX)::","::(itoa iX)::","::(itoa iZ)::nil -> vline in
+            recordLog "backroute-gps.txt" strcat vline "\n";				
+			
+			let strcatn "Pos,"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil -> out in
+			recordLog "backroute-vectors.txt" strcat out "\n";
+						
+            0;
+          );
+        );        
+        0;
+      )
+      else if (!strcmp (hd l) "cbTick") then
+      (
+	    gps_echo strcatn "cbTick ("::(O3Name)::"):0":: nil
+		
+	    /* SAVE OBJECT ROUTE IN GPS CMD */
+	    let strcatn "cbTick 0 0 0"::nil -> vline in
+        recordLog "backroute-gps.txt" strcat vline "\n";	
+        0;
+      )
+      else
+        0;
+  );;
+ 
+fun CBgethttp(inet,z,s,reason) =
+ let z->[content] in 
+ 
+ let strcatn (sessionpath)::(sesfile)::nil -> gBuf in
+ //_echo strcat "BufCB:" gBuf 
+ 
+ /* return from call it writes to the last */
+ /* enabled sesfile, so read the right ses name from */
+ /* the content returned as 1st param ? */
+ 
+ if reason==0 then (mutate z <- [strcat content s];nil)
+ else if reason==1 then
+ ( 
+   let lineextr content -> lOutData in
+   let nth_list lOutData 1 -> insfile in       
+   let strcatn (sessionpath)::(insfile)::".txt"::nil -> gBuf in
+	  
+   //_echo strcatn "http CB filename:"::(gBuf)::nil 
+   _createpack content _getmodifypack gBuf
+ )  
+ else nil;; 
+ 
+fun UpdateGeo(o, cFrame)= 
+
+    if (cFrame == 999666) then
+	( 
+	  /*test call */   	  
+      sno /*session id */
+	)  
+    else if (cFrame == 0) then 
+    (    
+	  /* a 0 at ui event list must defined */
+	  
+	  let hd UgetParam ObUi o "GpsUrl" -> GpsUrl in
+      let strcatn GpsUrl::(ObName o)::nil -> gUri in
+	  
+	  let hd UgetParam ObUi o "GpsBuf" -> GpsBuf in
+      let hd UgetParam ObUi o "GpsRec" -> GpsRec in
+	  
+	  /* select 0 into events ui to fetch gps or recorded data */
+	  if (!strcmp (substr GpsRec 0 1) "1") then
+	  (
+	    /*read GpsBuf line by line */
+		/*save line to a temp file to read by ReadRouteScenario */
+		//_echo strcatn "UpdateGeo REC ("::(itoa cFrame)::") "::(ObName o)::"-"::(sessionpath)::nil
+	    let strcatn (sessionpath)::"_"::(ObName o)::".txt"::nil -> tempBuf in
+	    //write to tempBuf...		
+	    0;
+	  )
+	  else (
+        //_echo strcatn "UpdateGeo WEB ("::(itoa cFrame)::") "::(ObName o)::(gUri)::"-"::(sessionpath)::nil
+        INETGetURL _channel gUri 0 @CBgethttp [nil];
+	    0;
+	  )
+    )	
+    else if (cFrame == 1) then
+    (		  
+	  0;
+	)  
+	else
+	  nil;;		
+
+/*******************************************************************************
+ OptSingleAngle() - Optimizing single position's angle
+ p -> I : Source angle
+ q -> I : Destination original angle
+   <- I : Optimized destination angle
+*******************************************************************************/
+fun OptSingleAngle(p, q) =
+   let (abs (q - p)) -> path1 in
+   let (abs (q + 65536 - p)) -> path2 in
+   let (abs (q - 65536 - p)) -> path3 in
+   let min path1 min path2 path3 -> minpath in
+      if (minpath == path1) then
+         q
+      else if (minpath == path2) then
+         (q + 65536)
+      else
+         (q - 65536);;
+
+/*******************************************************************************
+ OptimizeDestinationOrientation() - Optimizing position orientation
+ ap -> I       : Source angle a
+ aq -> I       : Destination original angle a
+ bp -> I       : Source angle b
+ bq -> I       : Destination original angle b
+ cp -> I       : Source angle c
+ cq -> I       : Destination original angle c
+    <- [I I I] : Optimized destination orientation
+*******************************************************************************/
+fun OptimizeDestinationOrientation(ap, aq, bp, bq, cp, cq) =
+   [(OptSingleAngle ap aq) (OptSingleAngle bp bq) (OptSingleAngle cp cq)];;
+
+/*******************************************************************************
+ PrepareOptimization2() - Optimizing positions - Second step
+ src -> [Anchor r1]                      : PositionsList
+     <- [[S [I I I] [I I I] [I I I]] r1] : OpimizedPositionsList
+*******************************************************************************/
+fun PrepareOptimization2(src) =
+   if ((tl src) == nil) then
+      let hd src -> p in
+         match p with
+         (posAnchor [posp [xp yp zp] [ap bp cp]] -> [posp [xp yp zp] [ap bp cp] [nil nil nil]]::nil)
+   else
+      let hd src -> p in
+      let hd tl src -> q in
+         match p with
+         (posAnchor [posp [xp yp zp] [ap bp cp]] -> match q with 
+                                                    (posAnchor [_ _ [aq bq cq]] -> let OptimizeDestinationOrientation ap aq bp bq cp cq -> [aq2 bq2 cq2] in
+                                                                                      [posp [xp yp zp] [ap bp cp] [aq2 bq2 cq2]]::(PrepareOptimization2 tl src))
+         );;
+
+/*******************************************************************************
+ PrepareOptimization() - Optimizing positions - First step
+ src -> [[Anchor I [Anchor r1]] r1]                      : [Linked3dOb ListSize PositionsList]
+     <- [[Anchor I [[S [I I I] [I I I] [I I I]] r1]] r1] : [Linked3dOb ListSize OpimizedPositionsList]
+*******************************************************************************/
+fun PrepareOptimization(src) =
+   let hd src -> [o sz l] in
+      [o sz (PrepareOptimization2 l)]::nil;;
+
+
+/*******************************************************************************
+ cbSlidePos2() - Changing position of the 3D object according to the new frame
+ x -> [Anchor I [S [I I I] [I I I] [I I I]] r1]] : [Linked3dOb listsize optimizedPositionslist]
+ z -> [I I I [I r1] I I]                         : [TotalFrames CurrentFrame FramesAccumulator FrameEventsList InterpolateFlag InterpolateAnglesFlag]
+   <- I : Not used
+*******************************************************************************/
+fun cbSlidePos3(x, z)=
+   let z -> [lastFrame currentFrame _ _ rmode sesfile] in
+   let x -> [o sz l] in
+   let o -> [h _ _ _] in
+   let (sz * currentFrame / lastFrame) -> i in
+      /*if interpolateFlag then   USED BY RMODE PARAM --BY DEFAULT ONLY--             
+         let (mod (sz * currentFrame) lastFrame) -> kq in
+         let (lastFrame - kq) -> kp in
+         let (endlist l i) -> [p [q _]] in
+         let p -> [_ [xp yp zp] [ap bp cp] [aq2 bq2 cq2]] in
+         let q -> [_ [xq yq zq] _ _] in
+         (
+            M3setObjVec session h [(xp*kp+xq*kq)/lastFrame (yp*kp+yq*kq)/lastFrame (zp*kp+zq*kq)/lastFrame];
+            if flagPosAng then 
+               M3setObjAng session h [(ap*kp+aq2*kq)/lastFrame (bp*kp+bq2*kq)/lastFrame (cp*kp+cq2*kq)/lastFrame]
+            else
+               nil;	
+         )
+      else*/ 
+         let (nth_list l i) -> [_ vec ang _] in
+         (
+		  
+            M3setObjVec session h vec;
+            /*if flagPosAng then */ /* USED BY SESFILE PARAM */
+               M3setObjAng session h ang 
+            /*else 
+               nil;
+			   			
+			0;*/
+         );;
+		 
+fun cbGpsPos(x, z) = 
+   
+   let z -> [_ _ _ _ rmode sesfile] in
+   let x -> [o sz l] in
+   let o -> [h _ oname _] in
+
+   TranslateGeo h rmode sesfile;    
+0;;     
+	
+fun cbSlidePos2(x, z)=
+
+   let z -> [lastFrame currentFrame _ _ rmode sesfile] in   
+
+   if (currentFrame < lastFrame -1) then
+   (
+       /* to make cycle using defined trajectory plus gpspos */
+	   /*cbSlidePos3 x z; */
+	   //_echo strcatn "A <:"::nil
+	   0
+   )	   
+   else 
+   (
+       cbGpsPos x z;
+       //_echo strcatn "B >:"::nil
+       0
+   );;
+   
+fun cbSlidePosLocal(x, z) = 
+   
+   let z -> [_ _ _ _ rmode sesfile] in
+   let x -> [o sz l] in
+   let o -> [h _ oname _] in
+   
+   //TranslateGeo oname h;    
+   ReadRouteScenario h rmode sesfile; 
+0;;     
+
+
+/*******************************************************************************
+ CheckFrameEvents() - Checking frame events
+ l   -> [I r1] : Frame events list
+ fr1 -> I      : Previous frame
+ fr2 -> I      : Current frame
+ o   -> Ob     : Current Ob whose trajectory is being checked for frame events
+     <- I      : Not used
+*******************************************************************************/
+fun CheckFrameEvents(l, fr1, fr2, o) =
+   if (l == nil) then
+      0
+   else
+      let hd l -> fre in
+		  
+          if (fre > fr2) then
+		  (
+		     //_echo strcatn "Frame:"::(itoa fre)::" Previous:"::(itoa fr1)::" Current:"::(itoa fr2)::nil
+             0;
+		  )	 
+          else if ((fre >= fr1) && (fre < fr2)) then
+          (
+		     /* in a 2 frameset predefined (init) scenario
+			    2 events added as 0 and 1 for the 2 init fmames 
+				at first event a url call submited and at the second event
+				compute and apply the desired transformations of anchor's list 
+				So the current page act as parameter */
+				
+			 //_echo strcatn "CheckFrameEvents "::(ObName o)::":"::(itoa fre)::" Prev:"::(itoa fr1)::" Cur:"::(itoa fr2)::nil	
+			 UpdateGeo o fre;
+			 
+			 //let hd UgetParam ObUi o "GpsRec" -> GpsRec in
+			 //if (!strcmp (substr GpsRec 0 1) "0") then
+				//UpdateGeo o fre
+			 //else
+               // 0			 
+			 
+             _DMSevent this (strcatn (ObName o)::".Frame#"::(itoa fre)::nil) nil nil;
+             CheckFrameEvents tl l fr1 fr2 o;
+			 0;
+          )
+		  else
+			 CheckFrameEvents tl l fr1 fr2 o;;
+
+/*******************************************************************************
+ cbSlidePos() - ObCbAnim callback - Computing new frame
+ o -> Ob                 : Ob to which the anim is associated
+ z -> [I I I [I r1] I I] : [TotalFrames CurrentFrame FramesAccumulator FrameEventsList InterpolateFlag InterpolateAnglesFlag]
+ a -> TrajAnim           : Trajectory beind computed
+   <- I                  : Not used
+*******************************************************************************/
+fun cbSlidePos(o,z,a)=
+
+   let hd UgetParam ObUi o "GpsRec" -> GpsRec in
+		 
+   if a.TAplay then
+   (  
+      if (a.TAtick == nil) then
+         set a.TAtick = _tickcount
+      else
+         nil; 
+		 
+      let _tickcount -> currenttick in
+      let ((currenttick - a.TAtick) * a.TAframerate) -> timeFrame in
+      let (mod timeFrame 1000) -> accum in   
+      let (timeFrame / 1000) -> deltaFrame in
+      let z -> [lastFrame currentFrame accumulator x _ _] in
+      (
+
+         set accumulator = accumulator + accum;
+         if (accumulator > 1000) then
+         (
+            set deltaFrame = deltaFrame + 1; 
+            set accumulator = accumulator - 1000;
+         )
+         else
+            nil;
+         if ((currentFrame + deltaFrame) < (lastFrame - 1)) then
+         (
+
+            CheckFrameEvents a.TAfel currentFrame (currentFrame + deltaFrame) o; 
+            mutate z <- [_ (currentFrame + deltaFrame) accumulator _ _ _]; 
+            set a.TAtick = currenttick; 
+					 
+		    if (!strcmp (substr GpsRec 0 1) "1") then
+			(
+               apply_on_list x @cbSlidePosLocal z;
+               0;
+			)  
+            else (		 
+               apply_on_list x @cbSlidePos2 z;
+               0;
+			)
+         )
+         else
+         (
+		    CheckFrameEvents a.TAfel currentFrame lastFrame o;
+            mutate z <- [_ (lastFrame - 1) _ _ _ _]; 
+			
+			if (!strcmp (substr GpsRec 0 1) "1") then
+			(
+              apply_on_list x @cbSlidePosLocal z;
+			  0;
+  			)  
+            else (		 
+               apply_on_list x @cbSlidePos2 z;
+               0;
+			);
+			
+            set a.TAtick = nil;
+            if a.TAplayOnce then
+                set a.TAplay = 0
+            else
+                set a.TAplay = 1; 
+            mutate z <- [_ 0 0 _ _ _];
+            0;			
+         );
+      );
+      0;
+   )
+   else 
+      0;	  
+   0;;
+   
+
+/*******************************************************************************
+ PrepAnchor() - Retrieving list of positions
+ l -> [Anchor r1]                          : Anchors list
+   <- [[Anchor r1] [Anchor I [Anchor r1]]] : [nil [Linked3dOb listsize poslist]] 
+*******************************************************************************/
+fun PrepAnchor(l)=
+   if (l == nil) then 
+      [nil nil]
+   else 
+      let l->[a n] in
+      let PrepAnchor n ->[lp lo] in
+         match a with
+        (objAnchor o -> [nil [o (sizelist lp)-1 lp]::lo]) |
+        (posAnchor _ -> [a::lp lo]);;
+		
+fun PrepRoute(l)=
+   if (l == nil) then 
+      [nil nil]
+   else 
+      let l->[a n] in
+      let PrepRoute n ->[lp lo] in
+         match a with
+        (objAnchor o -> [nil [o (sizelist lp)-1 lp]::lo]) |
+        (posAnchor _ -> [a::lp lo]);;		
+		
+//read route scenario..METHOD ADD POSITIONS TO ANCHOR
+//UNDER CONSTRUCTION
+fun ReadScenario () =	
+
+	let hd lInpData -> line in
+    let CheckLine line -> l in
+    (	
+      if (l == nil) then
+      (		
+        nil;
+      )
+      else if (!strcmp (hd l) "Pos") then
+      (
+        let GetData line 1 -> iX in
+        let GetData line 2 -> iY in
+        let GetData line 3 -> iZ in	
+        ["Pos" [(atoi iX) (atoi iY) (atoi iZ)] [0 0 0]];//::ReadScenario::nil;
+      )	
+      else if (!strcmp (hd l) "Ang") then
+      (
+	    let GetData line 1 -> rX in
+        ["Ang" [0 0 0] [(atoi rX) 0 0]];//::ReadScenario::nil;		
+      )	
+      else
+        nil;	  
+		
+		set lInpData = tl lInpData;	
+		//gps_echo strcatn "Line :"::nil
+    );;	  		
+		
+fun PrepAnchorRoute(l,o)=
+	
+   let hd UgetParam ObUi o "GpsRec" -> GpsRec in
+   let hd UgetParam ObUi o "GpsBuf" -> GpsBuf in
+	
+   if (l == nil) then 
+      [nil nil]
+   else 
+   (
+      if ((GpsBuf != "") && (!strcmp (substr GpsRec 0 1) "1")) then 
+	  (
+	    let _getpack _checkpack GpsBuf -> readLines in
+	    let hd UgetParam ObUi o "GpsLog" -> GpsLog in
+	    set lInpData = lineextr readLines;
+	  
+	    ReadScenario;
+	    //while () do (
+	    //let ReadScenario -> lx in
+		//let lx -> [name [a b c] [x y z]] in
+		//);
+        PrepRoute l		
+	  )	
+	  else
+        PrepAnchor l
+   );;	  
+			
+				
+				
+/*******************************************************************************
+ cbActivate() - Standard callback function for plugin actions
+ o      -> Ob       : Ob to which the action is associated
+ from   -> DMI      : Not used
+ action -> S        : Action
+ param  -> S        : Parameter
+ reply  -> S        : Not used
+ a      -> TrajAnim : Trajectory structure associated with Ob
+        <- I        : Not used
+*******************************************************************************/
+fun cbActivate(o,from,action,param,reply,a)=
+   if !strcmp action (strcat (ObName o) ".gpsonce") then
+   (
+      set a.TAplay = 1; 
+      set a.TAplayOnce = 1; 
+      set a.TAtick = _tickcount; 
+      0;
+   )
+   else if !strcmp action (strcat (ObName o) ".gpsloop") then
+   (
+      set a.TAplay = 1; 
+      set a.TAplayOnce = 0; 
+      set a.TAtick = _tickcount; 
+      0;
+   )  
+   else if !strcmp action (strcat (ObName o) ".gpsstop") then
+   (
+      set a.TAplay = 0; 
+      set a.TAtick = nil; 
+      0;
+   )
+   else
+      nil;;
+
+
+/*******************************************************************************
+ cbComm() - Standard cbcomm callback function for intra plugin messages
+ ui     -> UserI    : User Instance linked to Ob
+ action -> S        : Action
+ param  -> S        : Parameter
+ a      -> TrajAnim : Trajectory structure associated with Ob
+        <- I        : Not used
+*******************************************************************************/
+fun cbComm(ui,action,param,a)=
+ if (!strcmp action "gpsonce") then
+ (
+    set a.TAplay = 1; 
+    set a.TAplayOnce = 1; 
+    set a.TAtick = _tickcount; 
+    0;
+ )  
+ else if (!strcmp action "gpsloop") then
+ (
+    set a.TAplay = 1; 
+    set a.TAplayOnce = 0; 
+    set a.TAtick = _tickcount; 
+    0;
+ ) 
+ else if (!strcmp action "gpsstop") then
+ (
+    set a.TAplay = 0; 
+    set a.TAtick = nil; 
+    0;
+ )
+ else if (!strcmp action "noaction") then
+ (
+    set a.TAplay = a.TAinit;
+    0;
+ )
+ else
+  nil;;
+
+
+/*******************************************************************************
+ InsertFrameEvent() - Building frame events list - Sorting list
+ l   -> [I r1] : Frame events list
+ fre -> I      : New frame event to insert in list
+     <- [I r1] : New frame events list
+*******************************************************************************/
+fun InsertFrameEvent(l, fre) =
+   if (l == nil) then
+      fre::nil
+   else
+      let hd l -> elt in
+         if (elt > fre) then
+            fre::l
+         else
+            elt::(InsertFrameEvent tl l fre);;
+
+/*******************************************************************************
+ FrameEventList() - Building frame events list - Building list
+ src -> [[S r1] r1] : List of parameters for the plugin instance
+ dst -> [I r1]      : Frame events list to build
+     <- [I r1]      : Buildt frame events list
+*******************************************************************************/
+fun FrameEventList(src, dst)=
+   if (src == nil) then
+      dst
+   else
+      let hd src -> [name r] in
+         if !strcmp name "FrameEvent" then
+            let r -> [frameNum _] in
+               FrameEventList tl src InsertFrameEvent dst (atoi frameNum)
+         else
+            FrameEventList tl src dst;;
+
+/* if GpsRec flag is on and file exist */
+/* read pre-recorded gps data file, not live gps calls*/
+fun openBuf(o) = 
+   let hd UgetParam ObUi o "GpsRec" -> GpsRec in
+   let hd UgetParam ObUi o "GpsBuf" -> GpsBuf in
+   if ((GpsBuf != "") && (!strcmp (substr GpsRec 0 1) "1")) then 
+   (
+     //let _getpack _checkpack GpsBuf -> readLines in
+	 //set lInpData = lineextr readLines;
+     //lInpData;
+	 _getpack _checkpack GpsBuf;
+   )	
+  else nil;;
+/*******************************************************************************
+ cbNewOb() - New object creation
+ o -> Ob : New Ob
+   <- I  : Not used
+*******************************************************************************/
+fun cbNewOb(o)=
+
+   /*session filename */
+   set sesfile = strcat ObName o ".txt";
+
+   let UgetParams ObUi o -> lParams in
+   let atoi hd UgetParam ObUi o "Interpolate" -> interpolateFlag in
+   let atoi hd UgetParam ObUi o "Framerate" -> framerate in
+   let atoi hd UgetParam ObUi o "Ini" -> ini in
+   let !atoi hd UgetParam ObUi o "Loop" -> playOnce in
+   let hd UgetParam ObUi o "PosAng" -> PosAng in
+   let atoi hd UgetParam ObUi o "NbFrames" -> nbFrames in
+   let atoi hd UgetParam ObUi o "SrvAnimAutoStart" -> srvAnimAutoStart in
+   
+   /**************************************************/
+   let hd UgetParam ObUi o "GpsUrl" -> GpsUrl in   
+   let hd UgetParam ObUi o "GpsBuf" -> GpsBuf in 
+   let hd UgetParam ObUi o "GpsRec" -> GpsRec in 
+   let hd UgetParam ObUi o "GpsLog" -> GpsLog in 
+   /***************************************************/
+   
+   /*recorded -local file- mode */
+   let atoi GpsRec -> recMode in 
+   _echo strcatn "Local data:"::(ObName o)::"-"::GpsRec::"-"::GpsBuf::nil   
+   
+   /*record playing route */
+   let atoi GpsLog -> recBuffer in  
+   _echo strcatn "Record data:"::(ObName o)::"-"::GpsLog::nil
+   
+   /* ADD POSTISIONS TO OBJECT'S ANCHOR */
+   //let PrepAnchorRoute ObAnchor o o -> [_ l] in   
+   
+   let PrepAnchor ObAnchor o -> [_ l] in
+   let PrepareOptimization l -> lOptimized in
+   let if srvAnimAutoStart then 0 else ini -> play in
+   let mkTrajAnim [(ObName o) framerate play playOnce nil (FrameEventList lParams nil) ini] -> ta in
+   (	
+
+      ObCbAnim o mkfun2 mkfun3 @cbSlidePos ta [nbFrames 0 0 lOptimized /*interpolateFlag (!strcmpi PosAng "All")*/ recMode /*(openBuf o)*/ sesfile];
+	  
+      UcbComm this ObUi o mkfun4 @cbComm ta;
+  
+      ObRegisterAction o (strcatn (ObName o)::".gpsonce"::nil) mkfun6 @cbActivate ta;
+      ObRegisterAction o (strcatn (ObName o)::".gpsloop"::nil) mkfun6 @cbActivate ta;
+      ObRegisterAction o (strcatn (ObName o)::".gpsstop"::nil) mkfun6 @cbActivate ta;
+      if srvAnimAutoStart then
+         UsendSrv this (ObUi o) "newclient" (ObName o)
+      else
+         nil;
+      0;
+   );;  
+
+fun destroyPlug()=  
+ 0;;   
+
+/*******************************************************************************
+ IniPlug() - Function called when plugin is initialized
+ file -> S : .plug file
+      <- I : Not used
+*******************************************************************************/
+fun IniPlug(file)=
+   set class = getInfo strextr _getpack _checkpack file "name";
+   set sno = rand;
+   /*let strcatn "session_"::(itoa sno)::".txt"::nil -> ses in
+   let strcat iniPath ses -> sesfile in
+   _storepack "init session\n" sesfile;
+   */
+   
+   PlugRegister class @cbNewOb nil;
+   0;;

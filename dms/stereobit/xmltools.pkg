@@ -1,0 +1,1743 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/**************************************************
+ XML parser library
+ 
+ Version: 1.0
+ Author: Bastien BOURINEAU / I-maginer
+ Last update: 03.03.2009
+ 
+**************************************************/
+
+/*! @defgroup xmlLib OpenSpace3D high level xml parser
+ *  OpenSpace3D high level xml parser
+ *  @{
+ */
+/** @} */
+
+var iXMLdebug = 0;;
+
+// - Structure of XML file -
+struct XMLfile =
+[
+  XMLobj       : ObjSXML,
+  XMLpath      : S,
+  XMLtype      : S,
+  XMLmarks     : [XMLmark r1],
+  XMLidref     : I
+  
+] mkXMLfile;;
+
+
+// - Structure of XML marks -
+struct XMLmark =
+[
+  XMLid        : I,
+  XMLvalue     : S,
+  XMLparams    : [[S S] r1],
+  XMLdata      : S,
+  XMLfather    : XMLmark,
+  XMLsons      : [XMLmark r1]
+  
+] mkXMLmark;;
+
+
+fun XMLlcat (p, q)=
+  if p==nil
+  then
+    q
+  else let p -> [h nxt] in
+    h::XMLlcat nxt q;;
+
+
+// since scol tuple management are "special" we add to copy all values
+fun XMLcopyParams(l)=
+  let nil -> newl in
+  (
+    let sizelist l -> size in
+    while size > 0 do
+    (
+      let nth_list l (size -1) -> [n p] in
+        set newl = [n p]::newl;
+        
+      set size = size -1;
+    );
+    newl;
+  );;
+
+
+fun XMLremove_mark_list (l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    if (hd l) == elt
+    then
+      tl l
+    else
+      (hd l)::XMLremove_mark_list tl l elt;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Convert a float value to a short string
+  *
+  *  <b>Prototype:</b> fun [F] S
+  *
+  *  \param F : float value
+  *
+  *  \return S : short string
+  **/
+fun XMLgetShortFloatToString(float)= if (absf float) >. (itof (ftoi absf float)) then (ftoa float) else (itoa (ftoi float));;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Convert a float value to a short string with a number of decimal
+  *
+  *  <b>Prototype:</b> fun [F I] S
+  *
+  *  \param F : float value
+  *  \param F : number of decimal
+  *
+  *  \return S : short string
+  **/
+fun XMLgetShortFloatToStringLength(float, nb)=
+  let if float == nil then 0.0 else float -> float in
+  let ftoa float -> sf in
+  let if nb == 0 || nb == nil then 0 else 1 + nb -> nb0 in
+    substr sf 0 ((strfind "." sf 0) + nb0);;
+
+
+// <![CDATA[ and ends with ]]>
+//ctoa 60 // <
+//ctoa 62 // >
+//ctoa 47 // /
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the boolean value of a string
+  *
+  *  <b>Prototype:</b> fun [S] I
+  *
+  *  \param S : the boolean value "enable" "1" "on" "true" "yes"
+  *
+  *  \return I : 1 if the boolean value is correct, 0 otherwise
+  **/
+fun XMLgetBoolParam(markstr, name)=
+  let switchstr markstr.XMLparams name -> str in
+  if (!strcmpi strtrim str "ON") || (!strcmpi strtrim str "true") || (!strcmpi strtrim str "yes") || ((atoi str) == 1) then 1 else 0;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get a string boolean value
+  *
+  *  <b>Prototype:</b> fun [I] S
+  *
+  *  \param I : the boolean value
+  *
+  *  \return S : "true" or "false"
+  **/
+fun XMLgetBoolString(b)=
+  if b then "true" else "false";;
+
+
+fun XMLmoveMarkSons(markstr, pos, to)=
+  set markstr.XMLsons = moveListElement markstr.XMLsons pos to;
+  0;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the data of a mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark] S
+  *
+  *  \param XMLmark : the mark node
+  *
+  *  \return S : the data
+  **/
+fun XMLgetData(markstr)= markstr.XMLdata;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Set the data of a mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] S
+  *
+  *  \param XMLmark : the mark node
+  *  \param S : the new data
+  *
+  *  \return S : the new data
+  **/
+fun XMLsetData(markstr, data)= set markstr.XMLdata = data;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get an attribute value of a mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] S
+  *
+  *  \param XMLmark : the mark node
+  *  \param S : the attribute name
+  *
+  *  \return S : the attribute value
+  **/
+fun XMLgetParam(markstr, name)= switchstr markstr.XMLparams name;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Set an attribute value of a mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S] I
+  *
+  *  \param XMLmark : the mark node
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return 0
+  **/
+fun XMLsetParam(markstr, name, val)=
+  let 0 -> found in
+  (
+    let sizelist markstr.XMLparams -> size in
+    let 0 -> i in
+    while (i < size) && !found do
+    (
+      let nth_list markstr.XMLparams i -> param in
+      let param -> [pname pval] in
+      if strcmp pname name then nil else
+      (
+        mutate param <- [_ (strtrim val)];
+        set found = 1;
+      );
+      
+      set i = i + 1;
+    );
+    
+    // add the new param if not exist
+    if found then nil else
+      set markstr.XMLparams = XMLlcat markstr.XMLparams [name (strtrim val)]::nil;
+  );
+  0;;
+
+
+// TODO test also if the current mark have the same mark name with <mark />
+fun XMLgetEndMarkPos(fcont, iemark, sncmark)=
+  let iemark - 1 -> i in
+  let iemark - 1 -> i2 in
+  let nil -> find in
+  let 1 -> nbfind in
+  (
+    while (i != nil) && (find == nil) do
+    (
+      let strfindi strcatn (ctoa 60)::sncmark::" "::nil fcont i + 1 -> ismark in
+      //let if !strcmpi strcatn (ctoa 47)::(ctoa 62)::nil (substr fcont i + 1 2) then 1 else 0 -> noendmark in
+      let strfindi strcatn (ctoa 60)::(ctoa 47)::sncmark::(ctoa 62)::nil fcont i2 + 1 -> iclmark in           
+      (
+        if (((ismark != nil) && (ismark < iclmark))) then // && !noendmark then
+          set nbfind = nbfind + 1
+        else
+          set find = iemark - 1;
+        
+        set i = ismark;
+        set i2 = iclmark;
+      );
+    );
+    
+    while (nbfind != 0) do
+    (
+      let strfindi strcatn (ctoa 60)::(ctoa 47)::sncmark::(ctoa 62)::nil fcont find + 1 -> iclmark in
+      (
+        set find = iclmark;
+        set nbfind = nbfind - 1;
+      );
+    );
+    find;
+  );;
+
+
+fun XMLfindMark(mcont, pos)=
+  // find the "<" character
+  let strfind (ctoa 60) mcont pos -> markpos in
+  let (nth_char mcont markpos + 1) == 33 -> iscomment in
+  // if it is a comment "<!-- -->" we search the next mark after the comment end
+  if iscomment then XMLfindMark mcont (strfind (ctoa 60) mcont (strfind "-->" mcont markpos + 1)) else
+  (
+    while (((strfind "<![CDATA[" mcont markpos) == markpos) && (markpos != nil)) do
+      set markpos = strfind ctoa 60 mcont markpos + 1;
+    markpos;
+    
+    if (!strcmp "?" (substr mcont markpos 1)) then
+      markpos + 1
+    else
+      markpos;
+  );;
+
+
+fun XMLgetMark(xmlfilestr, father, fcont, spos)=
+  let XMLfindMark fcont spos -> ismark in
+  let strfind ctoa 62 fcont ismark -> iemark in
+  let substr fcont (ismark + 1) ((iemark - ismark) - 1) -> snmark in
+  let strfind " " snmark 0 -> haveparam in
+  let if haveparam != nil then substr snmark 0 haveparam else snmark -> sncmark in
+  let if (!strcmpi strcatn (ctoa 47)::(ctoa 62)::nil (substr fcont (iemark -1) 2)) || (!strcmpi strcatn "?"::(ctoa 62)::nil (substr fcont (iemark -1) 2)) then 1 else 0 -> noendmark in
+  let if noendmark then (iemark + 1) else XMLgetEndMarkPos fcont iemark sncmark -> iclmark in
+  let substr fcont (iemark + 1) ((iclmark - iemark) - 1) -> mcont in
+  let mkXMLmark [(set xmlfilestr.XMLidref = xmlfilestr.XMLidref + 1) sncmark nil nil father nil] -> markstr in
+  (
+    if haveparam == nil then nil else
+    (
+      if !iXMLdebug then nil else
+        _fooS strcat "XMLPARSER DEBUG : Mark found > " sncmark;
+
+      while haveparam != nil do
+      (
+        let strfind "=" snmark haveparam -> ppos in
+        let substr snmark (ppos + 1) 1 -> psep in
+        let substr snmark (haveparam + 1) ((ppos - haveparam) - 1) -> pname in
+        let strfind psep snmark ppos -> sppos in
+        if sppos == nil then
+        (
+          set haveparam = nil;
+        )
+        else
+        let strfind psep snmark (sppos + 1) -> eppos in
+        (
+          let substr snmark (sppos + 1) ((eppos - sppos) - 1) -> pval in
+          (
+            set markstr.XMLparams = [pname (strtrim (webtostr pval))]::markstr.XMLparams;
+            if !iXMLdebug then nil else
+            (
+              _fooS strcat "XMLPARSER DEBUG : Mark param name > " pname;
+              _fooS strcat "XMLPARSER DEBUG : Mark param value > " (webtostr pval);
+            );
+            set haveparam = strfind " " snmark eppos + 1;
+          );
+        );
+      );
+      
+      set markstr.XMLparams = revertlist markstr.XMLparams;
+    );
+    
+    if strfind "<![CDATA[" mcont 0 == nil then nil else
+    let strfind "<![CDATA[" mcont 0 -> firstcdatapos in
+    let firstcdatapos + 9 -> ncdatapos in
+    let strfind "]]>" mcont firstcdatapos -> edata in
+    (
+      while ((strfind "<![CDATA[" mcont ncdatapos) != nil) do
+      (
+        set ncdatapos = (strfind "<![CDATA[" mcont ncdatapos) + 9;
+        set edata = strfind "]]>" mcont edata +3;
+      );
+      
+      let substr mcont firstcdatapos+9 (edata - (9 + firstcdatapos)) -> data in
+        set markstr.XMLdata = if (strlen data) == 0 then nil else data;
+      set mcont = substr mcont edata + 3 ((strlen mcont) - (edata + 3));
+      if !iXMLdebug then nil else
+        _fooS strcat "XMLPARSER DEBUG : Mark newdata > " markstr.XMLdata;
+    );
+    
+    let XMLfindMark mcont 0 -> i in
+    if (i != nil) then
+    (
+      while i != nil do
+      (
+        let (XMLgetMark xmlfilestr markstr mcont i) -> [nmark epos] in
+        (
+          set markstr.XMLsons = nmark::markstr.XMLsons;
+          set i = XMLfindMark mcont epos;
+        );
+      );
+      
+      set markstr.XMLsons = revertlist markstr.XMLsons;
+      0;
+    )
+    else if markstr.XMLdata != nil then nil else
+    (
+      set markstr.XMLdata = if (strlen mcont) == 0 then nil else mcont;
+      0;
+    );
+    if !iXMLdebug then nil else
+      _fooS strcatn "XMLPARSER DEBUG : Mark value > "::sncmark::" > "::markstr.XMLdata::nil;
+    
+    [markstr (if noendmark then iclmark else (iclmark + (strlen (strcatn (ctoa 60)::(ctoa 47)::sncmark::(ctoa 62)::nil))))];
+  );;
+
+
+fun XMLparse(xmlfilestr, fcont)=  
+  let nil -> lmarkstr in
+  let strfind ctoa 60 fcont 0 -> i in
+  if (i != nil) then
+  (
+    while i != nil do
+    (
+      let (XMLgetMark xmlfilestr nil fcont i) -> [nmark epos] in
+      (
+        set lmarkstr = nmark::lmarkstr;
+        set i = strfind ctoa 60 fcont epos + 1;
+      );
+    );
+    revertlist lmarkstr;
+  )
+  else
+    lmarkstr;;
+
+
+fun XMLtoParams(p)=
+  if p == nil then nil else
+  let hd p -> param in
+  let param -> [name value] in
+  (
+    mutate param <- [_ webtostr value];
+    XMLtoParams tl p;
+  );
+  0;;
+
+
+fun XMLtoChilds(xmlfilestr, fnode, fatherstr)=
+  let nil -> lmarkstr in
+  let _GetXmlNodeChilds fnode -> lchild in
+  while lchild != nil do
+  (
+    let hd lchild -> node in
+    let _GetXmlNodeValue node -> nvalue in
+    let _GetXmlNodeAttributes node -> lattrib in
+    let _GetXmlNodeContent node -> content in
+    let mkXMLmark [(set xmlfilestr.XMLidref = xmlfilestr.XMLidref + 1) nvalue lattrib content fatherstr nil] -> childmarkstr in
+    (
+      XMLtoParams childmarkstr.XMLparams;
+      XMLtoChilds xmlfilestr node childmarkstr;
+      set fatherstr.XMLsons = childmarkstr::fatherstr.XMLsons;
+      set lchild = tl lchild;
+    );
+  );
+  set fatherstr.XMLsons = revertlist fatherstr.XMLsons;;
+
+
+fun XMLtoMarks(xmlfilestr)=
+  let nil -> lmarkstr in
+  (
+    let _GetXmlRootNodes xmlfilestr.XMLobj -> lroot in
+    while lroot != nil do
+    (
+      let hd lroot -> node in
+      let _GetXmlNodeValue node -> nvalue in
+      let _GetXmlNodeAttributes node -> lattrib in
+      let _GetXmlNodeContent node -> content in
+      let mkXMLmark [(set xmlfilestr.XMLidref = xmlfilestr.XMLidref + 1) nvalue lattrib content nil nil] -> markstr in
+      (
+        XMLtoParams markstr.XMLparams;
+        XMLtoChilds xmlfilestr node markstr;
+        set lmarkstr = markstr::lmarkstr;
+        set lroot = tl lroot;
+      );
+    );
+    revertlist lmarkstr;
+  );;
+
+
+fun XMLcountFathers(markstr)=
+  let 0 -> nb in
+  (
+    while markstr.XMLfather != nil do
+    (
+      set markstr = markstr.XMLfather;
+      set nb = nb + 1;
+    );
+    nb;
+  );;
+
+
+fun XMLgetTabs(markstr)=
+  let "" -> tabs in
+  (
+    let XMLcountFathers markstr -> nb in
+    let 0 -> i in
+    while i < nb do
+    (
+      set tabs = strcat tabs (ctoa 9);
+      
+      set i = i + 1;
+    );
+    tabs;
+  );;
+
+
+fun XMLgetMarksWithIndex(markstr)=
+  let nil -> ncont in
+  (
+    set ncont = strcatn (ctoa 10)::(XMLgetTabs markstr)::"<"::markstr.XMLvalue::nil;
+    set ncont = strcatn ncont::" "::"markindex"::"=\""::(itoa markstr.XMLid)::"\""::nil;
+    
+    let sizelist markstr.XMLparams -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list markstr.XMLparams i -> [pname pval] in
+        set ncont = strcatn ncont::" "::pname::"=\""::(strtrim (strtoweb pval))::"\""::nil;
+
+      set i = i + 1;
+    );
+    
+    if (markstr.XMLdata == nil) && (markstr.XMLsons == nil) then
+      set ncont = strcatn ncont::" />"::nil
+    else if ((strfindi (ctoa 60) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 62) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 38) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 224) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 225) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 226) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 227) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 228) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 229) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 230) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 231) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 232) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 233) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 234) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 235) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 244) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 251) markstr.XMLdata 0) == nil)
+    then
+      set ncont = strcatn ncont::">"::markstr.XMLdata::nil
+    else
+      set ncont = strcatn ncont::"><![CDATA["::markstr.XMLdata::"]]>"::nil;
+    
+    let sizelist markstr.XMLsons -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list markstr.XMLsons i -> mark in
+        set ncont = strcat ncont XMLgetMarksWithIndex mark;
+
+      set i = i + 1;
+    );
+    
+    if (markstr.XMLdata == nil) && (markstr.XMLsons == nil) then
+      ncont
+    else if markstr.XMLdata != nil then
+      set ncont = strcatn ncont::"</"::markstr.XMLvalue::">"::nil
+    else
+      set ncont = strcatn ncont::(ctoa 10)::(XMLgetTabs markstr)::"</"::markstr.XMLvalue::">"::nil;
+  );;
+
+
+fun XMLgetMarks(markstr)=
+  let nil -> ncont in
+  (
+    set ncont = strcatn (ctoa 10)::(XMLgetTabs markstr)::"<"::markstr.XMLvalue::nil;
+    
+    let sizelist markstr.XMLparams -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list markstr.XMLparams i -> [pname pval] in
+        set ncont = strcatn ncont::" "::pname::"=\""::(strtrim (strtoweb pval))::"\""::nil;
+
+      set i = i + 1;
+    );
+    
+    if (markstr.XMLdata == nil) && (markstr.XMLsons == nil) then
+      set ncont = strcatn ncont::" />"::nil
+    else if ((strfindi (ctoa 60) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 62) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 38) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 224) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 225) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 226) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 227) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 228) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 229) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 230) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 231) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 232) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 233) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 234) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 235) markstr.XMLdata 0) == nil)
+    && ((strfindi (ctoa 244) markstr.XMLdata 0) == nil) && ((strfindi (ctoa 251) markstr.XMLdata 0) == nil)
+    then
+      set ncont = strcatn ncont::">"::markstr.XMLdata::nil
+    else
+      set ncont = strcatn ncont::"><![CDATA["::markstr.XMLdata::"]]>"::nil;
+    
+    let sizelist markstr.XMLsons -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list markstr.XMLsons i -> mark in
+        set ncont = strcat ncont XMLgetMarks mark;
+
+      set i = i + 1;
+    );
+    
+    if (markstr.XMLdata == nil) && (markstr.XMLsons == nil) then
+      ncont
+    else if markstr.XMLdata != nil then
+      set ncont = strcatn ncont::"</"::markstr.XMLvalue::">"::nil
+    else
+      set ncont = strcatn ncont::(ctoa 10)::(XMLgetTabs markstr)::"</"::markstr.XMLvalue::">"::nil;
+  );;
+
+
+fun XMLaddMarkParam(markstr, paramname, value)=
+  if paramname == nil then nil else
+    set markstr.XMLparams = XMLlcat markstr.XMLparams [paramname (strtrim value)]::nil;
+  markstr;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Add a mark node to an xml structure
+  *
+  *  <b>Prototype:</b> fun [XMLfile S XMLmark [[S S] r1] S] XMLmark
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the mark node value
+  *  \param XMLmark : the parent mark node
+  *  \param [[S S] r1] : list of [attribute value]
+  *  \param S : mark node data
+  *
+  *  \return XMLmark : the new mark node
+  **/
+fun XMLaddMark(xmlfilestr, value, father, params, data)=
+  let mkXMLmark [(set xmlfilestr.XMLidref = xmlfilestr.XMLidref + 1) value nil data father nil] -> markstr in
+  (
+    let sizelist params -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list params i -> [pname pval] in
+      if pname == nil then nil else
+        set markstr.XMLparams = [pname (strtrim pval)]::markstr.XMLparams;
+      
+      set i = i + 1;
+    );
+    
+    if father == nil then
+      set xmlfilestr.XMLmarks = XMLlcat xmlfilestr.XMLmarks markstr::nil
+    else
+      set father.XMLsons = XMLlcat father.XMLsons markstr::nil;
+      
+    markstr;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Copy a mark node to an another parent node
+  *
+  *  <b>Prototype:</b> fun [XMLfile XMLmark XMLmark] XMLmark
+  *
+  *  \param XMLfile : the xml structure
+  *  \param XMLmark : the mark node to copy
+  *  \param XMLmark : the new parent mark node
+  *
+  *  \return XMLmark : the new mark node
+  **/
+fun XMLcopyMark(xmlfilestr, srcmarkstr, father)=
+  let srcmarkstr.XMLvalue -> value in
+  let XMLcopyParams srcmarkstr.XMLparams -> params in
+  let srcmarkstr.XMLdata -> data in
+  let mkXMLmark [(set xmlfilestr.XMLidref = xmlfilestr.XMLidref + 1) value params data father nil] -> markstr in
+  (
+    if father == nil then
+      set xmlfilestr.XMLmarks = XMLlcat xmlfilestr.XMLmarks markstr::nil
+    else
+      set father.XMLsons = XMLlcat father.XMLsons markstr::nil;
+    
+    let sizelist srcmarkstr.XMLsons -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list srcmarkstr.XMLsons i -> son in
+        XMLcopyMark xmlfilestr son markstr;
+      
+      set i = i + 1;
+    );
+
+    markstr;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Delete a mark node
+  *
+  *  <b>Prototype:</b> fun [XMLfile XMLmark] I
+  *
+  *  \param XMLfile : the xml structure
+  *  \param XMLmark : the mark node to delete
+  *
+  *  \return 0
+  **/
+fun XMLdelMark(xmlfilestr, markstr)=
+  if markstr.XMLfather == nil then
+    set xmlfilestr.XMLmarks = XMLremove_mark_list xmlfilestr.XMLmarks markstr
+  else
+    set markstr.XMLfather.XMLsons = XMLremove_mark_list markstr.XMLfather.XMLsons markstr;
+  0;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Move a mark node to an another parent node
+  *
+  *  <b>Prototype:</b> fun [XMLfile XMLmark XMLmark] XMLmark
+  *
+  *  \param XMLfile : the xml structure
+  *  \param XMLmark : the mark node to copy
+  *  \param XMLmark : the new parent mark node
+  *
+  *  \return XMLmark : the new mark node
+  **/
+fun XMLmoveMark(xmlfilestr, markstr, fatherstr)=
+  if markstr.XMLfather == fatherstr then nil else
+  (    
+    if markstr.XMLfather == nil then
+      set xmlfilestr.XMLmarks = XMLremove_mark_list xmlfilestr.XMLmarks markstr
+    else
+      set markstr.XMLfather.XMLsons = XMLremove_mark_list markstr.XMLfather.XMLsons markstr;    
+    
+    set markstr.XMLfather = fatherstr;
+    
+    if markstr.XMLfather == nil then
+      set xmlfilestr.XMLmarks = XMLlcat xmlfilestr.XMLmarks markstr::nil
+    else
+      set markstr.XMLfather.XMLsons = XMLlcat markstr.XMLfather.XMLsons markstr::nil;
+  ); 
+  0;;
+
+
+fun XMLgetMarkByIdFromMark(markstr, id)=
+  let nil -> fmark in
+  (
+    if markstr.XMLid == id then
+      markstr
+    else
+    (
+      let sizelist markstr.XMLsons -> size in
+      let 0 -> i in
+      while i < size && fmark == nil do
+      (
+        let nth_list markstr.XMLsons i -> mark in
+          set fmark = XMLgetMarkByIdFromMark mark id;
+        
+        set i = i + 1;
+      );
+      fmark
+    );
+  );;
+
+
+fun XMLgetMarkById(xmlfilestr, id)=
+  let nil -> fmark in
+  (
+    let sizelist xmlfilestr.XMLmarks -> size in
+    let 0 -> i in
+    while i < size && fmark == nil do
+    (
+      let nth_list xmlfilestr.XMLmarks i -> mark in
+        set fmark = XMLgetMarkByIdFromMark mark id;
+      
+      set i = i + 1;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Search the first mark node with a value from a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] XMLmark
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByValueFromMark(markstr, value)=
+  let nil -> fmark in
+  (
+    if !strcmpi markstr.XMLvalue value then
+      markstr
+    else
+    (
+      let markstr.XMLsons -> l in
+      while (l != nil) && (fmark == nil) do
+      (
+        let hd l -> mark in
+          set fmark = XMLgetMarkByValueFromMark mark value;
+        
+        set l = tl l;
+      );
+      fmark
+    );
+  );;
+
+
+fun XMLgetMarkId(markstr)= markstr.XMLid;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Search the first mark node with a value from a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] XMLmark
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByValueFromMarkSons(markstr, value)=
+  let nil -> fmark in
+  (
+    let markstr.XMLsons -> l in
+    while (l != nil) && (fmark == nil) do
+    (
+      let hd l -> mark in
+      if !strcmpi mark.XMLvalue value then
+        set fmark = mark
+      else nil;
+      
+      set l = tl l;
+    );
+    fmark
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Search the first mark node with a value from xml structure, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLfile S] XMLmark
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the mark node value to search
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByValue(xmlfilestr, value)=
+  let nil -> fmark in
+  (
+    let xmlfilestr.XMLmarks -> l in
+    while (l != nil) && (fmark == nil) do
+    (
+      let hd l -> mark in
+        set fmark = XMLgetMarkByValueFromMark mark value;
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Search all marks node with a value from a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] [XMLmark r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *
+  *  \return [XMLmark r1] : the list of mark node if found, nil otherwise
+  **/
+fun XMLgetMarksByValueFromMark(markstr, value)=
+  let nil -> fmark in
+  (
+    if !strcmpi markstr.XMLvalue value then
+      set fmark = markstr::nil
+    else nil;
+    
+    let markstr.XMLsons -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+        set fmark = XMLlcat fmark (XMLgetMarksByValueFromMark mark value);
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+  
+
+/*!  @ingroup xmlLib
+  *  \brief Search all marks node with a value from a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] [XMLmark r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *
+  *  \return [XMLmark r1] : the list of mark node if found, nil otherwise
+  **/
+fun XMLgetMarksByValueFromMarkSons(markstr, value)=
+  let nil -> fmark in
+  (   
+    let markstr.XMLsons -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      if !strcmpi mark.XMLvalue value then
+        set fmark = mark::fmark
+      else nil;
+      
+      set l = tl l;
+    );
+    revertlist fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Search all marks node with a list of value from a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark [S r1]] [[S [XMLmark r1]] r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param [S r1] : the mark node values to search
+  *
+  *  \return [[S [XMLmark r1]] r1] : the list of marks nodes if found, nil otherwise
+  **/
+fun XMLgetMarksByValuesFromMarkSons(markstr, values)=
+  let nil -> fmarks in
+  let sizelist values -> nbvals in
+  let mktab nbvals ["" nil] -> t in 
+  (
+    //init tab
+    let 0 -> i in
+    while (i < nbvals) do
+    (
+      set t.(i) = [(nth_list values i) nil];
+      set i = i + 1;
+    );
+  
+    let markstr.XMLsons -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let 0 -> found in
+      let 0 -> i in
+      while ((i < nbvals) && (!found)) do
+      (
+        let t.(i) -> [value pl] in
+        (
+          if !strcmpi mark.XMLvalue value then
+          (
+            set t.(i) = [value mark::pl];
+            set found = 1;
+          )
+          else nil;
+        );
+        
+        set i = i + 1;
+      );
+      
+      set l = tl l;
+    );
+    
+    let 0 -> i in
+    while (i < nbvals) do
+    (
+      let t.(i) -> [value pl] in
+        set fmarks = [value revertlist pl]::fmarks;
+        
+      set i = i + 1;
+    );
+    fmarks;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node data's with a value from a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] [S r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *
+  *  \return [S r1] : the list of data if found, nil otherwise
+  **/
+fun XMLgetMarksDataByValueFromMark(markstr, value)=
+  let nil -> ldata in
+  (
+    if !strcmpi markstr.XMLvalue value then
+      set ldata = markstr.XMLdata::nil
+    else nil;
+    
+    let markstr.XMLsons -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let (XMLgetMarksDataByValueFromMark mark value) -> fmarkstr in
+        set ldata = XMLlcat ldata fmarkstr;
+      
+      set l = tl l;
+    );
+    ldata;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node data's with a value from a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] [S r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *
+  *  \return [S r1] : the list of data if found, nil otherwise
+  **/
+fun XMLgetMarksDataByValueFromMarkSons(markstr, value)=
+  let nil -> ldata in
+  (
+    let markstr.XMLsons -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      if !strcmpi mark.XMLvalue value then
+        set ldata = mark.XMLdata::ldata
+      else nil;
+      
+      set l = tl l;
+    );
+    revertlist ldata;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node attribute value with a node value and an attribute name from a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S] [S r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *  \param S : the attribute name to retrieve
+  *
+  *  \return [S r1] : the list of attribute values if found, nil otherwise
+  **/
+fun XMLgetMarksParamByValueFromMarkSons(markstr, value, param)=
+  let nil -> ldata in
+  (
+    let markstr.XMLsons -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      if !strcmpi mark.XMLvalue value then
+        set ldata = (XMLgetParam mark param)::ldata
+      else nil;
+      
+      set l = tl l;
+    );
+    revertlist ldata;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Search all marks node with a value from xml structure, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLfile S] [XMLmark r1]
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the mark node value to search
+  *
+  *  \return [XMLmark r1] : the list of mark node if found, nil otherwise
+  **/
+fun XMLgetMarksByValue(xmlfilestr, value)=
+  let nil -> fmark in
+  (
+    let xmlfilestr.XMLmarks -> l in
+    while (l != nil) && (fmark == nil) do
+    (
+      let hd l -> mark in
+        set fmark = XMLlcat fmark (XMLgetMarksByValueFromMark mark value);
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node attribute value with an attribute name from a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] [S r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the attribute name to retrieve
+  *
+  *  \return [S r1] : the list of attribute values if found, nil otherwise
+  **/
+fun XMLgetMarksParamValueByParamFromMark(markstr, param)=
+  let nil -> fparams in
+  (
+    let XMLgetParam markstr param -> ep in
+    if ep != nil then
+      set fparams = ep::nil
+    else nil;
+    
+    let markstr.XMLsons -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+        set fparams = XMLlcat fparams (XMLgetMarksParamValueByParamFromMark mark param);
+      
+      set l = tl l;
+    );
+    fparams
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node attribute value with a node value and an attribute name from a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S] [S r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *  \param S : the attribute name to retrieve
+  *
+  *  \return [S r1] : the list of attribute values if found, nil otherwise
+  **/
+fun XMLgetMarksParamValueByValueAndParamFromMarkSons(markstr, value, param)=
+  let nil -> fparams in
+  let XMLgetMarksByValueFromMarkSons markstr value -> l in
+  (
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let XMLgetParam mark param -> ep in
+      if ep == nil then nil else
+        set fparams = ep::fparams;
+      
+      set l = tl l;
+    );
+    revertlist fparams;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node attribute value with a node value and an attribute name from a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S] [S r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value to search
+  *  \param S : the attribute name to retrieve
+  *
+  *  \return [S r1] : the list of attribute values if found, nil otherwise
+  **/
+fun XMLgetMarksParamValueByValueAndParamFromMark(markstr, value, param)=
+  let nil -> fparams in
+  let XMLgetMarksByValueFromMark markstr value -> l in
+  (
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let XMLgetParam mark param -> ep in
+      if ep == nil then nil else
+        set fparams = ep::fparams;
+      
+      set l = tl l;
+    );
+    revertlist fparams;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node attribute value with an attribute name in an xml structure, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S] [S r1]
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the attribute name to retrieve
+  *
+  *  \return [S r1] : the list of attribute values if found, nil otherwise
+  **/
+fun XMLgetMarksParamValueByParam(xmlfilestr, param)=
+  let nil -> fparams in
+  (
+    let xmlfilestr.XMLmarks -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+        set fparams = XMLlcat fparams (XMLgetMarksParamValueByParamFromMark mark param);
+      
+      set l = tl l;
+    );
+    fparams;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the first mark node with an attribute name and value from a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S] XMLmark
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByParamValueFromMark(markstr, param, value)=
+  let nil -> fmark in
+  let XMLgetParam markstr param -> pval in
+  (
+    if (!strcmp value pval) then
+      markstr
+    else
+    (
+      let markstr.XMLsons -> l in
+      while (l != nil) && (fmark == nil) do
+      (
+        let hd l -> mark in
+          set fmark = XMLgetMarkByParamValueFromMark mark param value;
+        
+        set l = tl l;
+      );
+      fmark
+    );
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the first mark node with an attribute name and value from a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S] XMLmark
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByParamValueFromMarkSons(markstr, param, value)=
+  let nil -> fmark in
+  let XMLgetParam markstr param -> pval in
+  (
+    if (!strcmp value pval) then
+      markstr
+    else
+    (
+      let markstr.XMLsons -> l in
+      while (l != nil) && (fmark == nil) do
+      (
+        let hd l -> mark in
+        let XMLgetParam mark param -> nval in
+        if (strcmp value nval) then nil else
+          set fmark = mark;
+        
+        set l = tl l;
+      );
+      fmark
+    );
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the first mark node with an attribute name and value in an xml structure
+  *
+  *  <b>Prototype:</b> fun [XMLfile S S] XMLmark
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByParamValue(xmlfilestr, param, value)=
+  let nil -> fmark in
+  (
+    let xmlfilestr.XMLmarks -> l in
+    while (l != nil) && (fmark == nil) do
+    (
+      let hd l -> mark in
+        set fmark = XMLgetMarkByParamValueFromMark mark param value;
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the first mark node with a value, and attribute name and value in an xml structure, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLfile S S S] XMLmark
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the mark node value
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByValueAndParamValue(xmlfilestr, markval, param, value)=
+  let XMLgetMarksByValue xmlfilestr markval -> l in
+  let nil -> fmark in
+  (
+    while (l != nil) && (fmark == nil) do
+    (
+      let hd l -> mark in
+      let XMLgetParam mark param -> pval in
+      if (!strcmp value pval) then
+        set fmark = mark
+      else nil;
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node with a value, and attribute name and value in an xml structure, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLfile S S S] [XMLmark r1]
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the mark node value
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return [XMLmark r1] : the list of marks node if found, nil otherwise
+  **/
+fun XMLgetMarksByValueAndParamValue(xmlfilestr, markval, param, value)=
+  let XMLgetMarksByValue xmlfilestr markval -> l in
+  let nil -> fmark in
+  (
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let XMLgetParam mark param -> pval in
+      if (!strcmp value pval) then
+        set fmark = mark::fmark
+      else nil;
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+fun XMLgetMarksByValueAndListParamValue(xmlfilestr, markval, lp)=
+  let XMLgetMarksByValue xmlfilestr markval -> l in
+  let nil -> fmark in
+  (
+    let sizelist lp -> size2 in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let 0 -> i2 in
+      let 0 -> ret in
+      (
+        while i2 < size2 do
+        (
+          let nth_list lp i2 -> [param value] in
+          let XMLgetParam mark param -> pval in
+          if (!strcmp value pval) then
+            set ret = ret + 1
+          else nil;
+          
+          set i2 = i2 + 1;
+        );
+        
+        if ret < size2 then nil else
+          set fmark = mark::fmark
+      );
+       
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the first mark node with a value, and attribute name and value in a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S S] XMLmark
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByValueAndParamValueFromMark(markstr, markval, param, value)=
+  let XMLgetMarksByValueFromMark markstr markval -> l in
+  let nil -> fmark in
+  (
+    while (l != nil) && (fmark == nil) do
+    (
+      let hd l -> mark in
+      let XMLgetParam mark param -> pval in
+      (
+        if (!strcmp value pval) then
+          set fmark = mark
+        else nil;
+      );
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get all marks node with a value, and attribute name and value in a parent mark node, recursively
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S S] [XMLmark r1]
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return [XMLmark r1] : the list of marks node if found, nil otherwise
+  **/
+fun XMLgetMarksByValueAndParamValueFromMark(markstr, markval, param, value)=
+  let XMLgetMarksByValueFromMark markstr markval -> l in
+  let nil -> fmark in
+  (
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let XMLgetParam mark param -> pval in
+      if (!strcmp value pval) then
+        set fmark = mark::fmark
+      else nil;
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Get the first mark node with a value, and attribute name and value in a parent mark node
+  *
+  *  <b>Prototype:</b> fun [XMLmark S S S] XMLmark
+  *
+  *  \param XMLmark : the parent mark node
+  *  \param S : the mark node value
+  *  \param S : the attribute name
+  *  \param S : the attribute value
+  *
+  *  \return XMLmark : the mark node if found, nil otherwise
+  **/
+fun XMLgetMarkByValueAndParamValueFromMarkSons(markstr, markval, param, value)=
+  let XMLgetMarksByValueFromMarkSons markstr markval -> l in
+  let nil -> fmark in
+  (
+    while (l != nil) && (fmark == nil) do
+    (
+      let hd l -> mark in
+      let XMLgetParam mark param -> pval in
+      if (!strcmp value pval) then
+        set fmark = mark
+      else nil;
+      
+      set l = tl l;
+    );
+    fmark;
+  );;
+
+
+fun XMLserializeFromMark(markstr)= XMLgetMarks markstr;;
+
+
+fun XMLserializeWithIndexFromMark(markstr)= XMLgetMarksWithIndex markstr;;
+
+
+fun XMLserializeWithIndex(xmlfilestr)=
+  let nil -> ncont in
+  (
+    if xmlfilestr.XMLtype == nil then nil else
+      set ncont = strcatn "<?xml"::xmlfilestr.XMLtype::"?>"::nil;
+    
+    let sizelist xmlfilestr.XMLmarks -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list xmlfilestr.XMLmarks i -> mark in
+        set ncont = strcat ncont XMLgetMarksWithIndex mark;
+      
+      set i = i + 1;
+    );
+    
+    ncont;
+  );;
+
+
+fun ParamsToXML(lp)=
+  let nil -> nl in
+  (
+    let sizelist lp -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lp i -> [name value] in
+        set nl = [name (strtrim (strtoweb value))]::nl;
+        
+      set i = i + 1;
+    );
+    revertlist nl;
+  );;
+
+
+fun XMLSaveChilds(xmlnode, markstr)=
+  let sizelist markstr.XMLsons -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list markstr.XMLsons i -> mark in
+    let ParamsToXML mark.XMLparams -> lp in
+    let _AddXmlNode xmlnode mark.XMLvalue -> cnode in
+    (
+      _SetXmlNodeContent cnode mark.XMLdata;
+      _SetXmlNodeAttributes cnode lp;
+      XMLSaveChilds cnode mark;
+    );
+    
+    set i = i + 1;
+  );
+  0;;
+
+
+fun XMLstrToObj(xmlfilestr)=
+  let _CreateXml _channel -> xmlobj in
+  (
+    let xmlfilestr.XMLmarks -> l in
+    while (l != nil) do
+    (
+      let hd l -> mark in
+      let ParamsToXML mark.XMLparams -> lp in
+      let _AddXmlRootNode xmlobj mark.XMLvalue -> xmlnode in
+      (
+        _SetXmlNodeContent xmlnode mark.XMLdata;
+        _SetXmlNodeAttributes xmlnode lp;
+        XMLSaveChilds xmlnode mark;
+      );
+      
+      set l = tl l;
+    );
+    
+    xmlobj;
+  );;
+
+
+fun XMLserialize(xmlfilestr)=
+  let XMLstrToObj xmlfilestr -> xmlobj in
+  let _GetXmlContent xmlobj -> content in
+  (
+    _DestroyXml xmlobj;
+    content;
+  );;
+  
+
+fun XMLSave(xmlfilestr, path)=
+  let XMLstrToObj xmlfilestr -> xmlobj in
+  (
+    _SaveXml xmlobj _getmodifypack path;
+    _DestroyXml xmlobj;
+  );
+  0;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Write an Xml file from a xml structure
+  *
+  *  <b>Prototype:</b> fun [XMLfile S] I
+  *
+  *  \param XMLfile : the xml structure
+  *  \param S : the file path
+  *
+  *  \return 0
+  **/
+fun XMLwrite(xmlfilestr, path)=
+  XMLSave xmlfilestr (if path == nil then xmlfilestr.XMLpath else path);
+  0;;
+
+
+fun XMLloadManual(path)= 
+  let (_checkpack path) -> pfile in
+  if pfile == nil then 
+  (
+    _fooS strcat "XMLPARSER ERROR : file not found > " path;
+    nil;
+  )
+  else
+  (
+    let _getpack pfile -> fcont in
+    let mkXMLfile [nil path nil nil 0] -> xmlfilestr in
+    (
+      let strfindi "<?xml" fcont 0 -> shp in
+      let strfind "?>" fcont 0 -> ehp in
+      if ehp == nil then nil else
+      (
+        set xmlfilestr.XMLtype = substr fcont (shp + 5) ((ehp - shp) - 5);
+        set fcont = substr fcont (ehp + 2) ((((strlen fcont) - 1) - ehp) -1);
+      );
+      if !iXMLdebug then nil else
+        _fooS strcat "XMLPARSER DEBUG : type > " xmlfilestr.XMLtype;
+      
+      set xmlfilestr.XMLmarks = (XMLparse xmlfilestr fcont);
+      xmlfilestr;
+    );
+  );;
+
+
+fun XMLloadStringManual(fcont)= 
+  if ((fcont == nil) || (!strcmp fcont "")) then nil else
+  let mkXMLfile [nil nil nil nil 0] -> xmlfilestr in
+  (
+    let strfindi "<?xml" fcont 0 -> shp in
+    let strfind "?>" fcont 0 -> ehp in
+    if ehp == nil then nil else
+    (
+      set xmlfilestr.XMLtype = substr fcont (shp + 5) ((ehp - shp) - 5);
+      set fcont = substr fcont (ehp + 2) ((((strlen fcont) - 1) - ehp) -1);
+    );
+    if !iXMLdebug then nil else
+      _fooS strcat "XMLPARSER DEBUG : type > " xmlfilestr.XMLtype;
+    
+    set xmlfilestr.XMLmarks = (XMLparse xmlfilestr fcont);
+    xmlfilestr;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Load an Xml file
+  *
+  *  <b>Prototype:</b> fun [S] XMLfile
+  *
+  *  \param S : the xml file path
+  *
+  *  \return XMLfile : the loaded xml structure
+  **/
+fun XMLload(path)= 
+  let getFileExt path -> ext in
+  let (_checkpack path) -> pfile in
+  if pfile == nil then 
+  (
+    _fooS strcat "XMLPARSER ERROR : file not found > " path;
+    nil;
+  )
+  else
+  (
+    //let _tickcount -> tick in
+    let _OpenXml _channel _checkpack path -> objxml in
+    //if the xml is not W3C compliant or contain error
+    if objxml == nil then
+    (
+      _fooS strcat "XMLPARSER WARNING : the file contain an error and will be loaded manually > " path;
+      XMLloadManual path;
+    )
+    else
+    (
+      let mkXMLfile [objxml path nil nil 0] -> xmlfilestr in
+      (
+        set xmlfilestr.XMLmarks = (XMLtoMarks xmlfilestr);
+        //if (strcmpi ext "xos") then nil else
+        //  _DLGMessageBox _channel nil "Xml parser time" strcatn "file : "::path::"\nTime (ms) : "::(itoa (_tickcount - tick))::nil 0;
+        xmlfilestr;
+      );
+    );
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Load an Xml content from a string
+  *
+  *  <b>Prototype:</b> fun [S] XMLfile
+  *
+  *  \param S : the xml content
+  *
+  *  \return XMLfile : the loaded xml structure
+  **/
+fun XMLloadString(fcont)= 
+  let _OpenXmlS _channel fcont -> objxml in
+  //if the xml is not W3C compliant or contain error
+  if objxml == nil then
+  (
+    _fooS strcat "XMLPARSER WARNING : the XML content contain an error and will be loaded manually\n" fcont;
+    XMLloadStringManual fcont;
+  )
+  else
+  (
+    let mkXMLfile [objxml nil nil nil 0] -> xmlfilestr in
+    (
+      set xmlfilestr.XMLmarks = (XMLtoMarks xmlfilestr);
+      xmlfilestr;
+    );
+  );;
+
+
+fun XMLdiff(xmlfilestr1, xmlfilestr2)=
+  XMLwrite xmlfilestr1 "tmp/xosfile1.xml";
+  XMLwrite xmlfilestr2 "tmp/xosfile2.xml";
+  
+  let strmd5 _getpack _checkpack "tmp/xosfile1.xml" -> nsign1 in
+  let strmd5 _getpack _checkpack "tmp/xosfile2.xml" -> nsign2 in
+  (
+    _deletepack _checkpack "tmp/xosfile1.xml";
+    _deletepack _checkpack "tmp/xosfile2.xml";
+    strcmpi nsign1 nsign2;
+  );;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Copy an Xml structure
+  *
+  *  <b>Prototype:</b> fun [XMLfile] XMLfile
+  *
+  *  \param XMLfile : the xml structure to copy
+  *
+  *  \return XMLfile : the new xml structure
+  **/
+fun XMLcopy(xmlfilestr)= XMLloadString XMLserialize xmlfilestr;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Create an empty Xml structure
+  *
+  *  <b>Prototype:</b> fun [S S] XMLfile
+  *
+  *  \param S : the xml file path
+  *  \param S : the xml data type
+  *
+  *  \return XMLfile : the new xml structure
+  **/
+fun XMLcreate(path, type)=
+  let mkXMLfile [nil path type nil 0] -> xmlfilestr in
+  (
+    xmlfilestr;
+  );;
+
+
+fun XMLsetPath(xmlfilestr, path)= set xmlfilestr.XMLpath = path;;
+
+
+/*!  @ingroup xmlLib
+  *  \brief Close an Xml structure
+  *
+  *  <b>Prototype:</b> fun [XMLfile] I
+  *
+  *  \param XMLfile : the xml structure
+  *
+  *  \return 0
+  **/
+fun XMLclose(xmlfilestr)= 
+  if (xmlfilestr.XMLobj == nil) then nil else
+  (
+    _DestroyXml xmlfilestr.XMLobj;
+    set xmlfilestr.XMLobj = nil;
+    set xmlfilestr.XMLmarks = nil;
+  );
+  0;;
+
+/*
+fun main(file)=
+  _showconsole;
+  let XMLload file -> xmlfilestr in
+  (
+    //XMLdelMark xmlfilestr 
+    XMLaddMark xmlfilestr "test" (XMLgetMarkById xmlfilestr 6) nil "huhu";
+    XMLwrite xmlfilestr "tests/xml/new.xml";
+  );
+  0;;
+*/

@@ -1,0 +1,107 @@
+/**************************************************
+ Module Dispatcher
+ Client
+ Version: 1.0
+ Author: Laurent Hachet
+ Last update: 22/06/2001 
+ 
+ This module allow to dispatch the visitor to the different c3d3 cells
+ 
+**************************************************/
+
+/**************************************************
+  load, save and init, it couldn't be more simple.
+**************************************************/
+
+typeof cellNumber = ObjText;;    /* the number of cells */
+typeof connected = ObjText;;        /* the maximum of connected in a cell */
+
+typeof cellA = ObjText;;    
+typeof cellB = ObjText;;    
+typeof cellC = ObjText;;    
+typeof cellD = ObjText;;    
+typeof cellE = ObjText;;    
+typeof cellF = ObjText;;    
+
+
+
+fun load(l)=
+  _SETtext cellNumber getInfo l "cellNumber";
+  _SETtext connected getInfo l "connected";
+  
+  _SETtext cellA getInfo l "cellA";
+  _SETtext cellB getInfo l "cellB";
+  _SETtext cellC getInfo l "cellC";
+  _SETtext cellD getInfo l "cellD";
+  _SETtext cellE getInfo l "cellE";
+  _SETtext cellF getInfo l "cellF";  
+  0
+;;
+
+/* this function create 1 input and 1 output for each cell */
+fun createIOCell(n) =
+  if n == 0 then
+    nil
+  else
+  (
+    ("eventC"::(strcat "in " (itoa n))::nil)::   /* client side, at the inidmi end */
+    ("action"::(strcat "out " (itoa n))::nil)::  /* server side, when the client is destroyed */
+    createIOCell (n-1)
+  )
+;;
+
+fun save (filename, n)=
+  ("action"::"start"::nil)::
+  ("action"::"destroy"::nil)::
+  ("event"::"siteFull"::nil)::
+  ("cellNumber"::(_GETtext cellNumber)::nil)::
+  ("connected"::(_GETtext connected)::nil)::  
+  ("cellA"::(_GETtext cellA)::nil)::
+  ("cellB"::(_GETtext cellB)::nil)::
+  ("cellC"::(_GETtext cellC)::nil)::
+  ("cellD"::(_GETtext cellD)::nil)::
+  ("cellE"::(_GETtext cellE)::nil)::
+  ("cellF"::(_GETtext cellF)::nil):: 
+  createIOCell (atoi _GETtext cellNumber)
+;;
+
+fun IniEditor (s)=
+  let startEditor
+    _channel nil nil nil 315 275 WN_NORMAL EDITOR_NORMAL
+    s "worlds/stereobit/dispatcher/dispatcher.dmc" nil nil
+    @load @save nil
+  -> ed in
+  let getEditWin ed -> editWin in
+  (
+    _CRtext _channel editWin 5    30   190    20  ET_ALIGN_LEFT "Cell number";  
+    set cellNumber = _CReditLine _channel editWin  200 30 100 20 ET_DOWN+ET_AHSCROLL "3";      
+
+    _CRtext _channel editWin 5    50   190    20  ET_ALIGN_LEFT "Connected";  
+    set connected = _CReditLine _channel editWin  200 50 100 20 ET_DOWN+ET_AHSCROLL "3";      
+    
+	
+    _CRtext _channel editWin 5    70   90    20  ET_ALIGN_LEFT "Cell 1";  
+    set cellA = _CReditLine _channel editWin  100 70 200 20 ET_DOWN+ET_AHSCROLL "3";      
+
+    _CRtext _channel editWin 5    90   90    20  ET_ALIGN_LEFT "Cell 2";  
+    set cellB = _CReditLine _channel editWin  100 90 200 20 ET_DOWN+ET_AHSCROLL "3";      
+	
+    _CRtext _channel editWin 5    110   90    20  ET_ALIGN_LEFT "Cell 3";  
+    set cellC = _CReditLine _channel editWin  100 110 200 20 ET_DOWN+ET_AHSCROLL "3";      
+
+    _CRtext _channel editWin 5    130   90    20  ET_ALIGN_LEFT "Cell 4";  
+    set cellD = _CReditLine _channel editWin  100 130 200 20 ET_DOWN+ET_AHSCROLL "3";      
+	
+    _CRtext _channel editWin 5    150   90    20  ET_ALIGN_LEFT "Cell 5";  
+    set cellE = _CReditLine _channel editWin  100 150 200 20 ET_DOWN+ET_AHSCROLL "3";      
+
+    _CRtext _channel editWin 5    170   90    20  ET_ALIGN_LEFT "Cell 6";  
+    set cellF = _CReditLine _channel editWin  100 170 200 20 ET_DOWN+ET_AHSCROLL "3";      
+		
+    if s==nil then 
+  	  nil 
+    else 
+  	  openDMI ed
+  );
+	0
+;;

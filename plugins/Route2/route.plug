@@ -1,0 +1,13 @@
+# stereobit 2014
+# rev : 12/07/2014
+
+name Route2.1
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/route2/routes.pkg
+serverScript _load\ "Dms/3d/Plugins/route2/routes.pkg"
+clientLoad Dms/3d/Plugins/stereobit/3dmath.pkg
+clientLoad Dms/3d/Plugins/route2/routec.pkg
+clientScript _load\ "Dms/3d/Plugins/route2/routec.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/route2/routee.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/route2/routee.pkg"
+version 2 1

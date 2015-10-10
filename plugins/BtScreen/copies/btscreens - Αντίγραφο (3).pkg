@@ -1,0 +1,265 @@
+/* Photo3 Server - DMS - march 99 - by Sylvain HUET */
+/* av3d January 2000 - by Sébastien DENEUX */
+/* btscreens av3d August 2014 - by Vasilis Kometes */
+
+typeof class   = S;;
+typeof files = [S r1];;
+
+defcom CgetPlugin=getPlugin I S;;
+defcom CsetSign=setSign I S I;;
+defcom CsetMesh=setMesh I S S S;;
+defcom CsetDefAvatarsList=setDefAvatarsList S;;
+defcom CsetAvatar=setAvatar S;; 
+ 
+struct Pho=[cliPho:CLIENT,idPho:I,workPho:S,signPho:S,transPho:I]mkPho;;
+
+typeof defaultAvFile=S;;
+typeof av3dClis=[Pho r1];;
+typeof clis=[CLIENT r1];;/*all clients that have started the module*/
+typeof defaultAvatarsDirectory=S;;/*default folder for avatars browser*/
+typeof defaultAvatarsList=[S r1];;
+
+var type="av3d";;
+var m3dItemRef="meshAv3d";; /*reference of the item that correspond to the avatar mesh file of each client*/
+
+/*param ????*/
+var paramDefAvFile ="Dms/Avatar/av3d/avDefault.m3d";;
+
+fun cliByCli(x,c)=x.cliPho==c;; 
+fun cliById(x,id)=x.idPho==id;; 
+fun broadReload(a,b)=_DMSsend this a b;; 
+fun stringCompare(a,b)=!strcmpi a b;;
+
+/*returns the texture name*/
+fun getTexture(l)=
+ if l==nil then nil
+ else
+  let l -> [tete queue] in
+   if !strcmp hd tete "texture" then hd tl tete /*texture name*/
+   else if !strcmp hd tete "}" then nil
+   else getTexture queue;;
+   
+fun lastpercent(n,i,l)=
+ if i>=strlen n then l
+ else lastpercent n i+1 if (nth_char n i)=='% then i else l;;   
+ 
+fun cutnamefilter(n)=
+ let lastpercent n 0 nil-> i in
+  if i==nil then [n nil] else [substr n i+1 1000 substr n 1 i-1];;
+
+/*register the texture*/
+fun registerTexture(texture)=
+ /*_DLGMessageBox _channel nil "register : texture name" textureFileName 0;*/
+ let cutnamefilter texture -> [textureFileName _] in
+  (
+   _RSunregister this textureFileName;
+   _RSregisterfiles this textureFileName::nil RSfile+RScontrol;
+   0
+  );;
+  
+/*returns the bloc after the next "}" in l*/
+fun goToNextBloc(l)=
+ if l==nil then
+  nil
+ else
+ let l-> [tete queue] in
+  if !strcmp hd tete "}" then queue
+  else goToNextBloc queue;;  
+
+/*register the textures of the m3d*/
+fun registerM3dTextures(l)=
+ if l== nil then nil
+ else let l -> [tete queue] in
+ (
+  if !strcmp hd tete "material" then
+   (
+    let getTexture queue -> textureFileName in
+     if textureFileName!=nil then registerTexture textureFileName else nil;
+    registerM3dTextures (goToNextBloc queue)
+   )
+  else if !strcmp hd tete "shell" then
+   registerM3dTextures (goToNextBloc queue)
+  else if !strcmp hd tete "mesh" then
+   registerM3dTextures (goToNextBloc queue)
+  else if !strcmp hd tete "anim" then
+   registerM3dTextures (goToNextBloc queue)
+  else if !strcmp hd tete "camera" then
+   registerM3dTextures (goToNextBloc queue)
+  else
+   registerM3dTextures queue;
+  0
+ );;
+ 
+/*register a m3d file and associated textures*/
+fun registerM3d(fileName)=
+ /*_DLGMessageBox _channel nil "register : m3d" fileName 0;*/ 
+ _RSunregister this fileName;   
+ _RSregisterfiles this fileName::nil RSfile+RScontrol;
+ let strextr _getpack _checkpack fileName -> l in
+   registerM3dTextures l;;
+
+/*register the list of m3d files and associated textures*/
+fun registerM3dList(l)=
+ if l==nil then nil
+ else
+  let l -> [tete queue] in
+   (registerM3d tete;
+    registerM3dList queue;
+    0);;
+
+fun logout(cli)=
+ _RSunregister this itoa _DMSgetId cli;
+ set av3dClis=removef_from_list av3dClis @cliByCli cli;
+ set clis=remove_from_list clis cli;
+ 0;;	
+  
+/*returns the client avatar mesh filename*/
+/*nil if no mesh or if mesh not on server*/
+fun getCliAvFileName(cli)=
+ let _DMSfindItem cli m3dItemRef -> meshItem in
+ let meshItem.nameItem -> meshName in
+ let _checkpack meshName -> res in
+   if meshItem!=nil && res!=nil then meshName else nil;;  
+  
+/*returns the files of list l that have the extension ext*/
+fun getExtOnly(l,ext)=
+ if l==nil then nil
+ else let l -> [t q] in
+  let strlen t -> long in   
+   if !strcmpi substr t long-(strlen ext) long ext then
+     t::(getExtOnly q ext)
+   else
+     getExtOnly q ext;;
+
+/*register avatars meshes dans textures for default browser*/
+fun registerBrowserAvatars()=
+ /*unregisterBrowserFiles registeredBrowserFiles;*/
+ set defaultAvatarsList=getExtOnly _listoffiles defaultAvatarsDirectory ".m3d";
+ registerM3dList defaultAvatarsList; /*register all files in browser*/
+ 0;;
+ 
+fun cbActivate(o,from,cli,action,param,rep,a)=
+
+ if !strcmp action (strcatn class::"."::(ObName o)::".Av3dStartS"::nil) then
+  let getCliAvFileName cli -> fileName in
+   (
+    set clis=cli::(remove_from_list clis cli);
+    if fileName!=nil
+      then registerM3d fileName /*register the client avatar m3d file and its textures*/
+    else nil;
+    _DMScreateClientDMI this cli defaultAvFile
+   )
+ 
+ else if !strcmp action (strcatn class::"."::(ObName o)::".Av3dGetPluginS"::nil) then
+  (
+   _DMScreateClientDMI this cli defaultAvFile;
+   _DMSsend this cli CgetPlugin [_DMSgetHandle from rep]
+  )
+
+ else if !strcmp action (strcatn class::"."::(ObName o)::".Av3dChgLoginS"::nil) then
+  let getCliAvFileName cli -> fileName in
+    if fileName!=nil then
+     (
+      registerM3d fileName;
+      _DMSsend this cli CsetAvatar [fileName]
+     )
+    else
+      _DMSsend this cli CsetAvatar [nil] /*no avatar in item*/
+
+ else if !strcmp action (strcatn class::"."::(ObName o)::"Av3dReloadS"::nil) then
+  (
+   registerBrowserAvatars;
+   let linebuild defaultAvatarsList -> s in
+    apply_on_list clis @broadReload CsetDefAvatarsList [s];
+   0
+  )
+ else if !strcmp action (strcatn class::"."::(ObName o)::"Av3dLogoutS"::nil) then 
+   logout cli
+ else nil;; 
+
+	 
+  
+fun cbDestroy(o,docName) =
+  _RSunregister this docName;  
+  0
+;;
+
+fun extension(fi) =
+
+	let 0->j in
+	let 0->find in
+	(
+	  while ((set find=strfind "." fi j)!=nil) do 
+	  (
+		  set j=find+1
+	  );
+	substr fi j (strlen fi)-j
+	)
+;;
+
+
+fun cbRegister (ui, cli, action, param, z) =
+  let z -> [o fileName nrand] in
+  let if fileName == nil then "logo.bmp" else fileName -> fileName in
+  (
+    let (strcatn "tmp/logo/"::(substr _getlongname strcat nrand (substr fileName 0 (strfind "." fileName 1)) "" "#" 1 8)::"."::(extension fileName)::nil) -> fileNameOnClient in /* ??? modifié */
+      if (_checkpack fileNameOnClient) == nil then
+        UsendMessage ui cli "registered" "logo.bmp"
+      else
+        UsendMessage ui cli "registered" fileNameOnClient;
+		
+	  /*sen msg to download files*/	
+	  if files != nil then
+        UsendMessage ObUi o cli "donwloadImages" linebuild files
+      else
+        0;		
+    0
+  )
+;;
+
+fun getImages(path)=
+  set files =  _listoffiles path;
+  _RSregisterfiles this files RSfile+RScontrol;
+  0;;
+
+fun newOb(o) =
+
+  /********************************************av3d */  
+  ObRegisterAction o (strcatn (ObName o)::".Av3dStartS"::nil) mkfun7 @cbActivate nil;
+  ObRegisterAction o (strcatn (ObName o)::".Av3dGetPluginS"::nil) mkfun7 @cbActivate nil;
+  ObRegisterAction o (strcatn (ObName o)::".Av3dChLoginS"::nil) mkfun7 @cbActivate nil;  
+  ObRegisterAction o (strcatn (ObName o)::".Av3dReloadS"::nil) mkfun7 @cbActivate nil;  
+  ObRegisterAction o (strcatn (ObName o)::".Av3dLogoutS"::nil) mkfun7 @cbActivate nil;  
+  
+  let strextr _getpack _checkpack paramDefAvFile -> l in /*get default avatar file*/ 
+  (  
+    set defaultAvFile ="Dms/Avatar/av3d/avDefault.m3d"; 
+    set defaultAvatarsDirectory=getInfo l "defaultAvBrowserPath";
+    registerBrowserAvatars  
+  );
+  /*******************************************/
+   
+  let hd UgetParam ObUi o "fichier" -> fileName in
+  let hd UgetParam ObUi o "nrand" -> nrand in /* ??? ajouté par moi */
+     
+  let strcat ObName o fileName -> docName in
+  (
+    _RSregister this docName RScontrol+RSfile (strcatn "tmp/logo/"::(substr _getlongname strcat nrand (substr fileName 0 (strfind "." fileName 1)) "" "#" 1 8)::"."::(extension fileName)::nil); /*??? modifié par moi */	
+    ObCbDestroy o mkfun2 @cbDestroy docName;
+    UcbMessage ObUi o  
+        ["register" mkfun5 @cbRegister [o fileName nrand]]:: /* ???modifié */
+        nil;
+	
+	/*register files to download */
+    let hd UgetParam ObUi o "rpath" -> path in
+    getImages path;	
+    0
+  )
+;;
+
+
+fun IniPlug(file) =
+  set class=getInfo strextr _getpack _checkpack file "name";  
+  PlugRegister class @newOb nil;
+  0
+;;

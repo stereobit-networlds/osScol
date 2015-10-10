@@ -1,0 +1,843 @@
+/**************************************************
+ Module Dispatcher
+ Server
+ Version: 1.0
+ Author: Laurent Hachet
+ Last update: 22/06/2001 
+ 
+ This module allow to dispatch the visitor to the different c3d3 cells
+
+**************************************************/
+
+/* updated by stereobit,adding capabilities 08/14 */
+
+defcom CsavePos=savePos S;;
+defcom CgetPos=getPos S;;
+defcom CsetActiveCell=setActiveCell I;;
+defcom Chear=hear S;;
+
+typeof tiiCellStatus = [[I I] r1];;     /* [connectedNumber cellNumber] */
+typeof ipList = [[S I] r1];;            /*ip - connected times list*/
+var ipExceptions = "";;//"127.0.0.1\n192.168.1.64\n";;
+var maxMutipleIP = 2;;
+var adminIP = "127.0.0.1";;
+
+typeof iCellNumber = I;;     /* the number of c3d3 cells */
+typeof iConnected = I;;      /* the maximum of connected for one c3d3 cell */
+
+typeof iCellA = S;;
+typeof iCellB = S;;
+typeof iCellC = S;;
+typeof iCellD = S;;
+typeof iCellE = S;;
+typeof iCellF = S;;
+typeof defaultCell = I;;    /*default cell entry when no client position */
+typeof checkPosTimer = I;;
+typeof cellMinDistance = [I S S I];;
+
+typeof paramList = [S r1];;
+typeof paramFile = S;;
+
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (iniPath)::"/"::DMSname::"/"::fname::nil -> file in
+    let strcatn (itoa _DMStime)::":"::s::nil -> line in	
+ 
+	let _appendpack line _getmodifypack file ->append in
+	if (append==-1) then
+		_createpack line _getmodifypack file
+	else nil
+ )
+ else nil;;
+
+fun echo(x,s)= 
+  saveLog "echo.txt" strcat x "\n";;
+	
+fun _echo(x,s)=	
+ if (log==1) then
+  _DMSsend this DMSsender Chear [strcat strcat ">>[sdispatcher] " x "\n"]
+ else nil;; 
+ 
+fun ipExist(list,cip)=
+  if list==nil then
+    nil
+  else
+    let hd list -> [ip total] in
+    if (!strcmp cip ip) then 
+	  ip
+	else 
+	  ipExist tl list cip;;
+	
+fun ipConnected(list, cip, maxcon)=
+  if list==nil then
+    1 /*unknown ip 1st entry*/
+  else
+    let hd list -> [ip total] in
+    if (!strcmp cip ip) then 
+	  //if (total>maxcon) then 0 else total /*problem, seems to not reduce total when disconnect a client*/
+	  1                                     /*... always on */     
+	else 
+	  ipConnected tl list cip maxcon;; 
+	  
+fun addInstanceIp(list, cip)=
+  if list==nil then
+    nil
+  else
+    let hd list -> [ip total] in
+    if (!strcmp cip ip) then 
+	(
+	   mutate hd list <- [_ (total+1)];
+	   1
+	)   
+	else 
+	  addInstanceIp tl list cip;;     
+
+fun ipAdd(cip)= 
+  let ipExist ipList cip -> ip in 
+  if ip==nil then 
+  ( echo strcat "Dispatcher: IP entry:" ip
+    set ipList = [cip 1]::ipList;
+	1)	
+  else
+    addInstanceIp ipList cip;;  
+	
+fun isException(list, cip) = 
+  if list==nil then
+    nil
+  else
+    let hd list -> ip in
+    if (!strcmp cip ip) then 
+	  1
+	else 
+	  isException tl list cip;;
+
+fun ipException(cip) = 
+  let lineextr ipExceptions -> exceptions in
+  isException exceptions cip;; 	
+
+/* ???   
+fun removeIP_from_list(l,cip)=
+ if l==nil then nil
+ else 
+  let l -> [a nxt] in
+  let a -> [ip total] in
+  if (!strcmp cip ip) then nxt
+  else a::removeIP_from_list nxt cip;;  
+*/
+fun removeIP_from_list(list, cip)= 
+  if list==nil then
+    nil
+  else
+    let hd list -> [ip total] in
+    (
+	 if (!strcmp cip ip) && (total>1) then
+	  (
+	   mutate hd list <- [_ (total-1)];
+	   1
+	  )  
+	 else if (total==1) then  
+	 (
+	   mutate hd list <- [_ 0];
+	   0
+	 )  
+	 else
+	   removeIP_from_list list cip);;  	  
+
+fun cleanIpList(l) =
+ if l==nil then nil
+ else 
+  let l -> [a nxt] in
+  let a -> [ip total] in
+  if (total==0) then nxt
+  else a::cleanIpList nxt;; 		   
+	
+fun ipDel(cip)= 
+  let ipExist ipList cip -> ip in 
+  if ip==nil then 
+    nil	
+  else
+  ( echo strcat "Dispatcher: IP gone:" ip
+	removeIP_from_list ipList cip;
+	cleanIpList ipList;
+	0
+  );;	
+	
+fun isAdminIn(list,cip)=
+  if list==nil then
+    nil
+  else
+    let hd list -> [ip total] in
+    if (!strcmp cip ip) then 
+	  ip
+	else 
+	  isAdminIn tl list cip;;  
+  
+  
+  
+	
+/*convert radians to degrees */
+fun rad2deg(r) = r *. (180.0 /. PIf);;  
+ 
+/*convert degrees to radians */
+fun deg2rad(d) = d *. (PIf /. 180.0);; 
+
+/*missing funcs */
+fun _floor(a) = ftoi a;;
+fun _modf(a,b) = a *. (a /. b);; /* (a-.b) * _floor(a/.b)*/
+fun _maxf(a, b) = if (a >. b) then a else b;;
+fun _minf(a, b) = if (a <. b) then a else b;;  
+	
+/*NMEA GPGGA lon lat to decimal */
+/*NMEA lat  0302.78469 = 03 + (02.78469/60) = 3.046412  decimal*/	
+/*NMEA lon 10141.82531 = 101 + 41.82531/60) = 101.6971  decimal*/
+fun NMEA2dec(n, islat) = 
+  //_echo "NMEA2dec:"::n::nil
+  if (islat) then
+  (
+    let atof substr n 0 2 -> p1 in
+    let atof substr n 2 9 -> q1 in
+	
+	p1 +. (q1 /. 60.0)
+  )	
+  else
+  (
+    let atof substr n 0 3 -> p1 in
+    let atof substr n 3 9 -> q1 in
+	
+	p1 +. (q1 /. 60.0)
+  );;
+  
+/*http://gis.stackexchange.com/questions/29239/calculate-bearing-between-two-decimal-gps-coordinates*/
+fun getBearing(lat1, lon1, lat2 ,lon2) =
+  let deg2rad lat1 -> x1 in
+  let deg2rad lon1 -> y1 in
+  let deg2rad lat2 -> x2 in
+  let deg2rad lon2 -> y2 in
+  
+  let (y2 -. y1) -> dLong in
+  let tan (x2 /. 2.0 +. PIf /. 4.0) -> a in
+  let tan (x1 /. 2.0 +. PIf /. 4.0) -> b in
+  let log10 (a/.b) -> dPhi in /*log error!!!!!!!!!!!!!!*/
+  
+  let if (abs dLong >. PIf) then 
+    if dLong >. 0.0 then -.2.0 *. PIf -. dLong 
+	                else   2.0 *. PIf -. dLong 
+	  else dLong -> dLong2 in
+
+  let rad2deg (atan2 dLong2 dPhi) -> c in
+  _modf (c +. 360.0) 360.0
+;;  
+  
+/** for triangle check  *************************/
+fun sign (x1,y1,x2,y2,x3,y3) = 
+(((x1 -. x3) *. (y2 -. y3)) -. ((x2 -. x3) *. (y1 -. y3)));;
+
+fun pointInTriangle (x,y,x1,y1,x2,y2,x3,y3) = 
+  let sign x y x1 y1 x2 y2 -> a1 in
+  let sign x y x2 y2 x3 y3 -> a2 in
+  let sign x y x3 y3 x1 y1 -> a3 in
+  
+  if ((a1 == a2) && (a2 == a3)) then 1 else 0;;
+ 
+/** havercine formula **************************/
+/* in radians */
+fun distanceR (lat1, lon1, lat2, lon2) =
+  let 6371.0 -> R in /*(Mean) radius of earth in km */
+  let deg2rad lat1 -> f1 in
+  let deg2rad lon1 -> g1 in
+  let deg2rad lat2 -> f2 in
+  let deg2rad lon2 -> g2 in  
+  
+  let (f2 -. f1) -> df in
+  let (g2 -. g1) -> dg in
+  
+  //the square of half the chord length between the points
+  let (sin (df /. 2.0) *. sin (df /. 2.0) +. (cos f1) *. (cos f2) *. sin (dg /. 2.0) *. sin (dg /. 2.0)) -> a in
+  //angular distance in radians
+  let (2.0 *. (atan2 (sqrt a) (sqrt (1.0 -. a)))) -> c in
+  //result
+  R *. c;;  
+  
+/* in degrees */  
+fun distance (lat1, lon1, lat2, lon2) =
+  (acos ((sin(lat1 *. (PIf /. 360.0)) *. sin(lat2 *. (PIf/.360.0))) +. cos(lat1 *. (PIf/.360.0)) *. cos(lat2 *. (PIf/.360.0)) *. cos((lon2 *. (PIf/.360.0)) -. (lon1 *. (PIf/.360.0))))) *. 6371.0;;  
+  
+/*for small distances Pythagoras’ theorem can be used on an equirectangular projection*/  
+/*var x = (ë2-ë1) * Math.cos((ö1+ö2)/2);
+var y = (ö2-ö1);
+var d = Math.sqrt(x*x + y*y) * R; */
+fun distanceP (lat1, lon1, lat2, lon2) =
+
+  let 6371.0 -> R in /*(Mean) radius of earth in km */
+  let deg2rad lat1 -> f1 in
+  let deg2rad lon1 -> g1 in
+  let deg2rad lat2 -> f2 in
+  let deg2rad lon2 -> g2 in
+  
+  let (g2-.g1) *. cos (f1+.f2/.2.0) -> x in
+  let (f2-.f1) -> y in
+  (sqrt ((x*.x) +. (y*.y))) *. R;;
+	
+/** lat lon projection **************************/  
+/*http://stackoverflow.com/questions/7477003/calculating-new-longtitude-latitude-from-old-n-meters/7478827#7478827*/
+fun coord_projection (lat, lon, dx, dy) =
+  let 6371.0 -> R in /* (Mean) radius of earth in km */
+  let (lat +. (dy /. R) *. (180.0 /. PIf)) -> newlat in
+  let (lon +. (dx /. R) *. (180.0 /. PIf)) /. (cos (lat *. (180.0 /. PIf))) -> newlon in
+  [newlat newlon];; 
+ 
+/*http://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters*/ 
+fun latlonOffset (lat, lon, dn, de) =
+
+ //Earth’s radius, sphere
+ let 6378137.0 -> R in 
+
+ //Coordinate offsets in radians
+ let dn /. R -> dLat in
+ let de /. (R *. cos (PIf *. lat /. 180.0)) -> dLon in
+
+ //OffsetPosition, decimal degrees
+ let lat +. dLat *. 180.0 /. PIf -> newLat in
+ let lon +. dLon *. 180.0 /. PIf -> newLon in 	
+ [newLat newLon];; 
+
+//http://stackoverflow.com/questions/1125144/how-do-i-find-the-lat-long-that-is-x-km-north-of-a-given-lat-long
+fun latlonExtend(lat, lon, distance, bearing) =
+  let PIf +. PIf -> PIV2 in
+  let asin(sin(lat) *. cos(distance) +. cos(lat) *. sin(distance) *. cos(bearing)) -> newlat in
+/*
+  let if (cos newlat) then
+    ((_modf (lon -. asin( sin(bearing) *. sin(distance) ) /. cos(newlat) +. PIf) PIV2) -. PIf)
+  else	
+    lon -> newlon in ???
+	
+[newlat newlon] */
+0;;  
+  
+//read data from line 
+fun GetData(line, n) =
+  let 1 -> i in
+  let 0 -> ind1 in
+  let 0 -> ind2 in
+  (
+    while (i < n) do
+    (
+      set ind1 = 1 + strfind "," line ind1;
+      set i = i + 1;
+    );
+    set ind1 = 1 + strfind "," line ind1;
+    set ind2 = strfind "," line ind1;
+    substr line ind1 (ind2 - ind1);
+  );;
+ 
+/** check incoming user position (rectangle) *****/ 
+/** return 3d cellID *****************************/
+fun chkPos(line, position, cellID) = 
+  //let strextr position -> p in
+  //let hd tl p -> [lat lon] in
+  
+  /*test data */
+  //let "0302.78469" -> latitude in
+  //let "10140.82531" -> longitude in
+  
+  let substr position 0 9 -> latitude in
+  let substr position 10 9 -> longitude in  
+  
+  let strlen line -> lline in
+  let strlen latitude -> llat in
+  let strlen longitude -> llon in
+  
+  //_echo strcatn "CHKPOS:["::latitude::","::longitude::"]->"::(itoa lline)::"->"::line::nil
+  if (lline==nil) || (llat==nil) || (llon==nil) then
+    nil
+  else
+  (
+    //_echo strcatn "LATLON:["::latitude::"-"::longitude::"]"::nil
+    let atof latitude -> x in
+    let atof longitude -> y in 
+
+	let GetData line 1 -> x1 in
+    let GetData line 2 -> y1 in
+    let GetData line 3 -> x2 in
+    let GetData line 4 -> y2 in
+    let GetData line 5 -> x3 in
+    let GetData line 6 -> y3 in
+    let GetData line 7 -> x4 in
+    let GetData line 8 -> y4 in 
+	/*
+    _echo strcatn "CHECKxy:"::(ftoa x)::","::(ftoa y)::nil   
+    _echo strcatn "A:"::(x1)::","::(y1)::nil 
+    _echo strcatn "B:"::(x2)::","::(y2)::nil
+    _echo strcatn "C:"::(x3)::","::(y3)::nil
+    _echo strcatn "D:"::(x4)::","::(y4)::nil	
+	*/
+    //method divide in two triangles and check the point if is inside one of two triangles  
+    if ((pointInTriangle x y (atof x1) (atof y1) (atof x2) (atof y2) (atof x3) (atof y3)) ||
+        (pointInTriangle x y (atof x1) (atof y1) (atof x4) (atof y4) (atof x3) (atof y3))) then
+	  cellID 
+	else 
+	  nil
+  );;		
+  
+fun checkCellPos(cellID, position) =
+
+  if (position==nil) then 
+    1  /*!!! client position goto cell 1=start up cell */
+  else 
+    chkPos nth_list paramList (cellID-1) position cellID
+;;
+
+
+ 
+/** check incoming user position (radius) ********/ 
+/** return 3d cellID *****************************/ 
+fun chkRadius(line, position, cellID) =  
+  let substr position 0 9 -> latitude in
+  let substr position 10 9 -> longitude in  
+  
+  let strlen line -> lline in
+  let strlen latitude -> llat in
+  let strlen longitude -> llon in
+  
+  //_echo strcatn "CHKRAD:["::latitude::","::longitude::"]->"::(itoa lline)::"->"::line::nil
+  if (lline==nil) || (llat==nil) || (llon==nil) then
+    0
+  else
+  (
+    let atof latitude -> x in
+    let atof longitude -> y in 
+
+	let atof GetData line 1 -> centerX in
+    let atof GetData line 2 -> centerY in
+	let atof GetData line 3 -> radius in
+	
+	let distanceP x y centerX centerY -> dist in
+	let if (dist<.radius) then cellID else 0 -> res in
+	
+    //_echo strcatn "RADIUS:["::(ftoa centerX)::"-"::(ftoa centerY)::"]->"::(ftoa radius)::"->"::(ftoa dist)::"->"::(itoa res)::":"::(itoa cellID)::nil	
+	
+    if (res>0) then res else 0
+  );;		
+	
+fun checkCellRadius(cellID, position) = 
+
+  if (position==nil) then 
+    1  /*!!! client position goto cell 1=start up cell */
+  else 
+    chkRadius nth_list paramList (cellID-1) position cellID
+;;
+ 
+fun logout(cli)=
+  _DMSevent this cli "destroyed" nil nil
+;;
+
+/* change the connected number in a specific cell */
+fun changeValue(l, id, newValue) =
+  if l == nil then 
+    nil
+  else
+  (
+    let hd l -> [idCell total] in
+      if idCell == id then
+        mutate hd l <- [_ (total+newValue)]
+      else
+        changeValue tl l id newValue
+  )
+;;
+
+/*******************LAST TEST *****************
+dispatch the new connected in the cell */
+/*
+fun dispatchConnected(l, cli, position, isposCheck) =
+  if l == nil then
+  (
+     if (isposCheck!=nil)  then
+	 (
+	   if (isposCheck >= iConnected) then
+	   (
+         _DMSevent this cli "siteFull" nil nil;
+         //_DLGMessageBox _channel nil "WARNING" "Site Full" 0;
+	     _DMSservice cli "Warning: site full";
+	     0
+	   )
+	   else if (defaultCell) then	 
+	   (
+         //standart cell to go =1 	
+         //mutate hd l <- [_ (total+1)]; //<<<NUM ADD..FIX HALL3d MAX CONNECTED
+         _DMSevent this cli (strcat "in " itoa defaultCell) nil nil;
+		 _DMSsend this cli CsetActiveCell [defaultCell];
+		 
+         _DMSevent this cli "siteDefault" nil nil;
+         //_DLGMessageBox _channel nil "INFO" "Position not found. Default entry." 0;
+		 _DMSservice cli "Position not found. Default entry.";
+         1		 
+	   )  
+	   else	  
+         nil	   
+	 )
+     else	 
+         nil	 
+  )
+  else
+  (
+    let hd l -> [idCell total] in
+    (
+      if total < iConnected then
+      (
+		//if (checkCellPos idCell position) then
+		if (checkCellRadius idCell position) then
+		(  
+          mutate hd l <- [_ (total+1)];
+          _DMSevent this cli (strcat "in " itoa idCell) nil nil;
+		  _DMSsend this cli CsetActiveCell [idCell];
+		  1
+		)
+		else
+		  dispatchConnected tl l cli position total // 1 ..nil 
+      )
+      else
+        dispatchConnected tl l cli position nil
+    )
+  )
+;;*/
+/***********************************************/
+
+/* dispatch the new connected in the cell */
+fun dispatchConnected(l, cli, position, isposCheck) =
+  if l == nil then
+  (
+     if (isposCheck!=nil) then
+	 (
+	   if (defaultCell) then	 
+	   (
+         //standart cell to go =1 	
+         //mutate hd l <- [_ (total+1)]; //<<<NUM ADD..FIX HALL3d MAX CONNECTED
+         _DMSevent this cli (strcat "in " itoa defaultCell) nil nil;
+		 _DMSsend this cli CsetActiveCell [defaultCell];
+		 
+         _DMSevent this cli "siteDefault" nil nil;
+         //_DLGMessageBox _channel nil "INFO" "Position not found. Default entry." 0;
+		 _DMSservice cli "Position not found. Default entry.";
+         1		 
+	   )  
+	   else	  
+         0	 
+	 )
+	 else 
+	 (
+       _DMSevent this cli "siteFull" nil nil;
+       //_DLGMessageBox _channel nil "WARNING" "Site Full" 0;
+	   _DMSservice cli "Warning: site full";
+	   0
+	 )
+  )
+  else
+  (
+    let hd l -> [idCell total] in
+    (
+      if total < iConnected then
+      (
+		//if (checkCellPos idCell position) then
+		if (checkCellRadius idCell position) then
+		(  
+          mutate hd l <- [_ (total+1)];
+          _DMSevent this cli (strcat "in " itoa idCell) nil nil;
+		  _DMSsend this cli CsetActiveCell [idCell];
+		  1
+		)
+		else
+		  dispatchConnected tl l cli position 1 //nil 
+      )
+      else
+        dispatchConnected tl l cli position nil
+    )
+  )
+;;
+
+
+/* create the cell status list */
+fun createCellStatus(n) =
+  if n == (iCellNumber+1) then
+    nil
+  else
+    ([n 0])::createCellStatus (n+1)
+;;
+
+/* order the cell status list */
+fun orderList() =
+  let hd tiiCellStatus -> [idCell total] in
+  (
+    if total < iConnected then
+      0
+    else
+    (
+      set tiiCellStatus = listcat (tl tiiCellStatus) (hd tiiCellStatus)::nil;
+      orderList
+    )
+  )
+;;
+
+/* indicate if the list is full */
+fun isFull(l) =
+  if l == nil then
+    1
+  else
+    let hd l -> [idCell total] in
+    (
+      if total < iConnected then
+        0
+      else
+        isFull tl l
+    )
+;;
+
+/*receive getPos defcom answer of client position */
+fun __setPos(position) =
+  //_echo strcat "POSITION ANSWER:" position
+  //_DLGMessageBox _channel nil "WARNING" s 0;
+ 
+  /*add the new connected to a cell */ 
+  dispatchConnected tiiCellStatus DMSsender position nil;
+    
+  if !isFull tiiCellStatus then
+    orderList
+  else
+    0   
+;;
+
+fun __disconnect(cip) = 
+  let _DMSgetIP DMSsender -> cip in
+  echo strcat "Disconnected Client:" "(cip)"  
+  removeIP_from_list ipList cip;
+  cleanIpList ipList;
+  _DMSevent this DMSsender "clientDestroyed" nil nil;
+  0;;
+
+/*set position to circle center	(manual set position see activate)*/
+fun gotoCellCenter(cli, cellID) =  	
+  let nth_list paramList (cellID-1) -> params in
+  let atof GetData params 1 -> cLat in
+  let atof GetData params 2 -> cLon in
+  let atof GetData params 3 -> cR in
+  let strcatn (ftoa cLat)::" "::(ftoa cLon)::nil -> latlon in
+  (
+    _DMSsend this cli CsavePos [latlon];
+    latlon
+  );;  
+
+/*load with the goto value the global cellMinDistance*/
+fun dispatchNearestCell(l, cli, cellID, datal) =
+  
+  if l==nil then
+    nil
+	//3
+	//cellID /*test returning the same cell*/	
+	//defaultCell 
+	//let if (cellMinDistance!=nil) then cellMinDistance 
+	//else [defaultCell "0.1" 0] -> res in
+	//res
+  else 
+    let hd l -> [idCell total] in
+	if (idCell == cellID) then 
+	  dispatchNearestCell tl l cli cellID datal /*!!!! exclude leaving cell */
+	else  
+    (
+	  /*get received params of leaving cell */
+	  let atof GetData datal 1 -> lat in
+      let atof GetData datal 2 -> lon in 	
+	  let atof GetData datal 3 -> cx in
+	  let atof GetData datal 4 -> cy in
+	  let atof GetData datal 5 -> r in
+	  
+	  /*retreive current check circle params*/
+	  let nth_list paramList (idCell-1) -> checkCellData in
+	  let atof GetData checkCellData 1 -> clat in
+      let atof GetData checkCellData 2 -> clon in 	
+	  let atof GetData checkCellData 3 -> cradius in
+
+      /*make string params */	  
+	  let strcatn "data,"::(ftoa lat)::","::(ftoa lon)::","::(ftoa clat)::","::(ftoa clon)::","::(ftoa cradius)::","::nil -> params in
+	  
+	  /*find distance between user and current cell center*/
+      let distanceP lat lon clat clon -> dist in 
+	  	  
+	  if (cellMinDistance==nil) then
+	    set cellMinDistance = [idCell (ftoa dist) params total]
+	  else 
+        let cellMinDistance -> [mycell mydist myparams mytotal] in
+        if (dist <. (atof mydist)) then 
+		  mutate cellMinDistance <- [idCell (ftoa dist) params total]
+		else 
+		  nil; 		
+		  
+		dispatchNearestCell tl l cli cellID datal;
+	    0 
+	);;
+	
+/*calculate position to circle edge	*/
+fun gotoCellEdge(cli, cellID, params, distance) = 
+  let rad2deg (atof distance) -> d1 in 
+  let atof GetData params 1 -> uLat in
+  let atof GetData params 2 -> uLon in 	
+  let atof GetData params 3 -> cLat in
+  let atof GetData params 4 -> cLon in
+  let atof GetData params 5 -> cR in
+
+  let rad2deg cR -> d2 in  
+  let ftoa (cLat -. d2) -> fLat in
+  let ftoa (cLon -. d2) -> fLon in
+  
+  let strcatn (ftoa cLat)::" "::(ftoa cLon)::nil -> latlon in
+  //let strcatn (fLat)::" "::(fLon)::nil -> latlon in
+  
+  //let coord_projection cLat cLon 100.0 100.0 -> [nLat nLon] in
+  //let strcatn (ftoa nLat)::" "::(ftoa nLon)::nil -> latlon in
+  (
+    _DMSsend this cli CsavePos [latlon];
+    latlon
+  );;	
+  
+/*cmd received to move to another cell */
+fun __changeCell(LeavingCellID, datal) =
+  set cellMinDistance = nil;                  /*reset global */
+  _echo strcatn "Leaving "::(itoa LeavingCellID)::"..find nearest cell"::nil
+
+  /*out event first and before calc ??*/
+  _echo strcatn "OUT:"::(itoa LeavingCellID)::"->"::nil
+  _DMSevent this DMSsender (strcat "out " itoa LeavingCellID) nil nil;
+      
+  /*calc, find goto cellid */
+  dispatchNearestCell tiiCellStatus DMSsender LeavingCellID datal;  
+  /*after calc retreive global param data*/
+  let cellMinDistance -> [GotoCellID distance params total] in
+  if (GotoCellID != nil) && (total < iConnected) then //LeavingCellID) then /*check returning same cell !!*/
+  (
+    //INCREASE THE TOTAL OF GOTO CELL 
+	changeValue tiiCellStatus GotoCellID 1; 
+	
+	/*find edge position into goto cell*/
+    let gotoCellEdge DMSsender GotoCellID params distance -> latlon in
+	
+	_echo strcatn "IN:"::(itoa GotoCellID)::"->"::nil
+    _echo strcatn "New Lat-Lon into Cell "::(latlon)::"->"::(distance)::nil  
+    _DMSevent this DMSsender (strcat "in " itoa GotoCellID) nil nil;
+    _DMSsend this DMSsender CsetActiveCell [GotoCellID];
+	
+	//DECREASE THE TOTAL OF LEAVING CELL HANDLED BY "out"
+    1
+  )
+  else 
+  (
+    _DMSevent this DMSsender "siteFull" nil nil;
+    //_DLGMessageBox _channel nil "WARNING" "Site Full" 0;
+	_DMSservice DMSsender "Warning: site full";
+	0
+  );;
+  
+fun activate (from,cli,action,param,rep) = 	
+  if !strcmp action "start" then
+  (
+    /* if it is the first time, create the activate list */
+    if tiiCellStatus == nil then
+      set tiiCellStatus = createCellStatus 1
+    else
+      nil;
+      
+	/*call client to provide user current pos and dispatch */  
+	_DMScreateClientDMI this cli (strcatn iCellA::"\n"::iCellB::"\n"::iCellC::"\n"::iCellD::"\n"::iCellE::"\n"::iCellF::nil);  
+	
+	let _DMSgetIP cli -> myip in
+	let ipException myip -> exception in	
+	let ipConnected ipList myip maxMutipleIP -> connect in
+    (
+	  if (connect==1) || (exception==1) then /*<<<<<<< exception ip*/
+      (	  
+	    let ipAdd myip -> connected in	  /*!!!*/
+	    _DMSsend this cli CgetPos ["setPos"];
+		_DMSevent this cli "newClient" nil nil;
+		
+		/*_echo strcat "New client:" " (ip)"
+		//_DLGMessageBox _channel nil "INFO" "New entry" 0; /*lazy boy*/
+		let isAdminIn ipList adminIP -> admin in
+		if (strcmp myip adminIP) && (admin==nil) then /*once*/
+		  _DMSevent this cli "openServer" nil nil
+		else 
+		  nil;......SERVER HANGING !!!???*/
+		0
+	  )	
+	  else  
+	    _DMSservice cli strcatn "Warning: ("::myip::") already connected"::nil
+    )	  
+  )
+  else if !strcmp action "destroy" then
+  (
+  	/*let _DMSgetIP cli -> ip in
+    echo strcat "Destroyed Client:" "(ip)"  	
+	ipDel ip;*/ 
+  
+    _DMSdelClientDMI this cli;
+    logout cli;
+    0
+  )
+  else if !strcmp (substr action 0 3) "out" then
+  (
+    /* decrease the connected total in the good cell */
+    let atoi substr action 4 ((strlen action)-4 ) -> idCell in
+      changeValue tiiCellStatus idCell (-1);
+    0
+  )
+  else if !strcmp action "setActiveCell" then
+  (
+    let if param!=nil then (atoi param) else defaultCell -> cell in
+    (
+	  //INCREASE THE TOTAL OF GOTO CELL
+	  changeValue tiiCellStatus cell 1; 
+		
+	  /*save position and go to the center of cell*/	
+	  gotoCellCenter cli cell;
+	  
+	  _DMSsend this cli CsetActiveCell [cell];	
+	  _DMSevent this cli (strcat "in " (itoa cell)) nil nil;
+	  //_DLGMessageBox _channel nil "INFO" strcatn "New entry at "::(itoa cell)::" cell" 0; /*lazy boy*/
+	  
+	  //DECREASE THE TOTAL OF LEAVING CELL HANDLED BY "out"	  
+      0	  
+	)
+  )  
+  else 
+    nil
+;;  
+
+fun IniDMI(dmiFile)=
+						 
+  /*_showconsole;*/
+  //set paramFile = dmiFile;
+  
+  set ipList = nil; /*reset*/
+  
+  //let strextr _getpack _checkpack dmiFile -> fileEdit in
+  let _getpack _checkpack dmiFile -> paramFile in  
+  let strextr paramFile -> fileEdit in
+  (
+    
+	set iCellNumber = atoi getInfo fileEdit "cellNumber";
+    set iConnected  = atoi getInfo fileEdit "connected";
+	
+	
+    set iCellA = getInfo fileEdit "cellA";
+    set iCellB = getInfo fileEdit "cellB";
+    set iCellC = getInfo fileEdit "cellC";
+    set iCellD = getInfo fileEdit "cellD";
+    set iCellE = getInfo fileEdit "cellE";
+    set iCellF = getInfo fileEdit "cellF";
+    set paramList = iCellA::iCellB::iCellC::iCellD::iCellE::iCellF::nil;	
+	set defaultCell  = atoi getInfo fileEdit "defaultCell";
+	set checkPosTimer  = atoi getInfo fileEdit "checkPosTimer";
+  );
+  
+  _DMSregisterDMI this @activate nil @logout nil
+;;

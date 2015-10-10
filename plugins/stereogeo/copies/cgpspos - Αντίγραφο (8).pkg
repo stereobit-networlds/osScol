@@ -1,0 +1,618 @@
+/* Camera Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof class=S;;
+typeof avatar=H3d;;
+typeof avh3d=H3d;;
+
+var configPath="locked/conf/stereogeo/";;/*path used to save current fog state and reload it when restarting server*/
+var iniPath="locked/conf/stereogeo/";;
+var geoEnable=1;;
+var geodata="";;
+var log=1;;
+
+typeof lInpData = [S r1];;
+typeof configFile=S;;
+
+typeof h3dAv = H3d;;
+
+// Session
+typeof s3dMain = S3d;;
+// Main shell
+typeof h3dShellMain = H3d;;
+// Camera
+typeof h3dShellCam = H3d;;
+typeof h3dCam      = H3d;;
+var iCamRot   = 30;;
+var iCamMov   = 100;;
+var iZClip    = 0;;
+var iZMiddle  = 100000;;
+var iZMax     = 300000;;
+
+typeof lH3d = [H3d r1];;
+
+var iIX = -24700;;   // 25700 pour 100%
+var iIY = 15500;;
+var iIZ = 3300;;
+var sIX = "00202.5776";;
+var sIY = "510.0";;
+var sIZ =  "4846.0024";;
+var sIAng = "164.3";;
+
+typeof iX = I;;
+typeof iY = I;;
+typeof iZ = I;;
+
+typeof iOldX = I;;
+typeof iOldY = I;;
+typeof iOldZ = I;;
+var iMaxDHor = 500;;
+var iMaxDVer = 500;;
+typeof iErrH = I;;
+typeof iErrV = I;;
+
+var sFoot   = "30.48";;
+var sMScale = "25000.0";;
+var sWScale = "0.204";;
+var sHScale = "0.135";;
+
+var iScale = 110;;     // 100% 
+var iAng   = -5900;;   // 5640,5790
+
+typeof fX = F;;
+typeof fZ = F;;
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+	let _appendpack s _getmodifypack strcat iniPath fname ->append in
+	if (append==-1) then
+		_createpack s _getmodifypack strcat iniPath fname
+	else nil
+ )
+ else nil;;
+
+fun echo(x,s)= 
+_DMSevent this "hear" strcat strcat ">> " x "\n" nil;
+saveLog "echo.txt" strcat x "\n";;
+
+fun fooCoord (text, coord) =
+  let coord -> [c1 c2 c3] in
+    _fooS strcatn text::" : "::(itoa c1)::" ; "::(itoa c2)::" ; "::(itoa c3)::nil
+;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for local client */
+fun C3D_IsPhysicsActivated () = cel.Cel3dphysics;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for server */
+fun C3D_IsGlobalPhysicsActivated () = cel.Cel3dglobalphysics;;
+
+fun CBdownload (inet, datas, received, error)=
+	if error == 0 then	// download in progress
+	(
+		let datas -> [d] in
+		mutate datas <- [strcat d received];
+		0
+	)
+	else if error == 1 then	// download finished
+	(
+		let datas -> [d] in
+		_createpack d _getmodifypack strcat iniPath "gpsroute.txt";
+		_fooS "Done !";
+		0
+	)
+	else	// an error occurs
+	(
+		_fooS strcat "An error occurs : " itoa error;
+		0
+	);;
+		
+//read data from line array	
+fun GetData(line, n) =
+  let 1 -> i in
+  let 0 -> ind1 in
+  let 0 -> ind2 in
+  (
+    while (i < n) do
+    (
+      set ind1 = 1 + strfind "," line ind1;
+      set i = i + 1;
+    );
+    set ind1 = 1 + strfind "," line ind1;
+    set ind2 = strfind "," line ind1;
+    substr line ind1 (ind2 - ind1);
+  );;
+
+fun CheckNumChars(str, sta, end) =
+  if (sta == end) then
+    0 
+  else
+    let nth_char str sta -> c in
+      if (((c >= '0) && (c <= '9)) || (c == '.)) then
+        CheckNumChars str (sta + 1) end
+      else
+        1;;
+
+//read and check data lines		
+proto CheckIntegrity = fun [S] [S r1];;
+fun CheckIntegrity(line) =
+
+      saveLog "backroute.txt" strcat line "\n";
+
+      if (!strcmp (substr line 0 6) "$PGRME") then
+      (
+        nil;
+      )
+      else if (!strcmp (substr line 0 6) "$PGRMZ") then
+      (
+        let GetData line 1 -> data in
+          if ((atoi data) != nil) then
+            "$PGRMZ"::data::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "$GPRMC") then
+      (
+        //_fooS line;
+        let GetData line 1 -> dataTim in
+        let GetData line 2 -> dataVal in
+        let GetData line 3 -> dataLat in
+        let GetData line 4 -> dataNor in
+        let GetData line 5 -> dataLon in
+        let GetData line 6 -> dataEas in
+        let GetData line 7 -> dataRun in
+        let GetData line 8 -> dataAng in
+        let if ((strlen dataTim) == 6) then 0 else 1 -> errTim in
+        let if !strcmp dataVal "A" then 0 else 1 -> errVal in
+        let if (((strlen dataLat) == 9) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
+        let if !strcmp dataNor "N" then 0 else 1 -> errNor in
+        let if (((strlen dataLon) == 10) && (dataLon != nil) && (strcmp dataLon nil) && (strcmp dataLon "")) then 0 else 1 -> errLon in
+        let if !strcmp dataEas "E" then 0 else 1 -> errEas in
+        // No control for dataRun
+        let (errTim + errVal + errLat + errNor + errLon + errEas) -> error in
+        let strfind "." dataAng 0 -> ind in
+        let strlen dataAng -> len in
+          if ((error == 0) && ((atof dataAng) != nil) && (ind == (len - 2)) && (ind != 0) && ((CheckNumChars dataAng 0 len) == 0)) then
+            "$GPRMC"::dataAng::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "$GPGGA") then
+      (
+        let GetData line 1 -> dataTim in
+        let GetData line 2 -> dataLat in
+        let GetData line 3 -> dataNor in
+        let GetData line 4 -> dataLon in
+        let GetData line 5 -> dataEas in
+        let if ((strlen dataTim) == 6) then 0 else 1 -> errTim in
+        let if (((strlen dataLat) == 9) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
+        let if !strcmp dataNor "N" then 0 else 1 -> errNor in
+        let if (((strlen dataLon) == 10) && (dataLon != nil) && (strcmp dataLon nil) && (strcmp dataLon "")) then 0 else 1 -> errLon in
+        let if !strcmp dataEas "E" then 0 else 1 -> errEas in
+        let (errTim + errLat + errNor + errLon + errEas) -> error in
+          if (error ==0) then
+            "$GPGGA"::dataLat::dataLon::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "cbTick") then
+      (
+        "cbTick"::nil;
+      )
+      else
+        nil;;
+		
+
+//calculate - transfrom lat lot ang to vectors
+fun TranslateGeo (param) =  		
+	
+    //let hd lInpData -> line in //<<<<<<<<<<<<<< readed by url callback
+	set lInpData = lineextr param;
+	let hd lInpData -> line in
+    let CheckIntegrity line -> l in
+    (
+      if (l == nil) then
+      (
+	    echo strcat "L:" "0"
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRME") then
+      (
+	    echo "PGRME:0"
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRMZ") then
+      (
+        let (hd tl l) -> data in
+        let ftoi (((itof atoi data) -. (atof sIY)) *. (atof sFoot)) -> delta in
+        (
+          set iY = iIY + delta;
+          if ((atoi data) == nil) then
+          (
+            set iErrV = iErrV + 1;
+            0;
+          )
+          else if ((iOldY != nil) && ((abs (iY - iOldY)) > (iMaxDVer * iErrV))) then
+          (
+            set iErrV = iErrV + 1;
+            0;
+          )
+          else
+          (
+            set iErrV = 1;
+            set iOldY = iY;
+			M3setObjVec session M3getFather session cam [iX iY iZ];
+			//echo strcatn "PGRMZ:"::iX::","::iY::","::iZ::nil;
+			echo strcatn "PGRMZ:"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil
+            0;
+          );
+        );
+        0;
+      )
+      else if (!strcmp (hd l) "$GPRMC") then
+      (
+        let (hd tl l) -> data in
+        (
+          if ((atof data) == nil) then
+            0
+          else
+          (
+			M3setObjAng session M3getFather session cam [(ftoi (-.65536.0 *. ((atof data) /. 360.0))) 0 0];
+			let (ftoi (-.65536.0 *. ((atof data) /. 360.0))) -> angle in
+			echo strcatn "GPRMC:" :: (itoa angle) :: ",0,0" ::nil
+            0;
+          );
+        );
+        0;
+      )
+      else if (!strcmp (hd l) "$GPGGA") then
+      (
+        let (hd tl l) -> dataH in
+        let strlen substr dataH 2 7 -> chkH in
+        let atof substr dataH 2 7 -> mntH in
+        let atof substr sIZ 2 7 -> mntZ in
+        let ftoi ((mntH -. mntZ) *. ((atof sMScale) /. (atof sHScale))) -> deltaH in
+        let (hd tl tl l) -> dataW in
+        let strlen substr dataW 3 7 -> chkW in
+        let atof substr dataW 3 7 -> mntW in
+        let atof substr sIX 3 7 -> mntX in
+        let ftoi ((mntW -. mntX) *. ((atof sMScale) /. (atof sWScale))) -> deltaW in
+        (
+          set iX = iIX + deltaW;
+          set iZ = iIZ + deltaH;
+          if ((mntH == nil) || (mntW == nil) || ((chkH + chkW) != 14)) then 
+          (
+            set iErrH = iErrH + 1;
+            0;
+          )
+          else if (((iOldX != nil) && (iOldZ != nil)) && ((ftoi sqrt (sqr itof (iX - iOldX)) +. (sqr itof (iZ - iOldZ))) > (iMaxDHor * iErrH)))then
+          (
+            set iErrH = iErrH + 1;
+            0;
+          )
+          else
+          (
+            set iErrH = 1;
+            set iOldX = iX;
+            set iOldZ = iZ;
+			M3setObjVec session M3getFather session cam [iX iY iZ];
+			echo strcatn "GPGGA:"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil
+            0;
+          );
+        );        
+        0;
+      )
+      else if (!strcmp (hd l) "cbTick") then
+      (
+	    echo "cbTick:0"
+        0;
+      )
+      else
+        0;	
+  );;
+  
+fun UpdateGeoObj (HSObj,blurp) =  
+	let HSObj -> [H3d_Obj H3d_father flag] in
+	
+	let M3getObjVec session H3d_Obj -> [x y z] in
+	let M3getObjAng session H3d_Obj -> [xa _ za] in
+	let M3getObjAng session H3d_Obj -> [_ ya _] in	
+	
+    //M3setObjVec session M3getFather session H3d_Obj [(x+100) y (z+100)];
+	echo strcatn "XXXXXXXXXX:"::(itoa x)::","::(itoa y)::","::(itoa z)::nil
+	//M3unLink session H3d_Obj;
+	echo "XXXXXXXXXX:"
+0;;	
+  	
+fun CBgethttp(inet,z,s,reason) =
+ let z->[content] in 
+ if reason==0 then (mutate z <- [strcat content s];nil)
+ else if reason==1 then 
+   TranslateGeo content
+ else nil;;
+
+fun UpdateGeo(param, o)=    
+ INETGetURL _channel param 0 @CBgethttp [nil]; 
+ echo strcat "get:" param
+0;; 	
+
+fun ReadGeo(param, o)=
+ 
+ if param != nil then
+ ( /*ERROR WHEN CALL AS @.. INTO ANCHORS*/
+   INETGetURL _channel param 0 @CBdownload [""];  //<<<<<<<<<<<<<<<<<<<<<<<<<<
+   set lInpData = lineextr _getpack _checkpack strcat iniPath "gpsroute.txt";
+   0;
+ )
+ else nil;; 
+  
+fun Init(param, o) =  
+  M3setObjVec session M3getFather session cam [iIX iIY iIZ];
+	
+  set iIX = ((iIX * iScale) / 100);
+  set iIY = ((iIY * iScale) / 100);
+  set iIZ = ((iIZ * iScale) / 100);
+  set iX = iIX;
+  set iY = iIY;
+  set iZ = iIZ;
+  set iOldX = nil;
+  set iOldY = nil;
+  set iOldZ = nil;
+  set iErrH = 1;
+  set iErrV = 1;
+
+  M3setObjAng session M3getFather session cam [(ftoi (-.65536.0 *. ((atof sIAng) /. 360.0))) 0 0];
+  0;;  
+  
+/* Load Static Scene **********************************************************/
+
+fun GetSons(h3d) =
+  if (h3d == nil) then
+    nil
+  else
+    h3d::(GetSons M3getBrother session h3d);;
+		
+fun GetObjType(h3d) =  
+  if (h3d == nil) then
+    nil
+  else
+	let M3getObjType session h3d -> ret in
+    ret;;
+	
+//same as init() command
+fun SetAvatar() =  
+  M3setObjVec session M3getFather session cam [iIX iIY iIZ];
+	
+  set iIX = ((iIX * iScale) / 100);
+  set iIY = ((iIY * iScale) / 100);
+  set iIZ = ((iIZ * iScale) / 100);
+  set iX = iIX;
+  set iY = iIY;
+  set iZ = iIZ;
+  set iOldX = nil;
+  set iOldY = nil;
+  set iOldZ = nil;
+  set iErrH = 1;
+  set iErrV = 1;
+
+  M3setObjAng session M3getFather session cam [(ftoi (-.65536.0 *. ((atof sIAng) /. 360.0))) 0 0];
+  0;;	
+	
+fun ApplyOrientation(l) =
+
+  if (l == nil) then
+    l
+  else
+    let M3getObjVec session (hd l) -> [x y z] in
+    (
+	  let M3getObjType session (hd l) -> mC3d_type in
+      echo strcatn "Object type in list:"::(itoa mC3d_type)::nil
+  
+      let M3objName session (hd l) -> mC3d_name in
+      echo strcatn "Object name in list:"::mC3d_name::nil  	  
+	  
+	  echo strcatn "Orientation (x y z):"::(itoa x)::","::(itoa y)::","::(itoa z)::nil
+	  
+      //M3link s3dMain shell h3dShellMain;
+      //M3link s3dMain (hd l) shell;
+	  
+	  //main scene Altitude réelle: 160m, Erreur de 30m prévue
+      M3setObjVec session shell [0 15500 0];
+      M3rotateObjExt session shell [iAng 0 0];
+	  
+	  //object in list
+      M3setObjVec session (hd l) [((x * iScale) / 100) ((y * iScale) / 100) ((z * iScale) / 100)];
+	  
+	  echo strcatn "Orientation vector (x y z * scale /100):"::(itoa (x * iScale) / 100)::","::(itoa (y * iScale) / 100)::","::(itoa (z * iScale) / 100)::nil
+	  echo strcatn "Orientation scale:"::(itoa iScale)::nil	  	  
+	  
+      M3setObjScale session (hd l) iScale;
+	  
+      ApplyOrientation tl l;
+    );;
+
+fun SetOrientation() = 
+  let M3bigFather session cam -> H3d_Obj in
+  //let M3getFirstSon session H3d_Obj -> C3d_Obj in
+  let M3getFirstSon session shell -> C3d_Obj in  
+  
+  //get type
+  let M3getObjType session C3d_Obj -> mC3d_type in
+  echo strcatn "Object type:"::(itoa mC3d_type)::nil
+  //get name
+  let M3objName session C3d_Obj -> mC3d_name in
+  echo strcatn "Object name:"::mC3d_name::nil  
+  
+  let GetSons C3d_Obj -> lH3d in
+  ApplyOrientation lH3d;
+0;;
+ 
+fun SetCam() =
+  //set h3dShellCam = session s3dMain;
+  //M3link s3dMain session h3dShellMain;
+  M3setObjVec session M3getFather session cam [0 0 0];
+  M3setObjAng session M3getFather session cam [0 0 0];   
+  //M3load s3dMain "applets/3d/montigny/m3d/cam.m3d" h3dShellCam;
+  //set h3dCam = M3getObj session "Mesh_Camera";
+  M3setObjVec session cam [0 0 0];
+  M3setObjAng session cam [0 (-16384) 0];  
+  M3rotateObjExt session shell [0 0 0];
+  M3setObjVec session cam [0 110000 3000];
+  0;;
+  
+fun Init_Lights() =
+  // Ambient light
+  //set h3dALight = M3createLight session LIGHT_AMBIENT 20 nil nil nil nil;
+  let M3createLight session LIGHT_AMBIENT 20 nil nil nil nil -> h3dALight in
+  M3link session h3dALight shell;
+  0;;    
+
+/*******************************************************************************
+ Get3dObjectsScales() - Retrieving the original scales of objects
+ l -> [Anchor r1]  : List of objects linked to the instance
+   <- [[H3d I] r1] : List of 3D objects with their original scale
+*******************************************************************************/  
+fun Get3dObjectsScales(l) =
+   if (l == nil) then
+      nil
+   else
+      match hd l with
+      (objAnchor [h _ _ _] -> [h (M3getObjScale session h)]::(Get3dObjectsScales tl l)) |
+      (_ -> Get3dObjectsScales tl l);;  
+
+/*******************************************************************************
+ HSObjList() - Retrieving the objects
+ l -> [Anchor r1]  : List of objects linked to the instance
+   <- [[H3d I] r1] : List of 3D objects with their fathers
+*******************************************************************************/ 	  
+fun HSObjList(l)=
+ if l==nil then
+  nil
+ else let l->[a nl] in
+ (
+  match a with
+   (objAnchor [H3d_Obj _ _ _] ->
+     [[H3d_Obj (M3getFather session H3d_Obj) 1] (HSObjList nl)])
+  |( _ -> 
+     (HSObjList nl))
+ );;
+
+ /*
+   let 
+     match hd (ObAnchor o) with
+     (objAnchor [h _ _ _] -> M3getObjAng session h )
+     |(_->nil)
+   -> [ax ay az] in
+
+  let paramU -> [ax ay az] in
+  match hd (ObAnchor o) with
+  (objAnchor [h _ _ _] -> M3setObjAng session h [ax ay az])
+  |(_->nil)   
+*/
+/*******************************************************************************
+ cbActivate() - Standard callback function for plugin actions
+ o      -> Ob       : Ob to which the action is associated
+ from   -> DMI      : Not used
+ action -> S        : Action
+ param  -> S        : Parameter
+ reply  -> S        : Not used
+ l      -> Anchor   : List of anchors used by the plugin
+        <- I        : Not used
+*******************************************************************************/
+fun activate(o,from,action,param,reply,l)=
+
+   if !strcmp action (strcatn (ObName o)::".gpsupdate"::nil) then 
+     ( 
+	  UpdateGeo param o;
+	  echo strcatn "Update:"::(ObName o)::nil
+	  (apply_on_list l @UpdateGeoObj 0; 0)
+	  //0;
+	 ) 
+   else 
+   if !strcmp action (strcatn (ObName o)::".gpsread"::nil) then
+     ( 
+	    ReadGeo param o;	
+		echo strcatn "Read:"::(ObName o)::nil
+		//(apply_on_list l @ReadGeo param; 0) //ERROR DUE TO INET CALL
+		0;
+     )   
+   else 
+   if !strcmp action (strcatn (ObName o)::".gpsinit"::nil) then
+    ( 
+		 Init param o;
+		 echo "Init..."
+		 (apply_on_list l @Init param; 0) //init must be global (server)
+		 //0;
+   )
+   else nil;;
+
+/*******************************************************************************
+ cbComm() - Standard cbcomm callback function for intra plugin messages
+ ui     -> UserI    : User Instance linked to Ob
+ action -> S        : Action
+ param  -> S        : Parameter
+ l      -> Anchor   : List of anchors used by the plugin
+        <- I        : Not used
+*******************************************************************************/
+fun cbComm(ui,action,param,l)=
+   if !strcmp action "gpsupdate" then 
+     (apply_on_list l @UpdateGeo param; 0) 
+   else 
+   if !strcmp action "gpsread" then
+     (apply_on_list l @ReadGeo param; 0)  
+   else 
+   if !strcmp action "gpsinit" then
+     (apply_on_list l @Init param; 0)  
+   else nil;;
+
+fun newOb(o)=
+  //instance ui values
+  //let atoi hd UgetParam ObUi o "angularX" -> angx in
+  //let atoi hd UgetParam ObUi o "angularY" -> angy in
+  //let atoi hd UgetParam ObUi o "angularZ" -> angz in
+  //let atoi hd UgetParam ObUi o "framerate" -> framerate in
+
+  //client avatar
+  //let M3getObj session M3getFather session cam -> [H3d_Obj H3d_father 1] in
+  //let M3getObj session M3getFather session cam -> [[H3d_Obj (M3getFather session H3d_Obj) 1] in
+  
+  //Init nil nil;
+  //moved as action from button or event  
+  SetAvatar;
+
+  //orientation preinitialize scene here...
+  SetOrientation;
+  
+  //ligthing
+  Init_Lights;
+  
+  //camera settings
+  SetCam;
+  
+  ObRegisterAction o (strcatn (ObName o)::".gpsupdate"::nil) mkfun6 @activate nil;
+  ObRegisterAction o (strcatn (ObName o)::".gpsread"::nil) mkfun6 @activate nil;
+  ObRegisterAction o (strcatn (ObName o)::".gpsinit"::nil) mkfun6 @activate nil;    
+
+  //anchors
+  let (HSObjList ObAnchor o) -> l in
+  (
+    ObRegisterAction o (strcatn (ObName o)::".gpsupdate"::nil) mkfun6 @activate l;
+    ObRegisterAction o (strcatn (ObName o)::".gpsread"::nil) mkfun6 @activate l;
+    ObRegisterAction o (strcatn (ObName o)::".gpsinit"::nil) mkfun6 @activate l;    
+    0;
+  )
+;; 
+
+
+fun IniPlug(file)=
+ set class=getInfo strextr _getpack _checkpack file "name";
+ 
+ set avatar=M3getObj session "avatar";
+ //set avh3d = M3getObj session M3getFather session cam;
+ set configFile = strcatn "locked/conf/stereogeo/"::DMSname::".conf"::nil; 
+
+ //PLUGsetinfo thisplug PLUGIN_ONLINE_EDITING|PLUGIN_OBJECT|PLUGIN_RESERVED;
+ //PLUGdefineEditor thisplug @dynamicedit; 
+ PlugRegister class @newOb nil;  
+ 0;;

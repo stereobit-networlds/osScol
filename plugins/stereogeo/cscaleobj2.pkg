@@ -1,0 +1,133 @@
+/* ScalePulsator Plugin - DMS - July 2000 - by Loïc ARGELIES */
+/* based on the ROTATE plugin march 99 by Sylvain HUET       */
+ 
+/* Scale2 - February 2003 - by Bob Le Gob         */
+/* Last update: 7th of February 2003 - Bob Le Gob */
+
+
+typeof Class = S ;;
+
+var iDefaultScaleFactorMin       = 80;;
+var iDefaultScaleFactorMax       = 200;;
+var iDefaultScaleFactorIncrement = 10;;
+var iDefaultFramerate            = 30;;   
+
+
+/*******************************************************************************
+ UpdateCurrentScaleFactor() - Updating the global scaling factor of the instance
+ p -> [I I I I I I I] : [ScaleMin ScaleMax ScaleIncrement CurrentScale Framerate Tick Accumulator]
+   <- I               : Not used
+*******************************************************************************/
+fun UpdateCurrentScaleFactor(p) =
+   let p -> [iSFMin iSFMax iSFInc iSCur iFRate iTick iAccum] in
+   let _tickcount -> iCurTick in
+   let (iCurTick - iTick) -> iTimeLapse in
+   let ((iTimeLapse * iFRate) / 1000) -> iFCount in
+   let (mod (iTimeLapse * iFRate) 1000) -> iFAccum in   
+   ( 
+      set iAccum = iAccum + iFAccum;
+      if (iAccum >= 1000) then
+      (
+         set iFCount = iFCount + 1;
+         set iAccum = iAccum - 1000;
+         0;
+      )
+      else
+         0;
+      if (iFCount >= 1) then
+         let 0 -> i in
+         (
+            while (i < iFCount) do
+            (
+               set iSCur = iSCur + iSFInc ;
+               if (iSCur >= iSFMax) then
+               (
+                  set iSCur = iSFMax;
+                  set iSFInc = -iSFInc;
+                  0;
+               )
+               else if (iSCur <= iSFMin) then
+               (
+                  set iSCur = iSFMin;
+                  set iSFInc = -iSFInc;
+                 0;
+               )
+               else
+                  0;      
+               set i = i + 1;
+            );
+            mutate p <- [_ _ iSFInc iSCur _ iCurTick iAccum];
+            0;
+         )
+      else
+         0;
+   );;
+
+/*******************************************************************************
+ cbScaleSingle3dOb() - Scaling a 3D object
+ elt -> [H3d I]       : 3D object with its original scale
+ p -> [I I I I I I I] : [ScaleMin ScaleMax ScaleIncrement CurrentScale Framerate Tick Accumulator]
+   <- I               : Not used
+*******************************************************************************/
+fun cbScaleSingle3dOb(elt, p)=
+   let elt -> [h s] in
+   let p -> [_ _ _ iSCur _ _ _] in
+      M3setObjScale session h ((iSCur * s) / 100);;
+
+
+/*******************************************************************************
+ cbScale() - ObCbAnim callback
+ o -> Ob              : Ob to which the instance is associated
+ p -> [I I I I I I I] : [ScaleMin ScaleMax ScaleIncrement CurrentScale Framerate Tick Accumulator]
+ l -> [[H3d I] r1]    : List of 3D objects with their original scale
+   <- I               : Not used
+*******************************************************************************/
+fun cbScale(o, p, l) = 
+   UpdateCurrentScaleFactor p;
+   apply_on_list l @cbScaleSingle3dOb p;;
+
+
+/*******************************************************************************
+ Get3dObjectsScales() - Retrieving the original scales of objects
+ l -> [Anchor r1]  : List of objects linked to the instance
+   <- [[H3d I] r1] : List of 3D objects with their original scale
+*******************************************************************************/
+fun Get3dObjectsScales(l) =
+   if (l == nil) then
+      nil
+   else
+      match hd l with
+      (objAnchor [h _ _ _] -> [h (M3getObjScale session h)]::(Get3dObjectsScales tl l)) |
+      (_ -> Get3dObjectsScales tl l);;
+
+
+/*******************************************************************************
+ cbNewOb() - Standard newOb function
+ o -> Ob : New Ob
+   <- I  : Not used
+*******************************************************************************/   
+fun cbNewOb(o) =
+   let hd UgetParam ObUi o "ScaleFactorMin" -> sMin in 
+   let if (nil != sMin) then atoi sMin else iDefaultScaleFactorMin -> iSFMin in
+   let hd UgetParam ObUi o "ScaleFactorMax" -> sMax in 
+   let if (nil != sMax) then atoi sMax else iDefaultScaleFactorMax -> iSFMax in
+   let hd UgetParam ObUi o "ScaleFactorIncrement" -> sInc in 
+   let if (nil != sInc) then atoi sInc else iDefaultScaleFactorIncrement -> iSFInc in
+   let hd UgetParam ObUi o "Framerate" -> sFra in 
+   let if (nil != sFra) then atoi sFra else iDefaultFramerate -> iFRate in
+   let Get3dObjectsScales ObAnchor o -> l3dObScales in
+      ObCbAnim o mkfun2 mkfun3 @cbScale l3dObScales [iSFMin iSFMax iSFInc ((iSFMin + iSFMax) / 2) iFRate _tickcount 0] ;
+   0;;  
+
+
+/*******************************************************************************
+ IniPlug() - Standard IniPlug function
+ file -> S : .plug plugin file
+      <- I : Not used
+*******************************************************************************/
+fun IniPlug(file) =
+   set Class = getInfo strextr _getpack _checkpack file "name" ;
+   PlugRegister Class @cbNewOb nil ;
+   0;;
+
+ 

@@ -1,0 +1,10 @@
+name os3dconn
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/os3dconn/os3dconns.pkg
+serverScript _load\ "Dms/3d/Plugins/os3dconn/os3dconns.pkg"
+clientNeeded dms/3d/plugins/os3dconn/os3dconnc.pkg
+clientScript _load\ "dms/3d/plugins/os3dconn/os3dconnc.pkg"
+editorNeeded dms/3d/plugins/os3dconn/os3dconne.pkg
+editorScript _load\ "dms/3d/plugins/os3dconn/os3dconne.pkg"
+version 1 0
+ 

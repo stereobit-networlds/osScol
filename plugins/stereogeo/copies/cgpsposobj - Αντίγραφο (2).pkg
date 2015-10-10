@@ -1,0 +1,637 @@
+/* Camera Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof class=S;;
+struct TrajAnim = [TAname:S,
+                   TAframerate:I,
+                   TAplay:I,
+                   TAplayOnce:I,
+                   TAtick:I,
+                   TAfel:[I r1],
+                   TAinit:I] mkTrajAnim;; 
+				   
+var iIX = -24700;;   // 25700 pour 100%
+var iIY = 15500;;
+var iIZ = 3300;;
+var sIX = "00202.5776";;
+var sIY = "510.0";;
+var sIZ =  "4846.0024";;
+var sIAng = "164.3";;
+
+typeof iX = I;;
+typeof iY = I;;
+typeof iZ = I;;
+
+typeof iOldX = I;;
+typeof iOldY = I;;
+typeof iOldZ = I;;
+var iMaxDHor = 500;;
+var iMaxDVer = 500;;
+typeof iErrH = I;;
+typeof iErrV = I;;
+
+var sFoot   = "30.48";;		
+var sMScale = "25000.0";;
+var sWScale = "0.204";;
+var sHScale = "0.135";;
+
+var iScale = 110;;     // 100% 
+var iAng   = -5900;;   // 5640,5790
+
+typeof fX = F;;
+typeof fZ = F;;		   
+
+typeof GpsUrlLocation = S;;
+
+				   
+typeof lInpData = [S r1];;				   
+var iniPath="locked/conf/stereogeo/";;
+var log=1;;				   
+				   
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+	let _appendpack s _getmodifypack strcat iniPath fname ->append in
+	if (append==-1) then
+		_createpack s _getmodifypack strcat iniPath fname
+	else nil
+ )
+ else nil;;				   
+
+fun echo(x,s)= 
+_DMSevent this "hear" strcat strcat ">> " x "\n" nil;
+saveLog "echo.txt" strcat x "\n";;
+
+//read data from line array	
+fun GetData(line, n) =
+  let 1 -> i in
+  let 0 -> ind1 in
+  let 0 -> ind2 in
+  (
+    while (i < n) do
+    (
+      set ind1 = 1 + strfind "," line ind1;
+      set i = i + 1;
+    );
+    set ind1 = 1 + strfind "," line ind1;
+    set ind2 = strfind "," line ind1;
+    substr line ind1 (ind2 - ind1);
+  );;
+
+fun CheckNumChars(str, sta, end) =
+  if (sta == end) then
+    0 
+  else
+    let nth_char str sta -> c in
+      if (((c >= '0) && (c <= '9)) || (c == '.)) then
+        CheckNumChars str (sta + 1) end
+      else
+        1;;
+
+//read and check data lines		
+proto CheckIntegrity = fun [S] [S r1];;
+fun CheckIntegrity(line) =
+
+      saveLog "backroute.txt" strcat line "\n";
+
+      if (!strcmp (substr line 0 6) "$PGRME") then
+      (
+        nil;
+      )
+      else if (!strcmp (substr line 0 6) "$PGRMZ") then
+      (
+        let GetData line 1 -> data in
+          if ((atoi data) != nil) then
+            "$PGRMZ"::data::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "$GPRMC") then
+      (
+        //_fooS line;
+        let GetData line 1 -> dataTim in
+        let GetData line 2 -> dataVal in
+        let GetData line 3 -> dataLat in
+        let GetData line 4 -> dataNor in
+        let GetData line 5 -> dataLon in
+        let GetData line 6 -> dataEas in
+        let GetData line 7 -> dataRun in
+        let GetData line 8 -> dataAng in
+        let if ((strlen dataTim) == 6) then 0 else 1 -> errTim in
+        let if !strcmp dataVal "A" then 0 else 1 -> errVal in
+        let if (((strlen dataLat) == 9) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
+        let if !strcmp dataNor "N" then 0 else 1 -> errNor in
+        let if (((strlen dataLon) == 10) && (dataLon != nil) && (strcmp dataLon nil) && (strcmp dataLon "")) then 0 else 1 -> errLon in
+        let if !strcmp dataEas "E" then 0 else 1 -> errEas in
+        // No control for dataRun
+        let (errTim + errVal + errLat + errNor + errLon + errEas) -> error in
+        let strfind "." dataAng 0 -> ind in
+        let strlen dataAng -> len in
+          if ((error == 0) && ((atof dataAng) != nil) && (ind == (len - 2)) && (ind != 0) && ((CheckNumChars dataAng 0 len) == 0)) then
+            "$GPRMC"::dataAng::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "$GPGGA") then
+      (
+        let GetData line 1 -> dataTim in
+        let GetData line 2 -> dataLat in
+        let GetData line 3 -> dataNor in
+        let GetData line 4 -> dataLon in
+        let GetData line 5 -> dataEas in
+        let if ((strlen dataTim) == 6) then 0 else 1 -> errTim in
+        let if (((strlen dataLat) == 9) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
+        let if !strcmp dataNor "N" then 0 else 1 -> errNor in
+        let if (((strlen dataLon) == 10) && (dataLon != nil) && (strcmp dataLon nil) && (strcmp dataLon "")) then 0 else 1 -> errLon in
+        let if !strcmp dataEas "E" then 0 else 1 -> errEas in
+        let (errTim + errLat + errNor + errLon + errEas) -> error in
+          if (error ==0) then
+            "$GPGGA"::dataLat::dataLon::nil
+          else
+            nil;
+      )
+      else if (!strcmp (substr line 0 6) "cbTick") then
+      (
+        "cbTick"::nil;
+      )
+      else
+        nil;;
+		
+
+//calculate - transfrom lat lot ang to vectors
+fun TranslateGeo (param) =  		
+	
+	set lInpData = lineextr param;
+	let hd lInpData -> line in
+    let CheckIntegrity line -> l in
+    (
+      if (l == nil) then
+      (
+	    echo strcat "L:" "0"
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRME") then
+      (
+	    echo "PGRME:0"
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRMZ") then
+      (
+        let (hd tl l) -> data in
+        let ftoi (((itof atoi data) -. (atof sIY)) *. (atof sFoot)) -> delta in
+        (
+          set iY = iIY + delta;
+          if ((atoi data) == nil) then
+          (
+            set iErrV = iErrV + 1;
+            0;
+          )
+          else if ((iOldY != nil) && ((abs (iY - iOldY)) > (iMaxDVer * iErrV))) then
+          (
+            set iErrV = iErrV + 1;
+            0;
+          )
+          else
+          (
+            set iErrV = 1;
+            set iOldY = iY;
+			//M3setObjVec session M3getFather session cam [iX iY iZ];
+			echo strcatn "PGRMZ:"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil
+            0;
+          );
+        );
+        0;
+      )
+      else if (!strcmp (hd l) "$GPRMC") then
+      (
+        let (hd tl l) -> data in
+        (
+          if ((atof data) == nil) then
+            0
+          else
+          (
+			//M3setObjAng session M3getFather session cam [(ftoi (-.65536.0 *. ((atof data) /. 360.0))) 0 0];
+			let (ftoi (-.65536.0 *. ((atof data) /. 360.0))) -> angle in
+			echo strcatn "GPRMC:" :: (itoa angle) :: ",0,0" ::nil
+            0;
+          );
+        );
+        0;
+      )
+      else if (!strcmp (hd l) "$GPGGA") then
+      (
+        let (hd tl l) -> dataH in
+        let strlen substr dataH 2 7 -> chkH in
+        let atof substr dataH 2 7 -> mntH in
+        let atof substr sIZ 2 7 -> mntZ in
+        let ftoi ((mntH -. mntZ) *. ((atof sMScale) /. (atof sHScale))) -> deltaH in
+        let (hd tl tl l) -> dataW in
+        let strlen substr dataW 3 7 -> chkW in
+        let atof substr dataW 3 7 -> mntW in
+        let atof substr sIX 3 7 -> mntX in
+        let ftoi ((mntW -. mntX) *. ((atof sMScale) /. (atof sWScale))) -> deltaW in
+        (
+          set iX = iIX + deltaW;
+          set iZ = iIZ + deltaH;
+          if ((mntH == nil) || (mntW == nil) || ((chkH + chkW) != 14)) then 
+          (
+            set iErrH = iErrH + 1;
+            0;
+          )
+          else if (((iOldX != nil) && (iOldZ != nil)) && ((ftoi sqrt (sqr itof (iX - iOldX)) +. (sqr itof (iZ - iOldZ))) > (iMaxDHor * iErrH)))then
+          (
+            set iErrH = iErrH + 1;
+            0;
+          )
+          else
+          (
+            set iErrH = 1;
+            set iOldX = iX;
+            set iOldZ = iZ;
+			//M3setObjVec session M3getFather session cam [iX iY iZ];
+			echo strcatn "GPGGA:"::(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil
+            0;
+          );
+        );        
+        0;
+      )
+      else if (!strcmp (hd l) "cbTick") then
+      (
+	    echo "cbTick:0"
+        0;
+      )
+      else
+        0;	
+  );;
+  
+fun UpdateGeoObj (HSObj,blurp) =  
+	let HSObj -> [H3d_Obj H3d_father flag] in
+	
+	let M3getObjVec session H3d_Obj -> [x y z] in
+	let M3getObjAng session H3d_Obj -> [xa _ za] in
+	let M3getObjAng session H3d_Obj -> [_ ya _] in	
+	
+    //M3setObjVec session M3getFather session H3d_Obj [(x+100) y (z+100)];
+	echo strcatn "XXXXXXXXXX:"::(itoa x)::","::(itoa y)::","::(itoa z)::nil
+	//M3unLink session H3d_Obj;
+	echo "XXXXXXXXXX:"
+0;;	
+  	
+fun CBgethttp(inet,z,s,reason) =
+ let z->[content] in 
+ if reason==0 then (mutate z <- [strcat content s];nil)
+ else if reason==1 then 
+   TranslateGeo content
+ else nil;;
+
+fun UpdateGeo(param, o)=    
+ INETGetURL _channel param 0 @CBgethttp [nil]; 
+ echo strcatn (ObName o)::"-get:"::param::nil
+0;; 	
+				   
+
+/*******************************************************************************
+ OptSingleAngle() - Optimizing single position's angle
+ p -> I : Source angle
+ q -> I : Destination original angle
+   <- I : Optimized destination angle
+*******************************************************************************/
+fun OptSingleAngle(p, q) =
+   let (abs (q - p)) -> path1 in
+   let (abs (q + 65536 - p)) -> path2 in
+   let (abs (q - 65536 - p)) -> path3 in
+   let min path1 min path2 path3 -> minpath in
+      if (minpath == path1) then
+         q
+      else if (minpath == path2) then
+         (q + 65536)
+      else
+         (q - 65536);;
+
+/*******************************************************************************
+ OptimizeDestinationOrientation() - Optimizing position orientation
+ ap -> I       : Source angle a
+ aq -> I       : Destination original angle a
+ bp -> I       : Source angle b
+ bq -> I       : Destination original angle b
+ cp -> I       : Source angle c
+ cq -> I       : Destination original angle c
+    <- [I I I] : Optimized destination orientation
+*******************************************************************************/
+fun OptimizeDestinationOrientation(ap, aq, bp, bq, cp, cq) =
+   [(OptSingleAngle ap aq) (OptSingleAngle bp bq) (OptSingleAngle cp cq)];;
+
+/*******************************************************************************
+ PrepareOptimization2() - Optimizing positions - Second step
+ src -> [Anchor r1]                      : PositionsList
+     <- [[S [I I I] [I I I] [I I I]] r1] : OpimizedPositionsList
+*******************************************************************************/
+fun PrepareOptimization2(src) =
+   if ((tl src) == nil) then
+      let hd src -> p in
+         match p with
+         (posAnchor [posp [xp yp zp] [ap bp cp]] -> [posp [xp yp zp] [ap bp cp] [nil nil nil]]::nil)
+   else
+      let hd src -> p in
+      let hd tl src -> q in
+         match p with
+         (posAnchor [posp [xp yp zp] [ap bp cp]] -> match q with 
+                                                    (posAnchor [_ _ [aq bq cq]] -> let OptimizeDestinationOrientation ap aq bp bq cp cq -> [aq2 bq2 cq2] in
+                                                                                      [posp [xp yp zp] [ap bp cp] [aq2 bq2 cq2]]::(PrepareOptimization2 tl src))
+         );;
+
+/*******************************************************************************
+ PrepareOptimization() - Optimizing positions - First step
+ src -> [[Anchor I [Anchor r1]] r1]                      : [Linked3dOb ListSize PositionsList]
+     <- [[Anchor I [[S [I I I] [I I I] [I I I]] r1]] r1] : [Linked3dOb ListSize OpimizedPositionsList]
+*******************************************************************************/
+fun PrepareOptimization(src) =
+   let hd src -> [o sz l] in
+      [o sz (PrepareOptimization2 l)]::nil;;
+
+
+/*******************************************************************************
+ cbSlidePos2() - Changing position of the 3D object according to the new frame
+ x -> [Anchor I [S [I I I] [I I I] [I I I]] r1]] : [Linked3dOb listsize optimizedPositionslist]
+ z -> [I I I [I r1] I I]                         : [TotalFrames CurrentFrame FramesAccumulator FrameEventsList InterpolateFlag InterpolateAnglesFlag]
+   <- I : Not used
+*******************************************************************************/
+fun cbSlidePos2(x, z)=
+   let z -> [lastFrame currentFrame _ _ interpolateFlag flagPosAng] in
+   let x -> [o sz l] in
+   let o -> [h _ _ _] in
+   let (sz * currentFrame / lastFrame) -> i in
+      if interpolateFlag then                /* trajectory with interpolation */
+         let (mod (sz * currentFrame) lastFrame) -> kq in
+         let (lastFrame - kq) -> kp in
+         let (endlist l i) -> [p [q _]] in
+         let p -> [_ [xp yp zp] [ap bp cp] [aq2 bq2 cq2]] in
+         let q -> [_ [xq yq zq] _ _] in
+         (
+            M3setObjVec session h [(xp*kp+xq*kq)/lastFrame (yp*kp+yq*kq)/lastFrame (zp*kp+zq*kq)/lastFrame];
+            if flagPosAng then 
+               M3setObjAng session h [(ap*kp+aq2*kq)/lastFrame (bp*kp+bq2*kq)/lastFrame (cp*kp+cq2*kq)/lastFrame]
+            else
+               nil;
+         )
+      else                                   /* trajectory without interpolation */
+         let (nth_list l i) -> [_ vec ang _] in
+         (
+            M3setObjVec session h vec;
+            if flagPosAng then 
+               M3setObjAng session h ang 
+            else 
+               nil;
+         );;
+
+
+/*******************************************************************************
+ CheckFrameEvents() - Checking frame events
+ l   -> [I r1] : Frame events list
+ fr1 -> I      : Previous frame
+ fr2 -> I      : Current frame
+ o   -> Ob     : Current Ob whose trajectory is being checked for frame events
+     <- I      : Not used
+*******************************************************************************/
+fun CheckFrameEvents(l, fr1, fr2, o) =
+   if (l == nil) then
+      0
+   else
+      let hd l -> fre in
+          if (fre > fr2) then
+             0
+          else if ((fre >= fr1) && (fre < fr2)) then
+          (
+             _DMSevent this (strcatn (ObName o)::".Frame#"::(itoa fre)::nil) nil nil;
+             CheckFrameEvents tl l fr1 fr2 o;
+          )
+          else
+             CheckFrameEvents tl l fr1 fr2 o;;
+
+
+/*******************************************************************************
+ cbSlidePos() - ObCbAnim callback - Computing new frame
+ o -> Ob                 : Ob to which the anim is associated
+ z -> [I I I [I r1] I I] : [TotalFrames CurrentFrame FramesAccumulator FrameEventsList InterpolateFlag InterpolateAnglesFlag]
+ a -> TrajAnim           : Trajectory beind computed
+   <- I                  : Not used
+*******************************************************************************/
+fun cbSlidePos(o,z,a)=
+   if a.TAplay then
+   (
+      if (a.TAtick == nil) then
+         set a.TAtick = _tickcount
+      else
+         nil;
+      let _tickcount -> currenttick in
+      let ((currenttick - a.TAtick) * a.TAframerate) -> timeFrame in
+      let (mod timeFrame 1000) -> accum in   
+      let (timeFrame / 1000) -> deltaFrame in
+      let z -> [lastFrame currentFrame accumulator x _ _] in
+      (
+         let strcatn "http://192.168.1.64/dev/gps/gpstrack-session.php?session="::(ObName o)::nil -> GpsUrlLocation in
+	     UpdateGeo GpsUrlLocation o;
+	  
+         set accumulator = accumulator + accum;
+         if (accumulator > 1000) then
+         (
+            set deltaFrame = deltaFrame + 1; 
+            set accumulator = accumulator - 1000;
+         )
+         else
+            nil;
+         if ((currentFrame + deltaFrame) < (lastFrame - 1)) then
+         (
+            CheckFrameEvents a.TAfel currentFrame (currentFrame + deltaFrame) o;
+            mutate z <- [_ (currentFrame + deltaFrame) accumulator _ _ _]; 
+            set a.TAtick = currenttick; 
+            apply_on_list x @cbSlidePos2 z;
+            0;
+         )
+         else
+         (
+            CheckFrameEvents a.TAfel currentFrame lastFrame o;
+            mutate z <- [_ (lastFrame - 1) _ _ _ _]; 
+            apply_on_list x @cbSlidePos2 z;
+            set a.TAtick = nil;
+            if a.TAplayOnce then
+               set a.TAplay = 0
+            else
+               set a.TAplay = 1; 
+            mutate z <- [_ 0 0 _ _ _]; 
+            0; 
+         );
+      );
+      0;
+   )
+   else 
+      0;	  
+   0;;
+   
+
+/*******************************************************************************
+ PrepAnchor() - Retrieving list of positions
+ l -> [Anchor r1]                          : Anchors list
+   <- [[Anchor r1] [Anchor I [Anchor r1]]] : [nil [Linked3dOb listsize poslist]] 
+*******************************************************************************/
+fun PrepAnchor(l)=
+   if (l == nil) then 
+      [nil nil]
+   else 
+      let l->[a n] in
+      let PrepAnchor n ->[lp lo] in
+         match a with
+        (objAnchor o -> [nil [o (sizelist lp)-1 lp]::lo]) |
+        (posAnchor _ -> [a::lp lo]);;
+
+
+/*******************************************************************************
+ cbActivate() - Standard callback function for plugin actions
+ o      -> Ob       : Ob to which the action is associated
+ from   -> DMI      : Not used
+ action -> S        : Action
+ param  -> S        : Parameter
+ reply  -> S        : Not used
+ a      -> TrajAnim : Trajectory structure associated with Ob
+        <- I        : Not used
+*******************************************************************************/
+fun cbActivate(o,from,action,param,reply,a)=
+   if !strcmp action (strcat (ObName o) ".gpsonce") then
+   (
+      set a.TAplay = 1; 
+      set a.TAplayOnce = 1; 
+      set a.TAtick = _tickcount; 
+      0;
+   )
+   else if !strcmp action (strcat (ObName o) ".gpsloop") then
+   (
+      set a.TAplay = 1; 
+      set a.TAplayOnce = 0; 
+      set a.TAtick = _tickcount; 
+      0;
+   )  
+   else if !strcmp action (strcat (ObName o) ".gpsstop") then
+   (
+      set a.TAplay = 0; 
+      set a.TAtick = nil; 
+      0;
+   )
+   else
+      nil;;
+
+
+/*******************************************************************************
+ cbComm() - Standard cbcomm callback function for intra plugin messages
+ ui     -> UserI    : User Instance linked to Ob
+ action -> S        : Action
+ param  -> S        : Parameter
+ a      -> TrajAnim : Trajectory structure associated with Ob
+        <- I        : Not used
+*******************************************************************************/
+fun cbComm(ui,action,param,a)=
+ if (!strcmp action "gpsonce") then
+ (
+    set a.TAplay = 1; 
+    set a.TAplayOnce = 1; 
+    set a.TAtick = _tickcount; 
+    0;
+ )  
+ else if (!strcmp action "gpsloop") then
+ (
+    set a.TAplay = 1; 
+    set a.TAplayOnce = 0; 
+    set a.TAtick = _tickcount; 
+    0;
+ ) 
+ else if (!strcmp action "gpsstop") then
+ (
+    set a.TAplay = 0; 
+    set a.TAtick = nil; 
+    0;
+ )
+ else if (!strcmp action "noaction") then
+ (
+    set a.TAplay = a.TAinit;
+    0;
+ )
+ else
+  nil;;
+
+
+/*******************************************************************************
+ InsertFrameEvent() - Building frame events list - Sorting list
+ l   -> [I r1] : Frame events list
+ fre -> I      : New frame event to insert in list
+     <- [I r1] : New frame events list
+*******************************************************************************/
+fun InsertFrameEvent(l, fre) =
+   if (l == nil) then
+      fre::nil
+   else
+      let hd l -> elt in
+         if (elt > fre) then
+            fre::l
+         else
+            elt::(InsertFrameEvent tl l fre);;
+
+/*******************************************************************************
+ FrameEventList() - Building frame events list - Building list
+ src -> [[S r1] r1] : List of parameters for the plugin instance
+ dst -> [I r1]      : Frame events list to build
+     <- [I r1]      : Buildt frame events list
+*******************************************************************************/
+fun FrameEventList(src, dst)=
+   if (src == nil) then
+      dst
+   else
+      let hd src -> [name r] in
+         if !strcmp name "FrameEvent" then
+            let r -> [frameNum _] in
+               FrameEventList tl src InsertFrameEvent dst (atoi frameNum)
+         else
+            FrameEventList tl src dst;;
+
+
+/*******************************************************************************
+ cbNewOb() - New object creation
+ o -> Ob : New Ob
+   <- I  : Not used
+*******************************************************************************/
+fun cbNewOb(o)=
+
+   let UgetParams ObUi o -> lParams in
+   let atoi hd UgetParam ObUi o "Interpolate" -> interpolateFlag in
+   let atoi hd UgetParam ObUi o "Framerate" -> framerate in
+   let atoi hd UgetParam ObUi o "Ini" -> ini in
+   let !atoi hd UgetParam ObUi o "Loop" -> playOnce in
+   let hd UgetParam ObUi o "PosAng" -> PosAng in
+   let atoi hd UgetParam ObUi o "NbFrames" -> nbFrames in
+   let atoi hd UgetParam ObUi o "SrvAnimAutoStart" -> srvAnimAutoStart in
+   let PrepAnchor ObAnchor o -> [_ l] in
+   let PrepareOptimization l -> lOptimized in
+   let if srvAnimAutoStart then 0 else ini -> play in
+   let mkTrajAnim [(ObName o) framerate play playOnce nil (FrameEventList lParams nil) ini] -> ta in
+   (
+      ObCbAnim o mkfun2 mkfun3 @cbSlidePos ta [nbFrames 0 0 lOptimized interpolateFlag (!strcmpi PosAng "All")];
+	
+      UcbComm this ObUi o mkfun4 @cbComm ta;
+  
+      ObRegisterAction o (strcatn (ObName o)::".gpsonce"::nil) mkfun6 @cbActivate ta;
+      ObRegisterAction o (strcatn (ObName o)::".gpsloop"::nil) mkfun6 @cbActivate ta;
+      ObRegisterAction o (strcatn (ObName o)::".gpsstop"::nil) mkfun6 @cbActivate ta;
+      if srvAnimAutoStart then
+         UsendSrv this (ObUi o) "newclient" (ObName o)
+      else
+         nil;
+      0;
+   );;  
+
+
+/*******************************************************************************
+ IniPlug() - Function called when plugin is initialized
+ file -> S : .plug file
+      <- I : Not used
+*******************************************************************************/
+fun IniPlug(file)=
+   set class = getInfo strextr _getpack _checkpack file "name";
+   PlugRegister class @cbNewOb nil;
+   0;;

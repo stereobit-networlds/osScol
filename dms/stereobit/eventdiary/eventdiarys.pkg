@@ -1,0 +1,141 @@
+/* eventdiary 23-8-2014 stereobit */
+
+defcom Chear=hear S;;
+defcom CitemAdded=itemAdded S I;;
+defcom CitemDeleted=itemDeleted S I;;
+
+typeof port = S;;    
+typeof speed = S;;    
+typeof bytesize = S;;    
+typeof parity = S;;    
+typeof stopbits = S;;    
+typeof lastchar = S;; 
+typeof refresh = S;; 
+
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (iniPath)::fname::nil -> file in
+    let strcatn (itoa _DMStime)::":"::s::nil -> line in
+   
+	let _appendpack line _getmodifypack file ->append in
+	if (append==-1) then
+		_createpack line _getmodifypack file
+	else nil
+ )
+ else nil;; 
+ 
+fun echo(x,s)= 
+  saveLog "_echo.txt" strcat x "\n";; 
+  
+fun _echo(x,s)=	
+ if (log==1) then
+  _DMSsend this DMSsender Chear [strcat strcat ">>[seventdiary] " x "\n"]
+ else nil;;   
+
+fun logout(cli)=
+  _DMSevent this cli "destroyed" nil nil
+;;
+
+fun activate (from,cli,action,param,rep) = 	
+  if !strcmp action "start" then
+  (       
+	_DMScreateClientDMI this cli (strcatn port::"\n"::speed::"\n"::bytesize::"\n"::parity::"\n"::stopbits::"\n"::lastchar::"\n"::refresh::"\n"::nil);  
+	//_DMSsend this cli CgetPos ["setPos"];
+	//_echo "Serial IO : start"
+	0    
+  )
+  else if !strcmp action "destroy" then
+  (
+    _DMSdelClientDMI this cli;
+    0
+  )
+  else if !strcmp (substr action 0 3) "out" then
+  (
+    0
+  )
+  else 
+    nil
+;;
+
+fun __addItem(i) = 
+  //let _DMSgetIP DMSsender -> cip in
+  //_echo strcat "Add Item:" i 
+  
+  if (i==nil) then
+    nil
+  else
+    let i -> reference in
+    let i -> name in
+	let _DMSfindItem DMSsender reference -> currentItem in
+	if (currentItem.countItem>0) then
+	(
+	  set currentItem.countItem=currentItem.countItem+1;
+	  _DMSsend this DMSsender CitemAdded [i currentItem.countItem];
+	1)
+	else  
+    let mkItem [reference name 1 nil] -> myItem in   
+    (   
+      _DMSaddItem DMSsender myItem;
+	  _DMSsend this DMSsender CitemAdded [i 1];
+      //_DMSevent this DMSsender "itemAdded" nil nil; /*cbcomm*/
+    0);;
+  
+fun __delItem(i) = 
+  //let _DMSgetIP DMSsender -> cip in
+  //_echo strcat "Del Item:" i 
+  
+  if (i==nil) then
+    nil
+  else	
+    let i -> reference in
+    let i -> name in  
+    let _DMSfindItem DMSsender reference -> currentItem in
+	if (currentItem.countItem>1) then
+	(
+	  set currentItem.countItem=currentItem.countItem-1;
+	  _DMSsend this DMSsender CitemDeleted [i currentItem.countItem];	
+    )
+    else 	
+    (
+      _DMSsubItem DMSsender i 1;
+	  _DMSsend this DMSsender CitemDeleted [i 0];
+      //_DMSevent this DMSsender "itemDeleted" nil nil;  /*cbcomm*/
+	  0
+	)
+    //else
+      //0
+	  ;;  
+	  
+fun __getItem(i)=	  
+  if (i==nil) then
+    nil
+  else	
+    let i -> reference in
+    let i -> name in 
+    let _DMSfindItem DMSsender reference -> currentItem in
+	if (currentItem.countItem>0) then
+	  currentItem.countItem
+	else
+      0;;	
+
+fun IniDMI(dmiFile)=
+  let _getpack _checkpack dmiFile -> paramFile in  
+  let strextr paramFile -> fileEdit in
+  (
+    set port = getInfo fileEdit "port";
+    set speed = getInfo fileEdit "speed";
+    set bytesize = getInfo fileEdit "bytesize";
+    set parity = getInfo fileEdit "parity";
+    set stopbits = getInfo fileEdit "stopbits";
+    set lastchar = getInfo fileEdit "lastchar";
+	set refresh = getInfo fileEdit "refresh";
+	
+	/*save ini file to download by clients NOT USED*/
+	/*_createpack (strcatn port::"\n"::speed::"\n"::bytesize::"\n"::parity::"\n"::stopbits::"\n"::lastchar::"\n"::refresh::nil) _getmodifypack strcat iniPath "/serialio.ini"*/
+  );	
+ _DMSregisterDMI this @activate nil @logout nil;;
+ 

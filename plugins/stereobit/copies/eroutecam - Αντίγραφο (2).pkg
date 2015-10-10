@@ -1,0 +1,116 @@
+/* Camera GPS Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof plugin=S;;
+typeof class=S;;
+typeof ed = PluginEditor;;
+typeof LBinitAv = ObjText;;
+typeof InitAv = ObjText;;
+typeof LBinitOr = ObjText;;
+typeof InitOr = ObjText;;
+typeof LBinitLi = ObjText;;
+typeof InitLi = ObjText;;
+typeof LBinitCa = ObjText;;
+typeof InitCa = ObjText;;
+
+fun InstName(UI)=UI.nameInst;;
+fun InstParam(UI)=UI.paramInst;;
+
+proto save=fun [ [Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]];;
+
+
+/*----------------*/
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+   ("actionC"::(strcatn name::".gpsupdate"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpsread"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpsinit"::nil)::nil)::
+   ("actionC"::(strcatn name::".gpstopview"::nil)::nil)::
+   (suppactions nl);;
+
+   
+fun testinst(l, c) =
+  if l==nil then 
+    0 
+  else 
+    let l->[a n] in
+  if !strcmp a.classInst c then
+    1
+  else 
+    testinst n c
+;;
+
+   
+/*----------------*/
+fun save(l)=
+ if l==nil then [nil nil nil nil]
+ else
+ [
+  nil /* registerF */
+  nil /* register */
+  ("plugin"::plugin::nil)::nil /* supplemental Dat */
+  suppactions l /* supplemental Dmi */
+ ];;
+
+
+fun openedit(win, param) =
+
+  let strextr param -> l in
+  let _GETwindowSizePosition win -> [w h x y] in
+  ( 
+    set ed = startPluginEditor _channel win 0 0 w h WN_CHILDINSIDE|WN_NOBORDER class;
+
+    set LBinitAv = _CRtext _channel ed.PluginEditorEditWin 5 5 80 20 ET_ALIGN_LEFT "Avatar : ";
+    set InitAv = _CReditLine _channel ed.PluginEditorEditWin 85 5 w-85 20 ET_ALIGN_LEFT|ET_DOWN 
+    let getInfo l "initav" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+ 
+    set LBinitOr = _CRtext _channel ed.PluginEditorEditWin 5 30 80 20 ET_ALIGN_LEFT "Orientation : ";
+    set InitOr = _CReditLine _channel ed.PluginEditorEditWin 85 30 w-85 20 ET_ALIGN_LEFT|ET_DOWN 
+    let getInfo l "initor" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+        
+    set LBinitLi = _CRtext _channel ed.PluginEditorEditWin 5 55 80 20 ET_ALIGN_LEFT "Light : ";
+    set InitLi = _CReditLine _channel ed.PluginEditorEditWin 85 55 w-85 20 ET_ALIGN_LEFT|ET_DOWN
+    let getInfo l "initli" -> string in
+      if (nil == string) then
+        "0"
+      else
+        string;
+ 
+    set LBinitCa = _CRtext _channel ed.PluginEditorEditWin 5 80 80 20 ET_ALIGN_LEFT "Camera : ";
+    set InitCa = _CReditLine _channel ed.PluginEditorEditWin 85 80 w-85 20 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER
+    let getInfo l "initca" -> string in
+      if (nil == string) then
+        "30"
+      else
+        string;
+    0
+  )
+;;
+ 
+ 
+fun closeedit() =
+
+ strbuild
+ ("initav"::(_GETtext InitAv)::nil)::
+ ("initor"::(_GETtext InitOr)::nil)::
+ ("initli"::(_GETtext InitLi)::nil)::
+ ("initca"::(_GETtext InitCa)::nil)::nil
+;; 
+
+/*----------------*/
+fun IniPlug(file)=
+ set plugin=file;
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @save nil @openedit @closeedit
+ ;;

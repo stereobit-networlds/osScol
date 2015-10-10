@@ -1,0 +1,30 @@
+typeof class = S;;
+typeof CLname = S;;
+
+var NbPluginInstance = 0;;
+
+fun newOb(o)=
+ if (NbPluginInstance == 0) then
+ (
+  set CLname = (ObName o);
+  set NbPluginInstance = NbPluginInstance + 1;
+  let hd UgetParam o.uiOb "Background" ->  file in
+   _RSregisterfiles this file::nil RSfile|RScontrol;
+  0
+ )
+ else
+ (
+  _DLGMessageBox _channel nil "Warning" 
+  "  Too many Bubble instanced.\n    Only one instance per C3d\n    module instance is possible.\nOnly the first instance will be used."
+  0;
+  _fooS "<Bubble Plugin> Warning: Only on instance of this module";
+  set NbPluginInstance = NbPluginInstance + 1; 
+ );  
+ 0;;  
+
+/* ****** main part ****** */
+
+fun IniPlug(file)=
+  set class=getInfo strextr _getpack _checkpack file "name";
+  PlugRegister class @newOb nil;
+ 0;;

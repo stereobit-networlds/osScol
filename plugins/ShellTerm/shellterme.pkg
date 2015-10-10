@@ -1,0 +1,182 @@
+/* Bubbleedit.pkg - Sebastien DENEUX - February 2001 : editeur du plugin Bubble */
+/* rev July 14 - stereobit */
+typeof plugin=S;;
+typeof class=S;;
+
+fun InstName(UI)=UI.nameInst;;
+
+typeof ed = PluginEditor;;
+
+typeof BeforeTime = ObjText;;
+typeof Time = ObjText;;
+typeof Font = ObjText;;
+typeof FontColorR = ObjText;;
+typeof FontColorG = ObjText;;
+typeof FontColorB = ObjText;;
+typeof FontSize = ObjText;;
+typeof BackGround = ObjText;;
+typeof BgStretch = ObjCheck;;
+typeof TransparencyR = ObjText;;
+typeof TransparencyG = ObjText;;
+typeof TransparencyB = ObjText;;
+typeof X = ObjText;;
+typeof Y = ObjText;;
+
+typeof rPath = ObjText;;
+
+
+fun suppactions(l)=
+if l == nil then
+ nil
+else
+ let l -> [UI nl] in
+  let (InstName UI) -> name in
+    ("action"::(strcat class ".broadInfo")::nil)::
+    ("action"::(strcat class ".privateMsg")::nil)::
+    ("action"::(strcat class ".!chgLogin")::nil)::
+    ("action"::(strcat class ".!updateAv")::nil)::
+    ("action"::(strcat class ".!chgColorFromColorTerm")::nil)::
+    ("action"::(strcat class ".fromColorTerm")::nil)::
+    ("actionC"::(strcat class ".IgnoreFlag")::nil)::
+    ("actionC"::(strcat class ".IgnChgLogin")::nil)::
+    ("actionC"::(strcat class ".IgnLogout")::nil)::
+    ("actionC"::(strcat class ".setTerm")::nil)::
+    ("actionC"::(strcat class ".getLink")::nil)::
+    ("actionC"::(strcat class ".disable")::nil)::
+    ("actionC"::(strcat class ".enable")::nil)::
+    ("actionC"::(strcat class ".enableORdisable")::nil)::	
+	("actionC"::(strcat class ".btClicked")::nil)::
+    (suppactions nl);;
+
+
+fun testinst(l,c)=
+ if l==nil then 0 else let l->[a n] in
+ if !strcmp a.classInst c then 1
+ else testinst n c;;
+
+proto save=fun [ [Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]];;
+
+fun save(l)=
+ if l==nil then [nil nil nil nil]
+ else
+ let l -> [UI nl] in
+ [
+  nil /* registerF */
+  nil /* register */
+  ("plugin"::plugin::nil)::nil  /* supplemental Dat */
+  ("actionC"::(strcat class ".showBubble")::nil)::
+  ("eventC" ::(strcat class ".hidden")::nil)::
+  ("eventC" ::(strcat class ".shown")::nil)::
+  ("eventC" ::(strcat class ".getTerm")::nil)::
+  ("event"  ::(strcat class ".toColorTerm")::nil):: /* srv */
+  ("event"  ::(strcat class ".getColorToColorTerm")::nil):: /* srv */
+  ("eventC" ::(strcat class ".in")::nil)::
+  ("eventC" ::(strcat class ".log")::nil)::
+  ("eventC" ::(strcat class ".message")::nil)::
+  ("eventC" ::(strcat class ".away")::nil)::
+  ("eventC" ::(strcat class ".back")::nil)::
+  ("eventC" ::(strcat class ".helpFR")::nil)::
+  ("eventC" ::(strcat class ".helpUK")::nil)::
+  ("eventC" ::(strcat class ".custom")::nil)::
+  ("eventC"::(strcat class ".getAnchor")::nil)::  
+  ("eventC"::(strcat class ".topView")::nil)::
+  ("eventC"::(strcat class ".walkView")::nil)::
+  ("eventC"::(strcat class ".enableRecGps")::nil)::
+  ("eventC"::(strcat class ".enableTraceGps")::nil)::
+  ("eventC"::(strcat class ".enableComGps")::nil)::
+  ("eventC"::(strcat class ".disableRoute")::nil)::
+  ("eventC"::(strcat class ".setComPort")::nil)::
+  ("eventC"::(strcat class ".gotoUrl")::nil)::
+  ("eventC"::(strcat class ".fullScreen")::nil)::  
+  ("eventC"::(strcat class ".iCall")::nil):: 
+  ("eventC"::(strcat class ".iAnswer")::nil):: 
+  ("eventC"::(strcat class ".iList")::nil)::   
+  ("eventC"::(strcat class ".iPager")::nil):: 
+  ("eventC"::(strcat class ".iCom")::nil)::   
+  ("eventC"::(strcat class ".iLogin")::nil)::   
+  ("eventC"::(strcat class ".chPhoto")::nil):: 
+  ("eventC"::(strcat class ".chName")::nil)::    
+  ("eventC"::(strcat class ".iPass")::nil)::
+  ("eventC"::(strcat class ".started")::nil)::  
+  ("eventC"::(strcat class ".keyPressed")::nil)::  
+  ("eventC"::(strcat class ".obClicked")::nil)::  
+  ("eventC"::(strcat class ".startPos")::nil)::  
+  (suppactions l)  
+  /* supplemental Dmi */
+ ]
+;;
+
+fun openedit(win,param)=
+let strextr param -> l in
+let _GETwindowSizePosition win -> [w h x y] in
+( 
+ set ed = startPluginEditor _channel win 0 0 w h WN_CHILDINSIDE|WN_NOBORDER class;
+ 
+ _CRtext _channel ed.PluginEditorEditWin 5 5 110 20 ET_ALIGN_LEFT "Before Time :";
+ set BeforeTime = _CReditLine _channel ed.PluginEditorEditWin 120 5 80 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let getInfo l "BeforeTime" -> t in if t==nil then "250" else t; 
+
+ /*resource path*/ 
+ _CRtext _channel ed.PluginEditorEditWin 205 5 70 20 ET_ALIGN_LEFT "Resources :";
+ set rPath = _CReditLine _channel ed.PluginEditorEditWin 280 5 220 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let getInfo l "rPath" -> t in if t==nil then "" else t;  
+ 
+  _CRtext _channel ed.PluginEditorEditWin 5 30 110 20 ET_ALIGN_LEFT "Time :";
+ set Time = _CReditLine _channel ed.PluginEditorEditWin 120 30 80 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let getInfo l "Time" -> t in if t==nil then "3000" else t; 
+ 
+  _CRtext _channel ed.PluginEditorEditWin 5 55 110 20 ET_ALIGN_LEFT "Font :";
+ set Font = _CReditLine _channel ed.PluginEditorEditWin 120 55 80 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let getInfo l "Font" -> t in if t==nil then "Arial" else t; 
+ 
+  _CRtext _channel ed.PluginEditorEditWin 5 90 80 20 ET_ALIGN_LEFT "FontColor R :";
+ set FontColorR = _CReditLine _channel ed.PluginEditorEditWin 120 90 40 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let hd switchstr l "FontColor" -> t in if t==nil then "255" else t; 
+ 
+ _CRtext _channel ed.PluginEditorEditWin 205 90 80 20 ET_ALIGN_LEFT "FontColor G :";
+ set FontColorG = _CReditLine _channel ed.PluginEditorEditWin 300 90 40 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let hd tl switchstr l "FontColor" -> t in if t==nil then "255" else t;  
+ 
+ _CRtext _channel ed.PluginEditorEditWin 375 90 80 20 ET_ALIGN_LEFT "FontColor B :";
+ set FontColorB = _CReditLine _channel ed.PluginEditorEditWin 465 90 40 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let hd tl tl switchstr l "FontColor" -> t in if t==nil then "0" else t;
+  
+ _CRtext _channel ed.PluginEditorEditWin 5 125 110 20 ET_ALIGN_LEFT "Font Size :";
+ set FontSize = _CReditLine _channel ed.PluginEditorEditWin 120 125 80 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let getInfo l "FontSize" -> t in if t==nil then "18" else t;
+ 
+ _CRtext _channel ed.PluginEditorEditWin 5 150 110 20 ET_ALIGN_LEFT "Background :";
+ set BackGround = _CReditLine _channel ed.PluginEditorEditWin 120 150 80 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL  getInfo l "Background"; 
+  
+ set BgStretch = _CRcheck _channel ed.PluginEditorEditWin 205 150 80 20 ET_ALIGN_LEFT|ET_DOWN "Stretch :"; 
+ _SETcheck BgStretch atoi getInfo l "Stretch";
+
+  _CRtext _channel ed.PluginEditorEditWin 5 185 90 20 ET_ALIGN_LEFT "Transparency R :";
+ set TransparencyR = _CReditLine _channel ed.PluginEditorEditWin 300 185 40 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let hd switchstr l "Transparency" -> t in if t==nil then "0" else t; 
+ 
+ _CRtext _channel ed.PluginEditorEditWin 205 185 90 20 ET_ALIGN_LEFT "Transparency G :";
+ set TransparencyG = _CReditLine _channel ed.PluginEditorEditWin 465 185 40 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let hd tl switchstr l "Transparency" -> t in if t==nil then "0" else t; 
+ 
+ _CRtext _channel ed.PluginEditorEditWin 375 185 90 20 ET_ALIGN_LEFT "Transparency B :";
+ set TransparencyB = _CReditLine _channel ed.PluginEditorEditWin 120 185 40 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let hd tl tl switchstr l "Transparency" -> t in if t==nil then "255" else t; 
+ 
+  _CRtext _channel ed.PluginEditorEditWin 5 225 110 20 ET_ALIGN_LEFT "X :";
+ set X = _CReditLine _channel ed.PluginEditorEditWin 120 225 80 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let getInfo l "x" -> t in if t==nil then "0" else t;
+ 
+  _CRtext _channel ed.PluginEditorEditWin 5 250 110 20 ET_ALIGN_LEFT "Y :";
+ set Y = _CReditLine _channel ed.PluginEditorEditWin 120 250 80 20 ET_ALIGN_LEFT|ET_DOWN|ET_AHSCROLL let getInfo l "y" -> t in if t==nil then "-20" else t;
+ 
+0
+);;
+
+
+fun closeedit()=
+ strbuild 
+ ("BeforeTime"::(_GETtext BeforeTime)::nil)::
+ ("Time"::(_GETtext Time)::nil)::
+ ("Font"::(_GETtext Font)::nil):: 
+ ("FontColor"::(_GETtext FontColorR)::(_GETtext FontColorG)::(_GETtext FontColorB)::nil)::
+ ("FontSize"::(_GETtext FontSize)::nil)::
+ ("Background"::(_GETtext BackGround)::nil)::
+ ("Stretch"::(itoa _GETcheck BgStretch)::nil)::
+ ("Transparency"::(_GETtext TransparencyR)::(_GETtext TransparencyG)::(_GETtext TransparencyB)::nil):: 
+ ("x"::(_GETtext X)::nil)::
+ ("y"::(_GETtext Y)::nil)::
+ ("rPath"::(_GETtext rPath)::nil)::nil;;
+
+fun IniPlug(file)=
+ set plugin=file;
+ set class=getInfo strextr _getpack _checkpack file "name";
+ PlugRegister class @save nil @openedit @closeedit;;

@@ -1,0 +1,452 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*
+  Version : 1.0
+  First version : 05/08/2010
+  Author : Bourineau Bastien
+*/
+
+/* serialIO DMI integration 23-7-2014 stereobit */
+
+typeof port = S;;
+typeof speed = S;;
+typeof bytesize = S;;
+typeof parity = S;;
+typeof stopbits = S;;
+typeof lastchar = S;;
+typeof refresh = S;;
+
+typeof slastchar = S;; /*holds string last char */
+//typeof scom = S;; /*com object ?*/
+typeof myUI=UserI;;
+
+typeof iospeed = ObjText;;
+typeof iobytesize = ObjText;;
+typeof ioparity = ObjText;;
+typeof iostopbits = ObjText;;
+typeof iolastchar = ObjText;;
+typeof iorefresh = ObjText;;
+
+typeof sno = I;;	   
+typeof nsno = S;;
+typeof sesfile = S;;
+typeof sesdata = [[S r1] r1];;
+
+typeof timer = Timer;;
+
+var serialCheck = 10000;;   /*is ob param.. check every n seconds for serial data */
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+var sesfname = "session_";;
+
+
+fun getSessionParam(line, word) = 
+  let nth_list sesdata (line-1) -> l in 
+  nth_list l (word-1);;  
+
+fun sessionpath() = 
+  strcatn iniPath::DMSname::"/"::(nsno)::"/"::nil;;
+  
+fun getSessionData() = 
+   let strcatn sesfname::(itoa sno)::".txt"::nil -> ses in
+   let strcat sessionpath ses -> sesfile in
+   strextr _getpack _checkpack sesfile
+;;  
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (sessionpath)::fname::nil -> logBuf in
+ 
+	let _appendpack s _getmodifypack logBuf -> append in
+	if (append==-1) then
+		_createpack s _getmodifypack logBuf
+	else nil
+ )
+ else nil;;
+
+fun _echo(x,s)= 
+_DMSevent this "hear" strcat strcat ">> " x "\n" nil;;
+
+
+/****************** ui *********************/
+
+fun _saveComPort(b, c)=
+  let strcatn iniPath::DMSname::"/serialio.ini"::nil -> comfile in   
+  let _GETcombo c -> [i s] in  
+  let itoa i -> comport in
+  let _GETtext iospeed -> speed in
+  let _GETtext iobytesize -> bytesize in
+  let _GETtext ioparity -> parity in
+  let _GETtext iostopbits -> stopbits in
+  let _GETtext iolastchar -> lastchar in
+  let _GETtext iorefresh -> refresh in
+  let strcatn comport::" "::speed::" "::bytesize::" "::parity::" "::stopbits::" "::lastchar::" "::refresh::nil -> iodata in 
+  (
+    _storepack iodata comfile;
+    0
+  );;
+
+fun _endComPort(w, u)=
+  _DSwindow w;
+  0;;
+  
+fun _closeComPort(b, w)=
+  _endComPort w 0;;  
+
+fun configComPort()=
+  let strcatn iniPath::DMSname::"/serialio.ini"::nil -> comfile in
+  let _getpack _checkpack comfile -> comSettings in 
+  let if (comSettings!=nil) then (strextr comSettings) else nil -> params in
+  let hd params -> comParams in
+
+  let _CRwindow _channel DMSwin 200 200 350 250 WN_MENU "Com port configuration" -> winComConfig in
+  let _GETwindowPositionSize winComConfig -> [x y w h] in
+  (
+   _CRtext _channel winComConfig 5 5 w-10 40 ET_ALIGN_LEFT|ET_BORDER (_loc this "_ConfigComPort" nil);
+   _CRtext _channel winComConfig 5 50 70 20 ET_ALIGN_LEFT "Port:";
+   let _CRcombo _channel winComConfig 80 50 70 200 CB_NOEDIT|CB_DOWN "..." -> comboKey in
+   (
+    _ADDcombo comboKey 0 "Com 0";
+    _ADDcombo comboKey 1 "Com 1";
+    _ADDcombo comboKey 2 "Com 2";
+    _ADDcombo comboKey 3 "Com 3";
+    _ADDcombo comboKey 4 "Com 4";
+    _ADDcombo comboKey 5 "Com 5";
+    _ADDcombo comboKey 6 "Com 6";
+    _ADDcombo comboKey 7 "Com 7";
+    _ADDcombo comboKey 8 "Com 8";
+	
+	let if (comSettings!=nil) then (nth_list comParams 0) else "0" -> selection in
+    _SELcombo comboKey (atoi selection); //0;
+	
+	_CRtext _channel winComConfig 5 75 70 20 ET_ALIGN_LEFT "Speed:";
+	let if (comSettings!=nil) then (nth_list comParams 1) else "9600" -> serialiospeed in	
+	set iospeed = _CReditLine _channel winComConfig 80 75 w-85 20 ET_DOWN serialiospeed;
+	
+	_CRtext _channel winComConfig 5 100 70 20 ET_ALIGN_LEFT "Byte size:";
+	let if (comSettings!=nil) then (nth_list comParams 2) else "8" -> serialiobsize in	
+	set iobytesize = _CReditLine _channel winComConfig 80 100 w-85 20 ET_DOWN serialiobsize;
+	
+	_CRtext _channel winComConfig 5 125 70 20 ET_ALIGN_LEFT "Parity:";
+	let if (comSettings!=nil) then (nth_list comParams 3) else "0" -> serialioparity in	
+	set ioparity = _CReditLine _channel winComConfig 80 125 w-85 20 ET_DOWN serialioparity;
+	
+	_CRtext _channel winComConfig 5 150 70 20 ET_ALIGN_LEFT "Stop Bits:";
+	let if (comSettings!=nil) then (nth_list comParams 4) else "1" -> serialiostopb in	
+	set iostopbits = _CReditLine _channel winComConfig 80 150 w-85 20 ET_DOWN serialiostopb;
+	
+	_CRtext _channel winComConfig 5 175 70 20 ET_ALIGN_LEFT "Last char:";
+	let if (comSettings!=nil) then (nth_list comParams 5) else "1" -> serialiolchar in	
+	set iolastchar = _CReditLine _channel winComConfig 80 175 w-85 20 ET_DOWN serialiolchar;
+	
+	_CRtext _channel winComConfig 5 200 70 20 ET_ALIGN_LEFT "Refresh (ms):";
+	let if (comSettings!=nil) then (nth_list comParams 6) else "10000" -> serialiorefresh in	
+	set iorefresh = _CReditLine _channel winComConfig 80 200 w-85 20 ET_DOWN serialiorefresh;
+	
+    _CBbutton _CRbutton _channel winComConfig w/3 225 ((2*w/3)-5) 20 0 (_loc this "btn_save" nil) @_saveComPort comboKey;
+    _CBbutton _CRbutton _channel winComConfig 5 225 ((w/3)-10) 20 0 (_loc this "btn_close" nil) @_closeComPort winComConfig
+   );
+  _CBwinDestroy winComConfig @_endComPort 0
+  );
+  0;; 
+
+/******************** serial io ************************/
+
+
+/*! \brief Callback on instance destruction
+  *
+  *  <b>Prototype:</b> fun [PInstance SerialIO] I
+  *
+  *  \param PInstance : destroyed plugIT instance
+  *  \param SerialIO : serial object
+  *   
+  *  \return I : 0
+  **/
+  
+fun deleteOb(inst) = //inst, scom)=
+	//_closeSIO scom;
+	_deltimer timer;
+	_DMSevent this "destroy" nil nil;
+	0;;
+
+
+/*! \brief Split buffer to separator separate messages
+  *
+  *  <b>Prototype:</b> fun [S S] [S r1]
+  *
+  *  \param S : buffer
+	*  \param S : separator
+  *   
+  *  \return [S r1] : splitted buffer
+  **/
+fun getbuffer(s, sep)=
+	let strlen s -> size in
+	let strlen sep -> sizesep in
+	let nil -> nbuf in
+	let 0 -> lpos in
+	let 0 -> pos in
+	if (sizesep == 0) then
+	  ["" s::nbuf]
+	else
+	(
+		while ((set pos = (strfind sep s lpos)) != nil) do
+		(
+			//addLogMessage strcatn (itoa pos)::" "::(substr s lpos (pos - lpos))::nil;
+			if nbuf == nil then
+				set nbuf = (substr s lpos (pos - lpos))::nil
+			else
+				set nbuf = lcat nbuf (substr s lpos (pos - lpos))::nil;
+			0;
+
+			set lpos = pos + sizesep + 1;
+		);
+		
+		let "" -> rbuf in
+		(
+			if ((lpos + 1) >= size) then nil else
+				set rbuf = substr s lpos (size - lpos);
+			
+			[rbuf nbuf];
+		);
+	);;
+
+
+/*! \brief Callback on serial receive data
+  *
+  *  <b>Prototype:</b> fun [SerialIO [PInstance S S] S I] I
+  *
+  *  \param SerialIO : serial object
+  *  \param [PInstance S] : plugIT instance and last buffer
+  *  \param S : data
+  *  \param I : data size
+  *   
+  *  \return I : 0
+  **/
+fun cbRead(com, p, data, size)=
+	let p -> [inst slastchar buffer] in
+	let getbuffer (strcat buffer data) slastchar -> [rest lbuf] in
+	(
+		mutate p <- [_ _ rest];
+		while lbuf != nil do
+		(
+		  // Send "Read" event messages
+          //_DMSevent this (getPluginInstanceEvent inst "Read") hd lbuf nil;
+		  
+		  saveLog "serial_read.txt" strcat (hd lbuf) "\n";
+		  
+		  _DMSevent this "Read" hd lbuf nil;
+			set lbuf = tl lbuf;
+		);
+	);
+  0;;
+
+
+/*! \brief Callback on "Send" dms action
+  *
+  *  Write param link data to serial object
+  *
+  *  <b>Prototype:</b> fun [PInstance DMI S S I [SerialIO I I I I S]] I
+  *
+  *  \param PInstance : plugIT instance
+  *  \param DMI : DMS module who call the action (not used)
+  *  \param S : name of the launched action
+  *  \param S : data posted in DMS action link
+  *  \param I : reply flag (not used)
+  *  \param [SerialIO S] : Serial object and char to add at the end of message
+  * 
+  *  \return I : 0
+  **/    
+fun cbSend(inst, from, action, param, reply, p)=
+  let p -> [scom speed parity bytesize stopbits lastchar] in
+	  _writeSIO scom strcat param lastchar;
+  0;;
+fun cbSend2(from, action, param, reply, p)=
+
+  //_writeSIO scom strcat param slastchar;  
+  saveLog "serial_write.txt" strcatn "Serial IO (Send):"::param::">>"::port::","::speed::","::bytesize::","::parity::","::stopbits::","::slastchar::nil;
+  0;;  
+
+
+/*! \brief Callback on "Set com port" dms action
+  *
+  *  Reconnect the serial com on a new port
+  *
+  *  <b>Prototype:</b> fun [PInstance DMI S S I [SerialIO I I I I S]] I
+  *
+  *  \param PInstance : plugIT instance
+  *  \param DMI : DMS module who call the action (not used)
+  *  \param S : name of the launched action
+  *  \param S : data posted in DMS action link
+  *  \param I : reply flag (not used)
+  *  \param [SerialIO I I I I S] : Serial object and char to add at the end of message
+  * 
+  *  \return I : 0
+  **/           
+fun cbSetComPort(inst, from, action, param, reply, p)=
+  if (atoi param) == nil then nil else
+  let p -> [scom speed parity bytesize stopbits lastchar] in
+  (
+    _closeSIO scom;
+	  let 1 -> inst in /*dummy var*/
+	  let _openSIO _channel strcat "com" param [speed parity bytesize stopbits] @cbRead [inst lastchar ""] -> ncom in
+	    mutate p <- [ncom _ _ _ _ _];
+  );
+  0;;
+fun cbSetComPort2(from, action, param, reply, p)=
+  if (atoi param) == nil then nil else
+  (
+    saveLog "serial_write.txt" strcatn "Serial IO (SetComPort):"::param::">>"::port::","::speed::","::bytesize::","::parity::","::stopbits::","::slastchar::nil;
+	
+    //_closeSIO strcat "com" port ;//scom;
+    let 1 -> inst in /*dummy var*/
+	let _openSIO _channel strcat "com" param [(atoi speed) (atoi parity) (atoi bytesize) (atoi stopbits)] @cbRead [inst slastchar ""] -> scom in
+	0;
+  );
+  0;;  
+ 
+fun rflTimer (t, param)=
+
+  //let strcatn iniPath::DMSname::"/clocation"::(itoa DMSid)::".txt"::nil -> posfile in	 
+  /*let strcatn iniPath::DMSname::"/clocation.txt"::nil -> posfile in	 
+  let _getpack _checkpack posfile -> position in
+  
+  let lineextr position -> p in
+  let lineextr param -> pl in  
+  
+  _echo strcatn "Serial IO:"::posfile::"-"::position::"-"::param::nil  
+  */
+  _echo strcatn "Serial IO:"::port::","::speed::","::bytesize::","::parity::","::stopbits::","::lastchar::nil  
+  0;;  
+  
+/*read local presets, override session file*/  
+fun readLocalPresets(sno, param) =
+  let strcatn sesfname::(itoa sno)::".txt"::nil -> ses in
+  let strcat sessionpath ses -> sesfile in
+  
+  let strcatn iniPath::DMSname::"/serialio.ini"::nil -> comfile in
+  let _getpack _checkpack comfile -> comSettings in 
+  
+  if (comSettings!=nil) then
+	_storepack comSettings sesfile  
+  else 
+    _storepack param sesfile;;  
+	
+
+fun activate(from,action,param,rep,p)=
+ if !strcmp action "Send" then /*not come here*/
+ (
+   saveLog "serial_write.txt" strcatn "Serial IO (Send):"::param::">>"::port::","::speed::","::bytesize::","::parity::","::stopbits::","::slastchar::nil;
+   0;
+ ) 
+ else if !strcmp action "Set com port" then /*not come here*/
+ (
+   saveLog "serial_write.txt" strcatn "Serial IO (SetCOM):"::param::">>"::port::","::speed::","::bytesize::","::parity::","::stopbits::","::slastchar::nil;
+   0;
+ )
+ else if !strcmp action "Settings" then
+ (
+   configComPort;
+   0;
+ ) 
+ else 
+   nil;;  	
+	
+fun cbcomm(ui,action,param)=
+ if !strcmp action "Read" then
+  //getphot ui 
+  nil
+ else if !strcmp action "Send" then
+  //(set uis=ui::uis;0)
+  nil
+ else if !strcmp action "Set com port" then 
+  //Usend this ui "setAvDefFile" avDefaultFile 
+  nil
+ else 0;;	
+		
+fun newInst(ui)=
+ UcbComm this ui @cbcomm;
+ 0;;	
+   
+/*Read the parameters from editor values and connect the serial port*/  
+fun IniDMI(param)=    
+  //_DMSregisterDMI this @activate @deleteOb;
+  UcbCreate this @newInst;   
+ 
+  _DMSevent this "in" nil nil;
+  //_DMSeventTag this "in" nil nil nil;	   
+  _DMSevent this "hear" strcat strcat ">> Serial ON " _DMSgetName this "\n" nil;   
+  
+  let atoi substr _versionname 0 1 -> verSCOL in
+  if (verSCOL > 5) then /*NO EFFECT = link error*/
+  (  
+    /*begin session*/
+    set sno = rand;
+    set nsno = strcatn "serialIO"::"/"::(itoa sno)::nil;
+
+    /*in this file write static params */
+    /*let strcatn sesfname::(itoa sno)::".txt"::nil -> ses in
+    /let strcat sessionpath ses -> sesfile in
+	_storepack param sesfile;
+	*//*override session com params */
+	readLocalPresets sno param;
+   
+    /*read session to variable */   
+    set sesdata = getSessionData;
+    //_echo strcatn "Session init ("::DMSname::"):"::(strbuild sesdata)::nil 
+	
+	/*set com settings */
+    set port = getSessionParam 1 1;
+    set speed = getSessionParam 2 1;
+    set bytesize = getSessionParam 3 1;	
+    set parity = getSessionParam 4 1;
+    set stopbits = getSessionParam 5 1;
+    set lastchar = getSessionParam 6 1; 
+	set refresh = getSessionParam 7 1; 
+	
+    /* slastchar NONE CR CRLF */
+	let atoi lastchar -> lc in
+    let if lc == 1 then ctoa 13 else if lc == 2 then (strcat (ctoa 13) (ctoa 10)) else "" -> slastchar in	
+
+	let 1 -> inst in /*dummy var */
+    let _openSIO _channel strcat "com" port [(atoi speed) (atoi parity) (atoi bytesize) (atoi stopbits)] @cbRead [inst slastchar ""] -> scom in
+    ( 
+	  /*params are session-server data but inside take global params as readed */
+	  /* NO NEED, just for echo */
+	  //let atoi refresh -> serialCheck in
+	  set timer = _rfltimer _starttimer _channel (atoi refresh) @rflTimer (strbuild sesdata);	  
+	  
+      //PluginRegisterAction inst "Send" mkfun6 @cbSend [scom speed parity bytesize stopbits slastchar];
+      //PluginRegisterAction inst "Set com port" mkfun6 @cbSetComPort [scom speed parity bytesize stopbits slastchar];
+      //setPluginInstanceCbDel inst mkfun2 @deleteOb scom;
+	 
+	  _DMSdefineActions this (["Send" @cbSend2])::
+                             (["Set com port" @cbSetComPort2])::
+							 (["Settings" @activate])::nil;
+    );	
+	  
+  	0;
+  )
+  else nil;;  

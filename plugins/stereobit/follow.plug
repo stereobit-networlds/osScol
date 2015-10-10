@@ -1,0 +1,13 @@
+# stereobit 2014
+# rev : 01/07/2014
+
+name Follow
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/stereobit/follows.pkg
+serverScript _load\ "Dms/3d/Plugins/stereobit/follows.pkg"
+clientLoad Dms/3d/Plugins/stereobit/3dmath.pkg
+clientLoad Dms/3d/Plugins/stereobit/followc.pkg
+clientScript _load\ "Dms/3d/Plugins/stereobit/followc.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/stereobit/followe.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/stereobit/followe.pkg"
+version 1 0

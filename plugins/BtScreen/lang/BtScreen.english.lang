@@ -1,0 +1,16 @@
+AV_AVATAR           Avatar
+AV_WARNING          Warning: bitmap should be in Scol partitions
+AV_WARNING2         Warning: file too long (>16384 bytes)
+AV_WARNING3         Warning: cannot open bitmap
+AV_CHOOSE           Choose your photo and Avatar
+AV_PREV             Previous
+AV_NEXT             Next
+AV_TRANS            Transparency
+AV_CHANGE           Change Photo
+AV_OK               Ok
+AV_CANCEL           Cancel
+SNAP_SNAPSHOT       Snapshot
+SNAP_START          Start
+SNAP_STOP           Stop
+SNAP_SAVE           Save
+SNAP_LOAD           Load

@@ -1,0 +1,11 @@
+AV_AVATAR           Avatar
+AV_WARNING          Attention : la bitmap doit être dans la partition Scol
+AV_WARNING2         Attention : fichier trop gros (>16384 octets)
+AV_WARNING3         Attention : ne peut ouvrir la bitmap
+AV_CHOOSE           Choisir une photo et un Avatar
+AV_PREV             Précédent
+AV_NEXT             Suivant
+AV_TRANS            Transparence
+AV_CHANGE           Changer Photo
+AV_OK               Ok
+AV_CANCEL           Annuler

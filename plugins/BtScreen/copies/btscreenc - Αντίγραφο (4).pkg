@@ -1,0 +1,1021 @@
+/* rev 11 - 2001 - by Sebastien DENEUX */
+
+/* add event with no url by iri 01/2004 */
+
+/* extend 07/2014 by stereobit*/
+
+typeof Bitmap  = ObjBitmap;;
+typeof BitmapH = I;;
+typeof BitmapL = I;;
+typeof class   = S;;
+
+struct Tdata = 
+[
+  D_posX : I,               /* X position of the logo */
+  D_posY : I,               /* Y position of the logo */
+  D_view_posX : I,
+  D_view_posY : I,
+  D_url : S,                /* url to redirect when click */
+  D_bitmap : ObjBitmap,     /* bitmap on he screen */
+  D_bitmapW : I,            /* widht of the bitmap */
+  D_bitmapH : I,            /* Height of the bitmap */
+  D_show : I,               /* flag to show the bitmap */
+  D_in : I,                 /* The mouse is in the bitmap */
+  D_alias : S,              /* text on the picture */
+  D_trans : I
+] mkData;;
+
+
+typeof lImages = [S r1];;              
+typeof lImagesDisplayed = [ObjBitmap r1];;
+typeof lStoreImages = [[ObjBitmap S I I I I I I I I I] r1];; /*bmp name width height xonscreen yonscreen transp status srceenx screeny inzone4click*/ 
+typeof lBufferImages = [TData r1];;
+typeof setImages = I;;
+typeof font = ObjFont;; 
+
+typeof nav=Nav;;
+typeof focus=DMI;;
+typeof _reply=S;;
+//var bmpname="lib/stereobit/resources/ctrl3.jpg";;
+var horiz=1;;//0;;
+
+struct Nav=
+ [chNav:Chn,winNav:ObjWin,movNav:fun[[I I I] [I I I] I] I,
+  bufNav:ObjBitmap,bmpNav:ObjBitmap,
+  kNav:[I I],vectorNav:[I I I],angularNav:[I I I],
+  refNav:[I I],flagNav:I,curNav:I,
+  backcursNav:ObjCursor,frontcursNav:ObjCursor,bsizeNav:I
+ ]mkNav;;
+
+var NAV_CHILD=1;;
+var NAV_RESIZE=2;;
+var NAV_HOR=4;;
+var NUM_BOX=3;;
+
+ 
+typeof IMAGENAV = S;;
+
+proto _getBitmapI = fun [[[ObjBitmap S I I I I I I I I I] r1] S] ObjBitmap;;
+proto _getInfoI = fun [[[ObjBitmap S I I I I I I I I I] r1] S] [I I I I I I];;
+proto setIScreenXY = fun [[[ObjBitmap S I I I I I I I I I] r1] S [I I I]] [I I I I I I];;
+proto hideI = fun [[[ObjBitmap S I I I I I I I I I] r1] S] [ObjBitmap S I I I I I I I I I];;
+proto showI = fun [[[ObjBitmap S I I I I I I I I I] r1] S] [ObjBitmap S I I I I I I I I I];;
+
+fun _echo(x,s)= 
+	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+;;
+
+/*** see at contextHelp event ***/
+fun eventParam(a, b) = 
+  strbuild ("ref"::a::nil)::("userParam"::b::nil)::nil;;
+
+fun searchSlash(string, pos)=
+  let strfind "/" string pos -> r in
+  if r != nil then
+    searchSlash string r+1
+  else
+    pos;;
+
+/************** nav funcs ***********/	  
+
+fun _PaintE(x,b)= 
+ _BLTbitmap b.winNav b.bufNav 0 0 
+;;
+   
+fun _UnclickE(a,b,x,y,button)=
+ set b.vectorNav=set b.angularNav=[0 0 0];
+ exec b.movNav with [b.vectorNav b.angularNav 0];
+ set b.curNav=nil;;
+
+fun getnumbox(b,x,y)=
+ let _GETbitmapSize b.bufNav ->[w h] in
+ let if b.flagNav&NAV_HOR then [x*NUM_BOX*4/w y*4/h]
+  else [y*NUM_BOX*4/h x*4/w]->[L l] in
+ if ((l+1)&2)&&((L+1)&2) then L>>2
+ else nil;;
+
+fun _ClickE(a,b,x,y,button)=
+ _SETfocus b.winNav ;
+ _echo strcatn "_ClickE:"::(itoa x)::","::(itoa y)::nil
+ set b.curNav=getnumbox b x y;
+ if b.curNav==3 then exec b.movNav with [[0 0 0] [0 0 0] 1]
+ else nil;
+ set b.refNav=[x y];;
+
+fun movecurs(b,x,y)=
+  _echo strcatn "_movecurs:"::(itoa x)::","::(itoa y)::nil
+ let b.kNav ->[kv ka] in
+ let b.refNav ->[xr yr] in
+ (set x=x-xr;
+  set y=yr-y;
+  set b.vectorNav=
+   if b.curNav==0 then [x*kv y*kv 0]
+   else if b.curNav==1 then [0 0 y*kv]
+   else [0 0 0];
+  set b.angularNav=
+   if b.curNav==1 then [(-x*ka) 0 0]
+   else if b.curNav==2 then [0 y*ka 0]
+   else [0 0 0]
+ );;
+
+fun _CursorE(a,b,x,y,c)=
+ //_echo strcatn "_CursorE:"::(itoa x)::","::(itoa y)::nil
+ if nil==getnumbox b x y then _SETwinCursor b.winNav b.backcursNav
+ else _SETwinCursor b.winNav b.frontcursNav;
+ if b.curNav==nil then nil
+ else
+ (movecurs b x y;
+  exec b.movNav with [b.vectorNav b.angularNav 0]
+ );;
+
+fun _keydownE (t,b,code,val)=
+ _echo strcatn "_keydownE:"::(itoa code)::nil
+ let b.kNav ->[kv0 ka0] in
+ let [kv0*64 ka0*64] ->[kv ka] in
+ (set b.vectorNav=
+  if _keybdstate&2 then
+   if val==0xff51 then [(-kv) 0 0]
+   else if val==0xff53 then [kv 0 0]
+   else if val==0xff52 then [0 kv 0]
+   else if val==0xff54 then [0 (-kv) 0]
+   else [0 0 0]
+  else if _keybdstate&1 then
+   [0 0 0]
+  else
+   if val==0xff52 then [0 0 kv]
+   else if val==0xff54 then [0 0 (-kv)]
+   else [0 0 0];
+  set b.angularNav=
+  if _keybdstate&2 then
+   [0 0 0]
+  else if _keybdstate&1 then
+   if val==0xff52 then [0 ka 0]
+   else if val==0xff54 then [0 (-ka) 0]
+   else [0 0 0]
+  else
+   if val==0xff51 then [ka 0 0]
+   else if val==0xff53 then [-ka 0 0]
+   else [0 0 0]);
+  exec b.movNav with [b.vectorNav b.angularNav 0]
+;;
+
+fun _keyupE (a,b,code)=
+ _echo strcatn "_keyupE:"::(itoa code)::nil
+ set b.vectorNav=set b.angularNav=[0 0 0];
+ exec b.movNav with [b.vectorNav b.angularNav 0]
+;;
+
+fun _DestroyE(x,b)=
+ _DSbitmap b.bufNav;
+ _DSbitmap b.bmpNav;
+ _DMSdelete this
+;;
+
+fun calcwin(b)=
+ let _GETbitmapSize b.bmpNav -> [w h] in
+ let _GETbitmapSize b.bufNav ->[ww hh] in
+ _SCPbitmap b.bufNav 0 0 ww-1 hh-1 b.bmpNav 0 0 w-1 h-1 nil
+ ;;
+   
+fun _ResizeE(a,b,w,h)=
+ _echo strcatn "_resizeE:"::(itoa w)::nil
+ _DSbitmap b.bufNav;
+ set b.bufNav=_CRbitmap b.chNav max 1 w max 1 h;
+ calcwin b;
+ _paintE nil b;;
+
+fun _MoveE(a,b,w,h)= 0;;
+
+fun iniNav(ch,father,x,y,w,h,title,mov,flag,frontcurs,backcurs,horiz,bmp)=
+
+ //_DestroyE nil b; /*re-call, if has already initialized then destroy first*/
+ 
+ let _CRwindow ch father x y w h 
+  (if flag&NAV_CHILD then WN_CHILDINSIDE|WN_NOCAPTION|WN_NOBORDER else WN_MENU+WN_MINBOX)+
+  (if flag&NAV_RESIZE then WN_SIZEBOX else 0) title -> win in
+ let _CRbitmap ch w h -> buf in
+ 
+ //let _LDbitmap ch _checkpack bmpname -> bmp0 in
+ //let if bmp0==nil then _LDjpeg ch _checkpack bmpname else bmp0 -> bmp in
+ 
+ let mkNav [ch win mov buf bmp [1 20] nil nil nil flag+4*horiz nil frontcurs backcurs 64] -> b in
+ (calcwin b;
+  _CBwinDestroy win @_DestroyE b;
+  _CBwinPaint win @_PaintE b;
+  _CBwinSize win @_ResizeE b; /*fix dim*/
+  _CBwinMove win @_MoveE b;  
+  _CBwinClick win @_ClickE b;
+  _CBwinUnclick win @_UnclickE b;
+  _CBcursorMove win @_CursorE b;
+  _CBwinKeydown win @_keydownE b;
+  _CBwinKeyup win @_keyupE b;
+  _PaintE nil b;
+  b
+ );;
+ 
+fun navig(v,w,f)=
+ let v->[x y z] in let w->[a b c] in
+ let strbuild ((itoh x)::(itoh y)::(itoh z)::(itoh a)::(itoh b)::(itoh c)::(itoh f)::nil)::nil
+ -> msg in
+ (_echo strcatn "navig:"::msg::nil
+  _DMSreply this focus _reply msg nil;
+  _DMSevent this "Command" msg nil);;
+  
+fun resizeNav(list, navImage) = 
+  if ((strlen navImage) != nil) then
+	(let _getInfoI list navImage -> [w h x y _ v] in
+	if (_GETsurfaceState == SURFACE_WINDOWED) then
+	  _MVwindow nav.winNav x y
+	else  
+	  _MVwindow nav.winNav 20 50; /* ??? */
+	0)
+  else nil;;
+
+fun showNav() = 
+  _SHOWwindow nav.winNav WINDOW_UNHIDDEN;
+  0;;  
+
+fun hideNav() = 
+  _SHOWwindow nav.winNav WINDOW_HIDDEN;
+  0;;  
+  
+/*global nav re-call, 
+  if has already initialized then destroy first*/  
+fun destroyNav()=  
+ if (nav!=nil) then
+ ( 
+   _DSwindow nav.winNav;
+   set nav = nil
+ )
+  else nil;;  
+
+fun createNav(list, x, y) =
+	if ((strlen IMAGENAV) == nil) then
+	  nil
+	else
+	  let _getInfoI list IMAGENAV -> [w h xpos ypos _ _] in
+	  if w then (
+	  
+	    destroyNav;
+		//hideI lStoreImages IMAGENAV;
+	  
+        let getView3dSize w3d -> [ScreenW ScreenH] in 
+        let if x<0 then ScreenW+x-w else x -> xs in
+        let if y<0 then ScreenH+y-h else y -> ys in	  
+	    let [xs ys 0] -> param in
+	    let setIScreenXY list IMAGENAV param -> [w h xs ys _ _] in 
+	    set nav = iniNav _channel DMSwin xs ys w h "Navigation" @navig 1 StdCursor CrossCursor horiz (_getBitmapI list IMAGENAV);
+	    1
+	  )
+	  else nil;;  
+ 
+/***************************************/ 
+
+fun _widthImage(bmp)=
+  let _GETbitmapSize bmp -> [w _] in
+  w;;
+  
+fun _heightImage(bmp)=
+  let _GETbitmapSize bmp -> [_ h] in
+  h;;  
+
+fun destroyImage(bmp)=
+  _DSbitmap bmp;;
+
+fun cbwinImages(btn, u)=
+  let u -> [win chImage] in
+  let 0 -> i in
+  (while i <= (sizelist lImagesDisplayed) do
+     let nth_list lImagesDisplayed i -> bmp in
+     (destroyImage bmp;
+      set i = i+1);
+   set setImages = _GETcheck chImage;
+   _DSwindow win;
+   _SETfocus w3d.V3dwin;
+   0);;
+
+fun _openImage(o, p)=
+  let hd UgetParam ObUi o "rpath" -> path in  
+  
+  if (_LDbitmap _channel _checkpack strcatn path::"/"::p::".bmp"::nil) != nil then
+    _LDbitmap _channel _checkpack strcatn path::"/"::p::".bmp"::nil
+  else
+    _LDjpeg _channel _checkpack strcatn path::"/"::p::".jpg"::nil;;
+   
+fun endDownloadImages(file)=
+  let if (strfind ".jpg" file 0) != nil then
+        strfind ".jpg" file 0
+      else
+        strfind ".bmp" file 0
+  -> r in  
+  let substr file 0 r -> s in
+  let searchSlash s 0 -> poslastslash in
+  let substr s poslastslash strlen s -> name in
+  /*_echo strcatn "Image:"::name::nil  */
+  set lImages = name::lImages;
+  0;;
+  
+/* download dir resource pics 1st method */
+fun downloadImages(files)=
+  let 0 -> i in
+  while i < (sizelist files) do
+    let nth_list files i -> file in
+    (
+	 _echo strcat "Download file...............:" file
+	 _RSCdownload this file file @endDownloadImages 1;
+     set i = i+1
+	 );;
+
+fun _searchImages(o, list, name)=
+  if list == nil then
+    nil
+  else
+    let hd list -> elt in
+    if !strcmp elt name then
+      [(_openImage o name) name]
+    else
+      _searchImages o tl list name;;
+  
+/*fetch image from disk file, image searching by name (lImages) */  
+fun _getImage(o, name)=
+  _searchImages o lImages name;;
+
+fun getImagesDisplayed(list, n, o, win)=
+  if list == nil then
+    (_PAINTwindow win;
+     0)
+  else
+    let hd list -> name in
+    let hd UgetParam ObUi o "rpath" -> path in
+    let if (_LDbitmap _channel _checkpack strcatn path::"/"::name::".bmp"::nil) != nil then
+          _LDbitmap _channel _checkpack strcatn path::"/"::name::".bmp"::nil
+        else
+          _LDjpeg _channel _checkpack strcatn path::"/"::name::".jpg"::nil
+        -> bmp in
+    (_BLTbitmap win bmp 5+(mod((sizelist lImages)-(sizelist list)) 5)*50 (((sizelist lImages)-(sizelist list))/5)*45;
+     _TXTout win font 5+(mod((sizelist lImages)-(sizelist list)) 5)*50 25+(((sizelist lImages)-(sizelist list))/5)*45 0 0 name;
+     set lImagesDisplayed = bmp::lImagesDisplayed;
+     getImagesDisplayed tl list n o win);;
+
+fun displayImagesWIN(o)=
+  let sizelist lImages -> n in
+  /*_echo strcat "SizeList:" (itoa n)*/
+  let _CRwindow _channel w3d.V3dwin 100 100 250 ((n/5)+2)*45 0 "Images" -> winImages in
+  let _CRcheck _channel winImages 5 ((n/5)+1)*45 240 20 CH_LEFT|CH_DOWN "Activated" -> chImage in
+  (
+   getImagesDisplayed lImages n o winImages;
+   _CBbutton _CRbutton _channel winImages 5 20+((n/5)+1)*45 240 20 0 (_loc this "term3d_close" nil) @cbwinImages [winImages chImage]);
+  0;;	 
+    
+/*fun npicLW() = 
+  let hd lBufferImages -> zn in
+  zn.D_bitmapW;;
+*/
+  
+/*fetch image from lBufferImages, by list id*/
+fun callImageB(i, x, y) = 
+  let nth_list lBufferImages i -> zn in
+  zn;;  
+  //zn.D_bitmapW;;  
+  
+/* all image list funcs */  
+fun showImages(list) = 	
+  if list == nil then
+    nil
+  else
+   (mutate hd list <- [_ _ _ _ _ _ _ 1 _ _ _];
+	showImages tl list ;0);;
+  
+fun hideImages(list) = 	
+  if list == nil then
+    nil
+  else
+  (mutate hd list <- [_ _ _ _ _ _ _ 0 _ _ _];
+   showImages tl list;0);;   
+   
+fun infoImages(list) = 	
+  if list == nil then
+    nil
+  else
+  (let hd list -> [_ n w h x y t v sw sh _] in
+   let getView3dSize w3d -> [nsw nsh] in
+   _echo strcatn "Image:"::n::"-"::(itoa w)::"x"::(itoa h)::","::(itoa x)::","::(itoa y)::"->"::(itoa t)::"-"::(itoa v)::"->"::(itoa sw)::","::(itoa sh)::"->"::(itoa nsw)::","::(itoa nsh)::nil
+   infoImages tl list;0);;    
+   
+/* per image funcs */     
+fun _getInfoI(list, name) = 	
+  if list == nil then
+    nil
+  else
+   let hd list -> [_ n w h x y t v sh sw _] in
+   if !strcmp n name then
+    [w h x y t v]
+   else
+	_getInfoI tl list name;;   
+	
+fun _getBitmapI(list, name) = 	
+  if list == nil then
+    nil
+  else
+   let hd list -> [bmp n w h x y t v sh sw _] in
+   if !strcmp n name then
+    bmp
+   else
+	_getBitmapI tl list name;; 
+
+fun showI(list, name) = 	
+  if list == nil then
+    nil
+  else
+    let hd list -> [_ n _ _ _ _ _ _ _ _ _] in  
+    if !strcmp n name then
+      mutate hd list <- [_ _ _ _ _ _ _ 1 _ _ _]
+	else
+	  showI tl list name;;
+  
+fun hideI(list, name) = 	
+  if list == nil then
+    nil
+  else
+    let hd list -> [_ n _ _ _ _ _ _ _ _ _] in
+    if !strcmp n name then
+      mutate hd list <- [_ _ _ _ _ _ _ 0 _ _ _]
+	else
+	  hideI tl list name;; 	
+
+/*set lStoreImage xy on screen */   
+fun setIScreenXY(list, name, params) = 
+  
+  if list == nil then
+    nil
+  else
+    let hd list -> [_ n w h x y t v _ _ _] in
+    if !strcmp n name then
+	(
+      let params -> [x y view] in
+      let getView3dSize w3d -> [ScreenW ScreenH] in 
+      let if x<0 then ScreenW+x else x -> xs in
+      let if y<0 then ScreenH+y else y -> ys in
+      (
+        /*store pos and enable view - auto show when move it*/   
+        mutate hd list <- [_ _ _ _ xs ys _ view ScreenW ScreenH _];
+	    /*return value as _getInfoI*/
+	    [w h xs ys t 1]  
+	  )	
+	)  
+    else
+      setIScreenXY tl list name params;;  
+
+	  
+/*************** img handler ***********/	  
+	  
+fun startImages(list) =	  
+	let _getInfoI list "logo1" -> [w h xpos ypos _ _] in
+	let [xpos+100 ypos+100 1] -> param in
+	setIScreenXY list "logo1" param;
+	
+	//let _getInfoI list "ctrl1" -> [w h xpos ypos _ _] in
+	let [-150 (-240) 1] -> param1 in
+	setIScreenXY list "ctrl1" param1;
+
+	//let _getInfoI list "ctrl2" -> [w h xpos ypos _ _] in
+	let [-150 (-120) 1] -> param2 in
+	setIScreenXY list "ctrl2" param2;
+
+	/*
+	if ((strlen IMAGENAV) == nil) then
+	  nil
+	else
+	  let _getInfoI list "ctrl3" -> [w h xpos ypos _ _] in
+	  if w then (
+	    let [40 ((-h)-10) 1] -> param3 in
+	    let setIScreenXY list "ctrl3" param3 -> [w h x y _ _] in 
+	    set nav = iniNav _channel DMSwin x y w h "Navigation" @navig 1 StdCursor CrossCursor horiz (_getBitmapI list "ctrl3");
+	    0
+	  )
+	  else nil;*/
+0;;	
+	  
+fun initImages(o, from, action, param, reply, p) =
+    /* 1st type of dnload (lImages)*/
+	//let _getImage o "ctrl2" -> [bmp n] in
+	//let _GETbitmapSize test -> [w h] in
+	
+	//let callImageB 1 10 10 -> w in
+	//_echo strcatn "Image:"::n::"->"::(itoa w)::","::(itoa h)::nil
+
+	
+    startImages lStoreImages;
+    createNav lStoreImages 20 (-20);	
+	
+    infoImages lStoreImages;
+	
+	displayImagesWIN o
+;;	 	
+
+fun resizeImages(list, screenw, screenh) = 	
+  if list == nil then
+    nil
+  else
+  (
+    let hd list -> [_ name w h x y _ _ oldScreenW oldScreenH _] in
+	
+	  let if x > (oldScreenW - x) then
+		screenw - (oldScreenW - x)
+	  else //if x < (oldScreenW - x) then
+        x 
+	  /*else 
+	    (screenw/2) - (w/2)*/ -> nPosX in	  
+
+	  let if y > (oldScreenH - y) then
+	    screenh - (oldScreenH - y)
+	  else //if y < (oldScreenH - y) then
+        y 
+	  /*else	
+	    (screenh/2) - (h/2)*/ -> nPosY in
+    
+    mutate hd list <- [_ _ _ _ nPosX nPosY _ _ screenw screenh _];
+    resizeImages tl list screenw screenh;
+    0	
+  );;  	
+  
+fun clickImages(list, b) = 
+  let b -> [_ [xclick yclick bt]] in
+  
+  if list == nil then
+    nil
+  else  
+  (  
+      let hd list -> [_ name w h x y _ view _ _ inzone] in
+	  //_echo strcatn "Click:"::name::(itoa x)::","::(itoa y)::"->"::(itoa xclick)::","::(itoa yclick)::"->"::(itoa inzone)::nil
+	
+	  if bt==1 && view==1 && inzone==1 && (xclick > x) && (xclick < x+w) && (yclick > y) && (yclick < y+h) then
+        _DMSevent this strcat class ".click" name nil
+      else
+        _DMSevent this strcat class ".click" nil nil;
+		
+      clickImages tl list b;
+   0);;   
+
+fun moveImages(list, o, b, zShown) = 
+  let b -> [_ [xmove ymove _]] in
+  
+  if list == nil then
+	nil
+  else   
+  (
+    let hd list -> [_ name w h x y _ view _ _ inzone] in
+    //_echo strcatn "Move:"::name::(itoa x)::","::(itoa y)::"->"::(itoa xmove)::","::(itoa ymove)::"->"::(itoa inzone)::nil
+	
+    if (xmove > x) && (xmove < x+w) && (ymove > y) && (ymove < y+h) then 
+      if zShown==1 && view && !inzone then
+      (
+	    /*if (!strcmpi name IMAGENAV) then
+		 //no event on image with nav (no need)
+		 nil
+		else  
+        (*/
+		mutate hd list <- [_ _ _ _ _ _ _ _ _ _ 1];
+        _DMSevent this "contextHelp" strbuild ("ref"::name::nil)::("userParam"::"1"::nil)::nil nil;
+        OB_TakeMouse o;
+        OB_TakeCursor o;
+        OB_SetCursor o HandCursor;
+        /*0)*/
+      )
+      else
+        nil
+    else if inzone then
+    (
+      mutate hd list <- [_ _ _ _ _ _ _ _ _ _ 0];
+      _DMSevent this "contextHelp" nil nil;
+      OB_ReleaseMouse o;
+      OB_ReleaseCursor o;
+      OB_SetCursor o StdCursor
+    )		
+    else
+	  nil;
+	  
+	moveImages tl list o b zShown;
+  0);;	
+   
+fun blitImages(list, surf) = 	
+  if list == nil then
+    nil
+  else
+  (let hd list -> [bmp name w h x y trans view _ _ _] in
+   if view then
+     _Bitmap2Surface surf x y bmp 0 0 w h 0 
+   else
+      nil;   
+   blitImages tl list surf;
+   0);; 	  
+	 
+	 
+	 
+/*******************************************************************
+  blit the logon on the screen
+    o -> Obj
+    z -> 
+    p -> Tdata
+********************************************************************/
+fun cbBlitLogo(o, b, p) =	
+	let p -> [z transColor] in
+	let b->[surf [l h]] in
+  	if z.D_show /*&& (_GETsurfaceState == SURFACE_WINDOWED)*/ then   	
+  	(	
+		blitImages lStoreImages surf;
+		
+	    let if z.D_trans then transColor else nil -> transparence in 
+	  
+  		_Bitmap2Surface surf z.D_view_posX z.D_view_posY z.D_bitmap 0 0 z.D_bitmapW z.D_bitmapH transparence ;	
+        0  		  
+	)	  
+  	else 
+  	  nil;	 
+  	0
+;;
+
+/*********************************************************************
+  find extension file
+    fi -> S         : name of the file
+       <- S         : extension
+**********************************************************************/
+fun extension(fi) =
+
+	let 0->j in
+	let 0->find in
+	(
+	  while ((set find=strfind "." fi j)!=nil) do 
+	  (
+		  set j=find+1
+	  );
+	  substr fi j (strlen fi)-j
+	)
+;;
+
+/*********************************************************************
+  open the bitmap
+    stringF -> S        : name of the bitmap
+    p -> Tdata
+*********************************************************************/
+fun openBMP(stringF, p) =
+
+  let _checkpack stringF->fP in
+    if (fP != nil) then
+    (
+	    if (!strcmpi (extension stringF) "png") then
+	    (
+		    let _LDalphaBitmap _channel fP->alphabmp in
+		    let _GETalphaBitmapSize alphabmp->[l h] in
+		    let _GETalphaBitmaps alphabmp -> [bmp b8] in 
+		    (
+		      _DSbitmap8 b8;
+		      set p.D_bitmap = bmp;
+		      set p.D_bitmapW = l;
+		      set p.D_bitmapH = h
+		    );
+		    
+	    )
+	    else 
+	      let 
+	        if (!strcmpi (extension stringF) "jpg") then 
+	          _LDjpeg _channel fP
+		      else if (!strcmpi (extension stringF) "bmp") then 
+	          _LDbitmap _channel fP 
+		      else if (!strcmpi (extension stringF) "tga") then 
+	          _LDtga _channel fP
+		      else
+		        nil
+		    -> bmp in
+		      if bmp == nil then
+		        nil
+		      else
+		        let _GETbitmapSize bmp -> [l h] in 
+		        (
+		           set p.D_bitmap = bmp;
+		           set p.D_bitmapW = l;
+		           set p.D_bitmapH = h
+		        );
+	          
+    )
+    else
+    (
+      set p.D_bitmap = nil;
+		  set p.D_bitmapW = nil;
+		  set p.D_bitmapH = nil
+    );
+    
+    0
+;;
+
+/*******************************************************************
+  hide the picture
+********************************************************************/
+fun hide(o, from, action, param, reply, p) =
+  set p.D_show = 0;
+  hideNav;
+  0
+;;
+
+/*******************************************************************
+  show the picture
+********************************************************************/
+fun show(o, from, action, param, reply, p) =
+  set p.D_show = 1;
+  showNav;
+  0
+;;
+
+/*******************************************************************
+  callback on click **@** MODIFIED BY IRI **@**
+********************************************************************/
+
+fun cbClic(o,b,z) =
+  let b -> [_ [xclick yclick bt]] in  
+  
+	  if z.D_url!=nil && bt==1 && (xclick > z.D_view_posX) && (xclick < z.D_view_posX+z.D_bitmapW) && (yclick > z.D_view_posY) && (yclick < z.D_view_posY+z.D_bitmapH) then
+        _DMSevent this strcat class ".click" z.D_url nil
+      else if z.D_url==nil && bt==1 && (xclick > z.D_view_posX) && (xclick < z.D_view_posX+z.D_bitmapW) && (yclick > z.D_view_posY) && (yclick < z.D_view_posY+z.D_bitmapH) then
+        _DMSevent this strcat class ".click" nil nil
+      else
+        clickImages lStoreImages b;	  
+    0
+;;
+
+fun cbMove(o,b,z) =
+  let b -> [_ [xmove ymove _]] in
+    
+  if (xmove > z.D_view_posX) && (xmove < z.D_view_posX+z.D_bitmapW) && (ymove > z.D_view_posY) && (ymove <  z.D_view_posY+z.D_bitmapH) then  /*move ds la zone*/
+    if z.D_show && !z.D_in then
+    (
+      set z.D_in = 1;
+      if z.D_alias != nil then
+      (
+        _DMSevent this "contextHelp" strbuild ("ref"::z.D_alias::nil)::("userParam"::"1"::nil)::nil nil;
+        0
+      )
+      else
+        nil;
+      
+      OB_TakeMouse o;
+      OB_TakeCursor o;
+      OB_SetCursor o HandCursor;
+      
+    )
+    else
+      nil
+  else /*move en dehors de la zone*/
+    if z.D_in then
+    (
+      set z.D_in = 0;
+      _DMSevent this "contextHelp" nil nil;
+      OB_ReleaseMouse o;
+      OB_ReleaseCursor o;
+      OB_SetCursor o StdCursor
+    )
+    else
+      moveImages lStoreImages o b z.D_show;		  
+  0
+;;
+    
+  
+fun cbDestroylBufferImages(zn) = 
+  _DSbitmap zn.D_bitmap;; /* ???----------------- */
+  
+fun delImages(list) =
+  if list == nil then
+    nil
+  else
+  (
+    let hd list -> zn in
+    _DSbitmap zn.D_bitmap;
+	delImages tl list;
+	0
+  );;	
+    
+fun cbDestroylStoreImages(list) = 	
+  if list == nil then
+    nil
+  else
+  (
+    let hd list -> [bmp _ _ _ _ _ _ _ _ _ _] in
+    _DSbitmap bmp;
+	cbDestroylStoreImages tl list;
+	0
+  );;	
+  
+fun cbDestroy(o, p) =
+  
+  OB_ReleaseMouse o;
+  OB_ReleaseCursor o;
+  ObCbPostRender o nil;
+  _DSbitmap p.D_bitmap;
+  
+  /*destroy images */
+  cbDestroylStoreImages lStoreImages;
+  
+  //apply_on_list lBufferImages @cbDestroylBufferImages 0
+  //delImages lBufferImages ;
+  0
+;;
+
+
+fun cbLOGO_resize (ob, param, z) =
+  let param -> [w h] in
+  (
+    /*resize/move images */
+    resizeImages lStoreImages w h;
+	resizeNav lStoreImages IMAGENAV;
+  
+    set z.D_view_posX = ((z.D_posX*w)/100) - (z.D_bitmapW/2);
+    set z.D_view_posY = ((z.D_posY*h)/100) - (z.D_bitmapW/2);
+  
+    if ((z.D_view_posX + z.D_bitmapW) > w) then 
+      set z.D_view_posX = w - z.D_bitmapW
+    else
+      nil;
+    
+    if (z.D_view_posX < 0) then 
+      set z.D_view_posX = 0
+    else
+      nil;
+    
+    if ((z.D_view_posY + z.D_bitmapH) > h) then 
+      set z.D_view_posY = h - z.D_bitmapH
+    else
+      nil;
+    
+    if (z.D_view_posY < 0) then 
+      set z.D_view_posY = 0
+    else
+      nil  
+    
+  );
+  0
+;;
+
+/**alternative method to download dir resource pics */
+
+/*store in struct ????*/
+fun endDownloadImages3(name)=
+
+  let mkData[0 0 100 100 nil nil nil nil 1 0 nil nil] -> zn in
+  (
+    let openBMP name zn -> _ in	
+	let _GETpixel16 zn.D_bitmap 0 0 -> colRGB in
+    let ((colRGB&16252928)>>16)+(colRGB&63488)+((colRGB&248)<<16) -> transColor in		
+	let getView3dSize w3d -> [w h] in
+	
+    let [lBufferImages zn] -> lBufferImages in	
+	
+	_DMSevent this strcat class ".loading" name nil;	
+	
+  );;	
+  
+/*store in list  */
+fun endDownloadImages2(file)=
+
+  let if (strfind ".jpg" file 0) != nil then
+      strfind ".jpg" file 0
+    else
+      strfind ".bmp" file 0
+  -> r in  
+
+  let if (strfind ".jpg" file 0) != nil then
+      _LDjpeg _channel _checkpack file 
+    else
+	  _LDbitmap _channel _checkpack file
+  -> bmp in
+	
+    
+  let substr file 0 r -> s in
+  let searchSlash s 0 -> poslastslash in
+  let substr s poslastslash strlen s -> name in	
+		
+  let _GETbitmapSize bmp -> [w h] in
+  let _GETpixel16 bmp 0 0 -> colRGB in
+  let ((colRGB&16252928)>>16)+(colRGB&63488)+((colRGB&248)<<16) -> transColor in
+  let getView3dSize w3d -> [ScreenW ScreenH] in
+	
+  set lStoreImages = [bmp name w h 0 0 transColor 0 ScreenW ScreenH 0]::lStoreImages;		
+  0;;  
+
+/*read and store*/	
+fun downloadlStoreImages(files)=
+  let 0 -> i in
+  while i < (sizelist files) do
+  (
+     let nth_list files i -> file in
+	 _echo strcat "Download #2 file...............:" file
+	 
+	 _RSCdownload this file file @endDownloadImages2 1;
+     set i = i+1
+  );;		
+  		
+ /******************************************/
+
+fun activate(o, from, action, param, reply, z)=
+
+  let getView3dSize w3d -> [w h] in
+  
+  if !strcmp action (strcat class ".showRes") then
+    (initImages o from action param reply z;
+     0)  
+  else if !strcmp action (strcat class ".fullscreen") then
+    (/*re-init interface when fullscreen*/
+	 /*initImages o from action param reply nil;*/
+	 cbLOGO_resize o [w h] z;
+     0)
+  else if !strcmp action (strcat class ".obClicked") then
+    (initImages o from action param reply z;
+     0)
+  else if !strcmp action (strcat class ".keyPressed") then
+    (initImages o from action param reply z;
+     0)	
+  else if !strcmp action (strcat class ".getMotion") then
+    (set focus=from;
+     set _reply=reply;
+	 0) 	 
+  else
+    0;;	 
+ 
+
+fun cbEndDownImage(doc,b) = 
+  let b -> [o z fileName] in
+  let openBMP fileName z -> _ in /*ouverture img*/
+  let _GETpixel16 z.D_bitmap 0 0 -> colRGB in  
+  let ((colRGB&16252928)>>16)+(colRGB&63488)+((colRGB&248)<<16) -> transColor in
+  let getView3dSize w3d -> [w h] in
+  (
+ 	
+    ObCbPostRender o mkfun3 @cbBlitLogo [z transColor];
+    
+    ObRegisterAction o (strcatn class::"."::(ObName o)::".hide"::nil) mkfun6 @hide z;
+    ObRegisterAction o (strcatn class::"."::(ObName o)::".show"::nil) mkfun6 @show z;
+	ObRegisterAction o (strcatn class::"."::(ObName o)::".start"::nil) mkfun6 @initImages z;	
+	ObRegisterAction o (strcatn class::"."::(ObName o)::".showRes"::nil) mkfun6 @initImages z;
+	ObRegisterAction o (strcatn class::"."::(ObName o)::".fullscreen"::nil) mkfun6 @activate z;	
+	ObRegisterAction o (strcatn class::"."::(ObName o)::".obClicked"::nil) mkfun6 @activate z;
+	ObRegisterAction o (strcatn class::"."::(ObName o)::".keyPressed"::nil) mkfun6 @activate z;
+	
+	/*start images interface using event loaded->action start*/
+	//startImages lStoreImages;   
+	
+	OB_CBclickDown o mkfun3 @cbClic z;
+    OB_CBmouseMove o mkfun3 @cbMove z; 
+
+    cbLOGO_resize o [w h] z;
+	
+	set IMAGENAV = hd UgetParam ObUi o "imgNav";
+    0  
+  )
+;; 
+
+fun cbcomm(ui, action, param, p)=
+  let p -> [z o] in
+  if !strcmp action "donwloadImages" then
+    (_DMSevent this strcat class ".startLoad" nil nil;
+	 downloadlStoreImages lineextr param; /* 1nd method : downloadImages*/
+	 _DMSevent this strcat class ".endLoad" nil nil;
+     set setImages = 1)
+  else
+    0;;
+
+fun cbRegistered (ui, action, fileNameOnClient, o) =
+
+  let getView3dSize w3d -> [w h] in
+  let atoi hd UgetParam ObUi o "x"  -> x  in
+  let atoi hd UgetParam ObUi o "y"  -> y  in
+  let hd UgetParam ObUi o "url"     -> url     in
+  let 1                             -> show    in
+  let hd UgetParam ObUi o "alias"   -> alias in
+  let strcat ObName o hd UgetParam ObUi o "fichier" -> docName in  
+  let atoi hd UgetParam ObUi o "trans"  -> trans in
+  let mkData[x y ((x*w)/100) ((y*h)/100) url nil nil nil show 0 alias trans] -> z in
+  ( 
+  
+	UcbComm this ObUi o mkfun4 @cbcomm [z o];  
+  
+    _RSCdownload this docName fileNameOnClient mknode @cbEndDownImage [o z fileNameOnClient] 3;
+	
+    ObCbDestroy o mkfun2 @cbDestroy z;
+    OB_CBresizeView o mkfun3 @cbLOGO_resize z;
+	
+    0
+  )
+;;
+
+fun newOb(o) =
+  UsendMessage ObUi o "register" nil;
+  UcbMessage ObUi o ["registered" mkfun4 @cbRegistered o]::nil;
+  0
+;;
+ 
+
+fun IniPlug(file) =
+  set class=getInfo strextr _getpack _checkpack file "name";
+  PLUGsetinfo thisplug PLUGIN_ONLINE_EDITING;
+  /*PLUGdefineEditor thisplug @dynamicedit;*/
+  PlugRegister class @newOb nil;
+  0
+;;

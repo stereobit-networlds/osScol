@@ -1,0 +1,13 @@
+# stereobit 2014
+# rev : 3/08/2014
+
+name RouteLoader
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/routeloader/routeloaders.pkg
+serverScript _load\ "Dms/3d/Plugins/routeloader/routeloaders.pkg"
+clientLoad Dms/3d/Plugins/stereobit/3dmath.pkg
+clientLoad Dms/3d/Plugins/routeloader/routeloaderc.pkg
+clientScript _load\ "Dms/3d/Plugins/routeloader/routeloaderc.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/routeloader/routeloadere.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/routeloader/routeloadere.pkg"
+version 1 0

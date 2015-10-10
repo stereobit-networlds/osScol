@@ -1,0 +1,76 @@
+/* Camera Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof class=S;;
+typeof avatar=H3d;;
+
+var configPath="locked/conf/stereogeo/";;/*path used to save current fog state and reload it when restarting server*/
+var geoEnable=1;;
+
+var iniPath="locked/conf/stereogeo/";;
+
+fun CBdownload (inet, datas, received, error)=
+	if error == 0 then	// download in progress
+	(
+		let datas -> [d] in
+		mutate datas <- [strcat d received];
+		0
+	)
+	else if error == 1 then	// download finished
+	(
+		let datas -> [d] in
+		_createpack d _getmodifypack strcat iniPath "gtrack.txt";
+		_fooS "Done !";
+		0
+	)
+	else	// an error occurs
+	(
+		_fooS strcat "An error occurs : " itoa error;
+		0
+	);;
+
+/*-------------*/
+fun saveConf(o)=
+ let strcatn configPath::(substr this.fileDMI 0 (strfind "." this.fileDMI 1))::"_"::(ObName o)::".conf"::nil -> configFileName in
+   _storepack strbuild ("state"::(itoa geoEnable)::nil)::nil configFileName;
+   
+ /*_showconsole;*/
+ INETGetURL _channel "http://www.stereobit.gr/dev/geo/gtrack.txt" 0 @CBdownload [""];   
+ 0;;  
+
+/*-------------*/
+fun activate(o,from,action,param,reply)=
+if !strcmp action (strcatn (ObName o)::".more"::nil) then 
+  (0;) 
+else 
+   if !strcmp action (strcatn (ObName o)::".less"::nil) then
+    ( 0;) 
+   else 
+      if !strcmp action (strcatn (ObName o)::".moreless"::nil) then
+  ( if param != nil then
+    (0;)	
+   else nil;
+   )
+else nil;;
+
+fun newOb(o)=
+    /*ObRegisterAction o (strcatn (ObName o)::".moreALL"::nil) @activate;
+    ObRegisterAction o (strcatn (ObName o)::".lessALL"::nil) @activate;
+    ObRegisterAction o (strcatn (ObName o)::".morelessALL"::nil) @activate;    
+	*/
+	
+	set geoEnable=1;
+    saveConf o;
+	
+	/*_showconsole;*/
+0 
+;; 
+
+fun updateclass(from,u,action,param,ulist,tag)=
+ ObUpdateClass u class;;
+
+fun IniPlug (file)=
+  set class=getInfo strextr _getpack _checkpack file "name";
+  PlugRegister class @newOb nil;
+  /* _DMSdefineActions this [strcat class ".update" @updateclass]::nil;*/
+  0
+;;

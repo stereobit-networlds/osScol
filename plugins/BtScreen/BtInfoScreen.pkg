@@ -1,0 +1,349 @@
+/* BtInfoScreen 08/2014 by stereobit*/
+
+/************** info images (on demand load dialogs) *************/
+
+/*bmp name width height xonscreen yonscreen alphachannel url inzone*/ 
+typeof linfoImages = [[ObjBitmap S I I I I S I] r1];;
+typeof infoDialog = SinfoImages;;
+struct SinfoImages = [images:[[ObjBitmap S I I I I S I] r1], trans:I, alpha:I, screenW:I, screenH:I, 
+                      backcursInf:ObjCursor, frontcursInf:ObjCursor] mkSinfoImages;; 
+
+					  
+var log=1;;
+
+fun _echo(x,s)= 
+   if (log) then
+	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+   else
+     nil;;
+	 
+fun SCOLver() = atoi substr _versionname 0 1;;	 					  
+
+fun searchSlash(string, pos)=
+  let strfind "/" string pos -> r in
+  if r != nil then
+    searchSlash string r+1
+  else
+    pos;;
+	
+/********** BITMAP FUNCTIONS *********/
+
+fun _p1624() = if (SCOLver < 5) then 16 else 16;;//24!!!;;
+	
+fun GetPixel(bmp, x, y) = _GETpixel16 bmp x y;;
+ /* let if (SCOLver < 5) then _GETpixel16 bmp x y
+                       else _GETpixel24 bmp x y -> p in p;;  */
+	
+fun PutPixel(bmp, x, y, c) = _PUTpixel16 bmp x y c;;
+ /* if (SCOLver < 5) then _PUTpixel16 bmp x y c
+                     else _PUTpixel24 bmp x y;;*/					   
+  
+fun _widthImage(bmp)=
+  let _GETbitmapSize bmp -> [w _] in
+  w;;
+  
+fun _heightImage(bmp)=
+  let _GETbitmapSize bmp -> [_ h] in
+  h;;  
+
+fun destroyImage(bmp)= _DSbitmap bmp;;  
+fun createImage(ch,w,h) = _CRbitmap ch w h;;
+fun bltImage(win, bmp, x, y) = _BLTbitmap win bmp x y;;
+fun setImage(bmp,data) = _SETbitmap bmp data;;
+fun LoadImage(ch, bmp) = _LDbitmap ch bmp;; 
+fun LoadJpg(ch, jpg) = _LDjpeg ch jpg;; 
+fun LoadTga(ch, tga) = _LDtga ch tga;; 
+fun imageSize(img) = let _GETbitmapSize img -> [w h] in [w h];;
+ 
+fun scpImage(dest, dx1, dy1, dx2, dy2, source, sx1, sy1, sx2, sy2, trans) = 
+  _SCPbitmap dest dx1 dy1 dx2 dy2 source sx1 sy1 sx2 sy2 trans;; 
+
+  
+/****************** main *********************************/  
+
+fun endDownloadInfoImages(file)=
+  let if (strfind ".png" file 0) != nil then
+        strfind ".png" file 0
+      else
+      if (strfind ".jpg" file 0) != nil then
+        strfind ".jpg" file 0
+      else	  
+        strfind ".bmp" file 0
+  -> r in  
+
+  if (strfind ".png" file 0) != nil then
+  (   let _LDalphaBitmap _channel _checkpack file ->alphabmp in
+	  let _GETalphaBitmapSize alphabmp -> [w h] in
+	  let _GETalphaBitmaps alphabmp -> [bmp b8] in 
+	  ( 
+	    _DSbitmap8 b8;
+        let substr file 0 r -> s in
+        let searchSlash s 0 -> poslastslash in
+        let substr s poslastslash strlen s -> name in
+  
+        set linfoImages = [bmp name w h 0 0 nil 0]::linfoImages;
+		0
+	  )  
+  )		
+  else if (strfind ".jpg" file 0) != nil then
+  (	
+    let substr file 0 r -> s in
+    let searchSlash s 0 -> poslastslash in
+    let substr s poslastslash strlen s -> name in  
+    let LoadJpg _channel _checkpack file -> bmp in
+    let imageSize bmp -> [w h] in	
+  
+    set linfoImages = [bmp name w h 0 0 nil 0]::linfoImages;	
+    0	
+  )  
+  else
+  (
+    let substr file 0 r -> s in
+    let searchSlash s 0 -> poslastslash in
+    let substr s poslastslash strlen s -> name in  
+    let LoadImage _channel _checkpack file -> bmp in
+    let imageSize bmp -> [w h] in	
+    set linfoImages = [bmp name w h 0 0 nil 0]::linfoImages;
+    0	
+  );;
+
+fun downloadInfoImages(files)=
+  let 0 -> i in
+  while i < (sizelist files) do
+    let nth_list files i -> file in
+    (
+	 //_echo strcat "Download infoimage...............:" file
+	 _RSCdownload this file file @endDownloadInfoImages 1;
+     set i = i+1
+	);;
+	  
+fun setInfoScreenXY(images, name, params) = 
+  if images == nil then
+    nil
+  else
+    let hd images -> [_ n w h _ _ url _] in
+    if !strcmp n name then
+	(
+      let params -> [x y] in 
+      ( 
+        mutate hd images <- [_ _ _ _ x y _ _];
+	    [w h x y url]  
+	  )	
+	)  
+    else
+      setInfoScreenXY (tl images) name params;;	 
+
+fun setUrl(o, images) =
+  if images==nil then
+    nil
+  else
+    /*additional a file list can replace urls... ?*/
+    let hd UgetParam ObUi o "url" -> url in	
+    ( 
+	  mutate hd images <- [_ _ _ _ _ _ url _];		
+      setUrl o (tl images);
+	  0
+    );; 	  
+	  
+/*create dynamic matrix*/	  
+fun makeMatrix(box, sep, offset) = 
+  let getView3dSize w3d -> [_ ScreenH] in
+  let (ScreenH-offset)/(box+sep) -> hMatrix in
+  //let [0 0 0]::[1 0 0]::[2 0 0]::[3 0 0]::[4 0 0]::nil -> matrix in
+  let nil -> matrix in
+  let 0 -> i in
+  (
+    while (i<hMatrix) do
+    (
+      set matrix = [(hMatrix-i) 0 0]::matrix;
+	  set i = i + 1;
+    );
+    matrix
+  );;
+	  
+/*matrix 90x90 x5 or dynamic*/	  
+fun showInfoImagesMatrix(matrix,i,images,params,url,rightaligned) =
+  if images==nil then
+    nil
+  else 
+    let sizelist matrix -> msize in
+    let if (i<msize) then nth_list matrix i 
+	    else (set i=0; nth_list matrix i) 
+		-> [ln m _] in
+	let hd images -> [_ n w h _ _ u _] in
+    (
+	    //_echo strcatn "Matrix:"::n::","::(itoa m)::","::(itoa i)::","::(itoa ln)::nil
+		let if (u!=nil) then u else url -> goto in /*if pre inserted*/
+	    let m +(w/90) -> nlrx in
+		let if (h<=90) then 1 else (h/90) -> nlry in /*next line reserve 1+ if bigger than 90 on y*/			
+		let if (m>=msize) && (nlrx>msize) then
+		(
+		  let i -> spin in
+		  let m -> m2 in
+		  let 0 -> wayout in
+		  ( /*spin matrix, jump line to find place */
+		    while ((w/90)<(msize-m2)) || (wayout<100) do 
+		    ( set wayout = wayout + 1;	
+			  if (spin<msize) then
+		        set spin = spin + 1
+			  else
+                set spin = 0;
+			  let nth_list matrix spin -> [_ m2 _] in			
+			  /*last line default place when imgs out of matrix range*/
+			  if wayout==100 then msize-1 else spin 
+            )
+		  )		
+		)  
+		else i -> iy in
+		
+		( 
+		  //_echo strcatn "Matrix:"::n::","::(itoa iy)::nil
+		  let params -> [xstart ystart sep xwidth ywidth] in
+		  let if (rightaligned==1) then (xwidth-((m*90)+(m*sep)+w+sep)) 
+		                           else (xstart+(m*90)+(m*sep)) -> nx in
+		  let (ystart+(ln*90)+(ln*sep)) -> ny in
+          (
+		     let 0 -> z in
+			 let iy -> iz in
+			 (
+		       while (z < nlry) do  /*inplace image, spin matrix */		
+			   (		  
+			     mutate nth_list matrix iz <- [_ nlrx _];
+			     if (iz+1<msize) then
+			       set iz = iz + 1
+			     else
+                   set iz = 0;
+                 set z = z + 1;
+                 0			   		   
+               );
+		       mutate hd images <- [_ _ _ _ nx ny goto _];
+		       //_echo strcatn "Matrix:"::n::","::(itoa ln)::","::(itoa nlr1)::","::(itoa nlr2)::","::(itoa nx)::","::(itoa ny)::nil
+		       showInfoImagesMatrix matrix (iz) (tl images) params url rightaligned;
+		       0
+			 )
+		  )
+		)    
+    );;  
+
+fun showInfoDialog(o, param) =
+  if (param==nil) then
+   nil
+  else	  
+   /*fetch info images*/
+   downloadInfoImages (lineextr param); 
+   if (linfoImages!=nil) then  
+   (
+	let getView3dSize w3d -> [ScreenW ScreenH] in
+    let mkSinfoImages [linfoImages (make_rgb 0 0 255) nil ScreenW ScreenH StdCursor HandCursor] -> infoDialog in
+	(
+	  //setInfoScreenXY linfoImages "screen" [100 100];
+	  
+	  //setUrl o linfoImages; 
+
+	  let hd UgetParam ObUi o "url" -> url in
+	  let [0 0 0]::[1 0 0]::[2 0 0]::[3 0 0]::[4 0 0]::nil -> matrix in
+	  showInfoImagesMatrix matrix 0 linfoImages [10 110 10 ScreenW ScreenH] url 1;
+	  
+	  //set linfoImages = nil; /*free global var*/
+	  0
+	)
+   )else nil;;
+ 
+/* 
+fun clearInfoImages(images)=
+  if images == nil then
+    nil
+  else
+    //let hd images -> [bmp _ _ _ _ _ _ _] in
+   	 //destroyImage bmp; 
+     clearInfoImages tl images
+   ;;   
+*/   
+fun clearInfoDialog(o) =
+  _RSCabortDMI this; /*if downloads in process, abort current downloads */  
+  //_RSCabort this itoa UgetId UgetUser ObUi o;
+  
+  //clearInfoImages linfoImages; 
+  set linfoImages = nil;
+  
+  OB_ReleaseMouse o;
+  OB_ReleaseCursor o;
+  OB_SetCursor o StdCursor;  
+  _SETfocus w3d.V3dwin;   
+  0;;
+  
+/*************** info images handler ***********/
+
+fun clickInfoImages(class,images, b) = 
+  let b -> [_ [xclick yclick bt]] in
+  
+  if images == nil then
+    nil
+  else  
+  (  
+    let hd images -> [_ name w h x y url inzone] in
+	if (bt==1) && (inzone==1) && (xclick > x) && (xclick < x+w) && (yclick > y) && (yclick < y+h) then
+	( 
+ 	  let (_DMSgetName this) -> worldname in
+	  (
+	    _DMSevent this strcat class ".click" (strcatn worldname::"."::name::nil) nil;
+        _openbrowserhttp strcatn url::"/"::worldname::"/"::name::"/"::nil;
+	    0
+	  )
+	)	
+    else
+      nil;	
+
+    clickInfoImages class tl images b;
+    0
+  );;   
+
+fun moveInfoImages(images, o, b) = 
+  let b -> [_ [xmove ymove _]] in
+  
+  if images == nil then
+	nil
+  else   
+  (
+    let hd images -> [_ name w h x y _ inzone] in
+	
+    if (xmove > x) && (xmove < x+w) && (ymove > y) && (ymove < y+h) then 
+      if !inzone then
+      (
+		mutate hd images <- [_ _ _ _ _ _ _ 1];
+        _DMSevent this "contextHelp" strbuild ("ref"::name::nil)::("userParam"::"1"::nil)::nil nil;
+        OB_TakeMouse o;
+        OB_TakeCursor o;
+        OB_SetCursor o HandCursor;
+      )
+      else
+        nil
+    else if inzone then
+    (
+      mutate hd images <- [_ _ _ _ _ _ _ 0];
+      _DMSevent this "contextHelp" nil nil;
+      OB_ReleaseMouse o;
+      OB_ReleaseCursor o;
+      OB_SetCursor o StdCursor
+    )		
+    else
+	  nil;	
+	  
+	_SETfocus w3d.V3dwin; 
+	moveInfoImages tl images o b;
+  0);;	  
+  
+fun resizeInfoImages(o, images, screenw, screenh) =   
+  clearInfoDialog o;
+  0;;
+  
+fun blitInfoImages(list, surf) = 	
+  if list == nil then
+    nil
+  else
+  (let hd list -> [bmp name w h x y _ _] in
+   _Bitmap2Surface surf x y bmp 0 0 w h (make_rgb 0 0 255); 
+   blitInfoImages tl list surf;
+   0);;      
+	 
+	 

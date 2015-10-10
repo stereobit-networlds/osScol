@@ -1,0 +1,137 @@
+<html>
+<head>
+<title>Template</title>
+<link href="help.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="frametop"> <img width=21 height=21 src="english/image001.jpg"> <sup> 
+  Template 1.0</sup> </div>
+  <br>
+<table class="table1">
+  <tr> 
+    <td width="37%">Category/ Domain&nbsp;:</td>
+    <td width="62%" class="td1">Example</td>
+  </tr>
+  <tr> 
+    <td width="37%">SCOL Voy@ger Compatibility&nbsp;:</td>
+    <td width="62%" class="td1">V 2.0c or above</td>
+  </tr>
+  <tr> 
+    <td width="37%">Update :</td>
+    <td width="62%" class="td1">2001/02</td>
+  </tr>
+</table>
+<br>
+<div class="title1">Function</div>
+<p> This module has no real utility except to serve as an exemple and base to developpe new
+ modules. It makes use of a simple structure of module using two zones of editable
+  text&nbsp;: one using the SCS editor under SCS (static edition), the other in the
+   user interface (dynamic edition). In any case the modifications are saved when project
+    is closed.</p>
+<p>Attention&nbsp;: The modifications made dynamically while the project is in the course
+ of edition in the SCS will be replaced during the saving  of the  project in the SCS.</p>
+<p>Numerous dialogue boxes have been left as comments in the code to permit the
+ comprehension at which moment callbacks are executed.</p>
+<p>The graphic interface of the user is cut horizontally in two equal halves&nbsp;:<br>
+&middot; The top one is occupied by a zone of text containing the editable text in SCS and
+ which is use as label to the editable zone below.<br>
+&middot; The bottom is occupied by a zone of editable text. The text is updated at the
+server level and other users when the action &#145;validText&#145; is activated.</p>
+<p><img width=338 height=273 src="english/image.jpg"><br>
+  Figure 1&nbsp;: Template module interface</p>
+
+<div class="title1">Configuration</div><p></p>
+<p>None</p>
+<div class="title1">Implementation</div>
+<p><ul><li>Open the SCS creation tree. Select the file Templates then double-click on Template 1.0.<br>
+  <li>Create required links for the project.</li></ul></p>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Action</td>
+    <td width="64%">Function</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.start</td>
+    <td>Starts the  module.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.destroy</td>
+    <td>Closes the module.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.register</td>
+    <td>Registers the user. Then this one will be updated when another client updates
+	 the text on the server.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.unregister</td>
+    <td>Unregisters the user.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.show</td>
+    <td>Shows the interface (the two zones of text).</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.hide</td>
+    <td>Hides the interface (the two zones of text).</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.write</td>
+    <td>Writes a text in the editable zones of all the users (the text being edited at the
+	 different users will be overwrited).</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.event <span style='font-family:Wingdings;'>à</span> template.validText</td>
+    <td>Allows to transmit on the edited text to the server which will update it on the other user
+	interfaces.</td>
+  </tr>
+</table>
+<br>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Event</td>
+    <td width="64%">Function</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.entering <span style='font-family:Wingdings;'>&agrave;</span> 
+      module Action</td>
+    <td>Launching the client part of the module generates an action.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.in <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>The end of initialization of the client part generates an action.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.out <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>Cancelling the client module generates an action.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.shown <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>Displaying the graphic interface generates an action.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.hidden <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>Hiding (but not cancelling) of the graphic interface generates an action.</td>
+  </tr>
+</table>
+<br>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="15%">Zone</td>
+    <td width="50%">Function</td>
+    <td width="18%">Interface</td>
+    <td width="17%">Assignment</td>
+  </tr>
+  <tr valign="top"> 
+    <td width="15%">template.Text</td>
+    <td width="50%">Contains the client zone for both zones of text.</td>
+    <td width="18%"> Client</td>
+    <td width="17%"> Yes</td>
+  </tr>
+</table>
+</body>
+</html>

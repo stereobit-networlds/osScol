@@ -1,0 +1,272 @@
+/**************************************************
+ Module Dispatcher
+ Server
+ Version: 1.0
+ Author: Laurent Hachet
+ Last update: 22/06/2001 
+ 
+ This module allow to dispatch the visitor to the different c3d3 cells
+
+**************************************************/
+
+defcom CgetPos=getPos S;;
+
+typeof tiiCellStatus = [[I I] r1];;     /* [connectedNumber cellNumber] */
+
+typeof iCellNumber = I;;     /* the number of c3d3 cells */
+typeof iConnected = I;;      /* the maximum of connected for one c3d3 cell */
+
+typeof iCellA = S;;
+typeof iCellB = S;;
+typeof iCellC = S;;
+typeof iCellD = S;;
+typeof iCellE = S;;
+typeof iCellF = S;;
+
+typeof paramList = [S r1];;
+
+var iniPath="locked/conf/stereobit/";;
+var log=1;;
+
+fun saveLog(fname, s)=
+ if (log==1) then
+ (
+    let strcatn (iniPath)::fname::nil -> file in
+ 
+	let _appendpack s _getmodifypack file ->append in
+	if (append==-1) then
+		_createpack s _getmodifypack file
+	else nil
+ )
+ else nil;;
+
+fun _echo(x,s)= 
+/*_DMSevent this "hear" strcat strcat ">> " x "\n" nil;*/
+saveLog "_echo.txt" strcat x "\n";;
+ 
+/*check position point in margins..*/ 
+fun checkPosition (cellID, position, cellMargins, testvar) = 
+
+  let strextr position -> clientPos in
+  let strextr cellMargins -> cellPos in  
+  _echo strcatn "Disp check:"::position::"->"::cellMargins::"->"::testvar::nil
+  
+  //if (testvar=="234") then 
+  if (!strcmp testvar "234") then
+  (
+    _echo strcatn "Check:"::(itoa cellID)::nil
+    cellID; 
+  )	
+  else
+    nil;; 
+ 
+/*read user last position */
+fun readPosition (cellID, testvar)=
+  
+  //(itoa DMSid)::!!!!!! ...a client part to send the correct file
+  let strcatn iniPath::DMSname::"/clocation"::".txt"::nil -> posfile in	 
+  let _getpack _checkpack posfile -> position in
+  _echo strcatn "Dispatcher:"::posfile::"->"::position::"->"::(itoa cellID)::nil  
+  
+  _echo strcatn "Read:"::(itoa cellID)::nil
+  let checkPosition cellID position iCellB testvar ->ret in
+ret;;  
+ /* if (cellID==1) then
+    checkPosition cellID position iCellA testvar
+  else if (cellID==2) then
+    checkPosition cellID position iCellB testvar
+  else if (cellID==3) then
+    checkPosition cellID position iCellC testvar
+  else if (cellID==4) then
+    checkPosition cellID position iCellD testvar
+  else if (cellID==5) then
+    checkPosition cellID position iCellE testvar
+  else if (cellID==6) then
+    checkPosition cellID position iCellF testvar	
+  else	
+    nil;;*/
+	
+fun checkCell(cellID) =
+  let nth_list paramList (cellID-1) -> param in
+  //if (!strcmp testvar) then	
+param;;  
+ 
+ 
+fun logout(cli)=
+  _DMSevent this cli "destroyed" nil nil
+;;
+
+/* change the connected number in a specific cell */
+fun changeValue(l, id, newValue) =
+  if l == nil then 
+    nil
+  else
+  (
+    let hd l -> [idCell total] in
+      if idCell == id then
+        mutate hd l <- [_ (total+newValue)]
+      else
+        changeValue tl l id newValue
+  )
+;;
+
+/* dispatch the new connected in the cell */
+fun dispatchConnected(l, cli) =
+  if l == nil then
+  (
+    _DMSevent this cli "siteFull" nil nil;
+     _DLGMessageBox _channel nil "WARNING" "Site Full" 0;
+     0
+  )
+  else
+  (
+    let hd l -> [idCell total] in
+    (
+      /*_fooS strcat "dispatchConnected 1 (sdispatcher) " itoa total;*/
+	  
+      if total < iConnected then
+      (
+		
+		/*check margin variables and choose where to go */
+	    //let readPosition idCell "234" -> InCell in
+	    //_echo strcatn "C3:"::(itoa idCell)::"->"::(itoa total)::"->"::(itoa InCell)::nil
+		
+		//if (InCell==idCell) then
+		if (!strcmp checkCell idCell "234") then
+		(  
+		   _echo strcat "Check:" itoa idCell
+		  /*_fooS strcat "dispatchConnected 2 (sdispatcher) OK" itoa idCell;*/
+		
+          mutate hd l <- [_ (total+1)];
+          _DMSevent this cli (strcat "in " itoa idCell) nil nil;
+		
+          1
+		)
+		else
+		  dispatchConnected tl l cli
+      )
+      else
+        dispatchConnected tl l cli
+    )
+  )
+;;
+
+
+/* create the cell status list */
+fun createCellStatus(n) =
+  if n == (iCellNumber+1) then
+    nil
+  else
+    ([n 0])::createCellStatus (n+1)
+;;
+
+/* order the cell status list */
+fun orderList() =
+  let hd tiiCellStatus -> [idCell total] in
+  (
+    if total < iConnected then
+      0
+    else
+    (
+      set tiiCellStatus = listcat (tl tiiCellStatus) (hd tiiCellStatus)::nil;
+      orderList
+    )
+  )
+;;
+
+/* indicate if the list is full */
+fun isFull(l) =
+  if l == nil then
+    1
+  else
+    let hd l -> [idCell total] in
+    (
+      if total < iConnected then
+        0
+      else
+        isFull tl l
+    )
+;;
+
+fun activate(from,cli,action,param,rep)=
+  if !strcmp action "start" then
+  (
+    /* if it is the first time, create the activate list */
+    if tiiCellStatus == nil then
+      set tiiCellStatus = createCellStatus 1
+    else
+      nil;
+      
+	/*call client to provide clients' current pos (GPS pos) */  
+	_DMScreateClientDMI this cli nil;  
+	_DMSsend this cli CgetPos ["setPos"];
+	
+    /* add the new connected to a cell */
+    dispatchConnected tiiCellStatus cli;
+    
+    if !isFull tiiCellStatus then
+    (
+      /*_fooS strcat "On ordonne la liste" ".";*/
+      orderList
+    )
+    else
+      0      
+  )
+  else if !strcmp action "destroy" then
+  (
+    _DMSdelClientDMI this cli;
+    logout cli;
+    0
+  )
+  else if !strcmp (substr action 0 3) "out" then
+  (
+    /* decrease the connected total in the good cell */
+    let atoi substr action 4 ((strlen action)-4 ) -> idCell in
+      changeValue tiiCellStatus idCell (-1);
+    0
+  )
+  /*else if !strcmp action "getPos" then
+  (
+    let param -> clientPos in
+	_echo strcatn "Client respond:"::param::nil
+	0
+  )*/
+  else 
+    nil
+;;
+
+/*receive getPos defcom answer of client position */
+fun __answer(s) =
+  _echo strcat "ANSWER:" s
+  //_DLGMessageBox _channel nil "WARNING" s 0;
+s;;
+
+fun IniDMI(dmiFile)=
+						 
+  /*_showconsole;*/
+  
+  let strextr _getpack _checkpack dmiFile -> fileEdit in
+  (
+    
+	set iCellNumber = atoi getInfo fileEdit "cellNumber";
+    set iConnected  = atoi getInfo fileEdit "connected";
+	
+	
+    set iCellA = getInfo fileEdit "cellA";
+    set iCellB = getInfo fileEdit "cellB";
+    set iCellC = getInfo fileEdit "cellC";
+    set iCellD = getInfo fileEdit "cellD";
+    set iCellE = getInfo fileEdit "cellE";
+    set iCellF = getInfo fileEdit "cellF";
+
+    set paramList = iCellA::iCellB::iCellC::iCellD::iCellE::iCellF::nil	
+  );
+  
+  /*call getPos as defcom func */  
+  /*_DMSdefineActions this ["getPos" mkfun7 @getPos nil]::nil;*/
+  
+  _DMSregisterDMI this @activate nil @logout nil
+;;
+
+
+

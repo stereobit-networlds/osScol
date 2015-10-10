@@ -1,0 +1,129 @@
+/* Camera Plugin - DMS2 - JUNE 2014 - by stereobit */
+
+typeof class=S;;
+typeof avatar=H3d;;
+
+var configPath="locked/conf/stereogeo/";;/*path used to save current fog state and reload it when restarting server*/
+var geoEnable=1;;
+
+var iniPath="locked/conf/stereogeo/";;
+
+
+fun CBdownload (inet, datas, received, error)=
+	if error == 0 then	// download in progress
+	(
+		let datas -> [d] in
+		mutate datas <- [strcat d received];
+		0
+	)
+	else if error == 1 then	// download finished
+	(
+		let datas -> [d] in
+		_createpack d _getmodifypack strcat iniPath "gpsroute.txt";
+		_fooS "Done !";
+		0
+	)
+	else	// an error occurs
+	(
+		_fooS strcat "An error occurs : " itoa error;
+		0
+	);;
+	
+fun CBgethttp(inet,z,s,reason) =
+ let z->[content] in 
+ if reason==0 then (mutate z <- [strcat content s];nil)
+ else if reason==1 then 
+ (
+   let content -> wsession in
+   _createpack wsession _getmodifypack strcat iniPath "wsessionid.txt";
+ )
+ else nil;;	
+
+/*-------------*/
+fun saveConf(z, param)=
+  let z -> [_ configFileName] in
+  (
+    //mutate z <- [newState _];
+    _storepack strbuild ("state"::(param)::nil)::nil configFileName;
+	
+    //INETGetURL _channel "http://stereobit.gr/dev/gps/gpsroute.txt" 0 @CBdownload [""]   
+    INETGetURL _channel param 0 @CBgethttp [nil]	
+  );;
+
+ //let strcatn configPath::(substr this.fileDMI 0 (strfind "." this.fileDMI 1))::"_"::(ObName o)::".conf"::nil -> configFileName in
+   //_storepack strbuild ("state"::(itoa geoEnable)::nil)::nil configFileName;
+   
+ /*_showconsole;*/
+ //INETGetURL _channel "http://stereobit.gr/dev/gps/gpsroute.txt" 0 @CBdownload [""]   
+ //INETGetURL _channel param 0 @CBgethttp [nil]
+ //0;;  
+
+/*-------------*/ 
+fun changeState(z,newState)=
+  let z -> [_ configFileName] in
+  (
+    mutate z <- [newState _];
+    _storepack strbuild ("state"::(itoa newState)::nil)::nil configFileName    
+  )
+;; 
+ 
+/*-------------*/
+fun activate(o,from,cli,action,param,reply,z)=
+let z ->[state _] in
+ if !strcmp action (strcat (ObName o) ".gpsupdateS") then
+  (changeState z 1; UsendCli this nil (ObUi o) "gpsupdate" (ObName o); 0)
+ else if !strcmp action (strcat (ObName o) ".gpswalkviewS") then
+  (saveConf z param; UsendCli this nil (ObUi o) "gpswalkview" (ObName o); 0) 
+ else if !strcmp action (strcat (ObName o) ".gpsinitS") then
+  (changeState z 0; UsendCli this nil (ObUi o) "gpsinit" (ObName o); 0)
+ else if !strcmp action (strcat (ObName o) ".gpsTopView") then
+  (changeState z 0; UsendCli this nil (ObUi o) "gpsTopView" (ObName o); 0)  
+else nil;;
+
+fun cbcomm(ui,cli,action,param,z)=
+let z ->[state _] in
+  if (!strcmp action "state?") && (state!=nil) then /*the client ask for the hide-show state*/
+    if state then      
+      UsendCli this cli ui "Hide" nil
+    else  
+      UsendCli this cli ui "Show" nil 
+ else nil;;
+
+fun newOb(o)=
+let strcatn configPath::(substr _getlongname strcat this.fileDMI ObName o "" "#" 1 8)::".conf"::nil -> configFileName in 
+let [0 configFileName] -> z in
+( 
+  if !strcmp hd UgetParam ObUi o "keepDynamicChanges" "1" then
+   let strextr _getpack _checkpack configFileName -> l in
+   let getInfo l "state" -> state in
+    if state==nil then
+     let hd UgetParam ObUi o "initState" -> initState in
+       changeState z atoi initState
+    else     
+      changeState z atoi state     
+  else
+   let hd UgetParam ObUi o "initState" -> initState in   
+    changeState z atoi initState; 
+	
+    UcbComm this ObUi o mkfun5 @cbcomm z; 
+
+    ObRegisterAction o (strcatn (ObName o)::".gpsupdateS"::nil) mkfun7 @activate z;
+    ObRegisterAction o (strcatn (ObName o)::".gpswalkviewS"::nil) mkfun7 @activate z;
+    ObRegisterAction o (strcatn (ObName o)::".gpsinitS"::nil) mkfun7 @activate z;    
+	ObRegisterAction o (strcatn (ObName o)::".gpstopviewS"::nil) mkfun7 @activate z;
+	
+	//set geoEnable=1;
+    //saveConf o;
+	
+	/*_showconsole;*/
+);
+0;; 
+
+//fun updateclass(from,u,action,param,ulist,tag)=
+// ObUpdateClass u class;;
+
+fun IniPlug (file)=
+  set class=getInfo strextr _getpack _checkpack file "name";
+  PlugRegister class @newOb nil;
+  0
+;;

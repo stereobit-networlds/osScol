@@ -1,0 +1,13 @@
+# stereobit 2014
+# rev : 01/07/2014
+
+name Route
+help ./help/help.htm
+serverNeeded Dms/3d/Plugins/stereobit/sroute.pkg
+serverScript _load\ "Dms/3d/Plugins/stereobit/sroute.pkg"
+clientLoad Dms/3d/Plugins/stereobit/3dmath.pkg
+clientLoad Dms/3d/Plugins/stereobit/croute.pkg 
+clientScript _load\ "Dms/3d/Plugins/stereobit/croute.pkg"
+editorNeeded Dms/3d/Edit3d3/templatePluginEdit1.pkg Dms/3d/Plugins/stereobit/eroute.pkg
+editorScript _load\ "Dms/3d/Edit3d3/templatePluginEdit1.pkg"\n_load\ "Dms/3d/Plugins/stereobit/eroute.pkg"
+version 1 0

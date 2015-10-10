@@ -1,0 +1,69 @@
+typeof LAngularX2 = ObjText;;
+typeof LAngularY2 = ObjText;;
+typeof LAngularZ2 = ObjText;;
+typeof LFrame     = ObjText;;
+
+
+
+fun closeedit() =
+
+  strbuild
+   ("angularX"::(_GETtext LAngularX2)::nil)::
+   ("angularY"::(_GETtext LAngularY2)::nil)::
+   ("angularZ"::(_GETtext LAngularZ2)::nil)::
+   ("framerate"::(_GETtext LFrame)::nil)::
+   nil
+
+;;
+
+ 
+fun dynamicedit(win,obj,mat,param)=
+ 
+  let strextr param -> l in
+  let _GETwindowSizePosition win -> [w h x y] in
+  (
+    _CRtext _channel win 5 7 80 20 ET_ALIGN_LEFT _loc this "ROT_X" nil;
+    set LAngularX2 = _CReditLine _channel win 85 5 35 20 ET_ALIGN_LEFT|ET_DOWN
+      let getInfo l "angularX" -> string in
+        if (nil == string) then
+          "0"
+        else
+          string;
+  
+    _CRtext _channel win 5 32 80 20 ET_ALIGN_LEFT _loc this "ROT_Y" nil;
+    set LAngularY2 = _CReditLine _channel win 85 30 35 20 ET_ALIGN_LEFT|ET_DOWN
+      let getInfo l "angularY" -> string in
+        if (nil == string) then
+          "0"
+        else
+          string;
+    
+    
+    _CRtext _channel  win 5 57 80 20 ET_ALIGN_LEFT _loc this "ROT_Z" nil;
+    set LAngularZ2 = _CReditLine _channel win 85 55 35 20 ET_ALIGN_LEFT|ET_DOWN
+      let getInfo l "angularZ" -> string in
+        if (nil == string) then
+          "0"
+        else
+          string;
+    
+    _CRtext _channel win 5 82 80 20 ET_ALIGN_LEFT  _loc this "ROT_V" nil;
+    set LFrame = _CReditLine _channel win 85 80 35 20 ET_ALIGN_LEFT|ET_DOWN|ET_NUMBER
+      let getInfo l "framerate" -> string in
+        if (nil == string) then
+          "30"
+        else
+          string; 
+          
+          
+    _CRtext _channel win 5 120 800 120 ET_ALIGN_LEFT _loc this "ROT_EXPLICATION" nil ;
+    /*
+    _CRtext _channel win 5 180 800 20 ET_ALIGN_LEFT _loc this "ROT_PARAM1" nil ;
+    _CRtext _channel win 5 200 800 20 ET_ALIGN_LEFT _loc this "ROT_PARAM2" nil ;
+    _CRtext _channel win 5 220 800 20 ET_ALIGN_LEFT _loc this "ROT_PARAM3" nil ;
+    */
+  );
+      
+  @closeedit
+;;
+

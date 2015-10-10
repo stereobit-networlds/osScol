@@ -1,0 +1,149 @@
+<html>
+<head>
+<title>Template</title>
+<link href="help.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="frametop"> <img width=21 height=21 src="french/image001.jpg"> <sup> 
+  Template 1.0</sup> </div>
+  <br>
+<table class="table1">
+  <tr> 
+    <td width="37%">Catégorie / Domaine :</td>
+    <td width="62%" class="td1">Exemple</td>
+  </tr>
+  <tr> 
+    <td width="37%">Compatibilité SCOL Voy@ger :</td>
+    <td width="62%" class="td1">V 2.0c et supérieure</td>
+  </tr>
+  <tr> 
+    <td width="37%">Mise à jour :</td>
+    <td width="62%" class="td1">02/2001</td>
+  </tr>
+</table>
+<br>
+<div class="title1">Fonction</div>
+<p>Ce module n&#146;a pas de r&eacute;elle utilit&eacute; &agrave; part de servir 
+  d&#146;exemple et de base au d&eacute;veloppement de nouveaux modules. Il met 
+  en &#156;uvre une structure simple de module au travers de la gestion de deux 
+  zones de texte &eacute;ditables : l&#146;une au travers de l&#146;&eacute;diteur 
+  sous SCS (&eacute;dition statique), l&#146;autre dans l&#146;interface client 
+  (&eacute;dition dynamique). Dans un cas comme dans l&#146;autre les modifications 
+  sont sauvegard&eacute;es lors de la fermeture du projet.</p>
+<p>Attention : Les modifications faites dynamiquement alors que le projet est 
+  en cours d&#146;&eacute;dition dans le SCS seront &eacute;cras&eacute;es lors 
+  de la sauvegarde du projet dans le SCS.</p>
+<p>De nombreuses boites de dialogues ont &eacute;t&eacute; laiss&eacute;es en 
+  commentaires dans le code de mani&egrave;re &agrave; comprendre &agrave; quel 
+  moment les callbacks sont ex&eacute;cut&eacute;es.</p>
+<p>L&#146;interface graphique de l&#146;utilisateur est d&eacute;coup&eacute;e 
+  horizontalement en deux moiti&eacute;s &eacute;gales :<br>
+  &middot; La partie sup&eacute;rieure est occup&eacute;e par une zone de texte 
+  comportant le texte &eacute;ditable dans SCS et qui sert d&#146;&eacute;tiquette 
+  &agrave; la zone &eacute;ditable dessous.<br>
+  &middot; La partie inf&eacute;rieure est occup&eacute;es par une zone de texte 
+  &eacute;ditable. Le texte est mis &agrave; jour au niveau du serveur et des 
+  autres clients lorsque l&#146;action &#145;validText&#146; est d&eacute;clench&eacute;e. 
+</p>
+<p><img width=338 height=273 src="french/image.jpg"><br>
+  Figure 1&nbsp;: Interface du module Template</p>
+<div class="title1">Configuration</div><p></p>
+<p>Aucune</p>
+<div class="title1">Mise en oeuvre</div>
+<p><ul><li>Ouvrez l'arbre de cr&eacute;ation du SCS. S&eacute;lectionnez le dossier Templates 
+  puis double-cliquez sur Template 1.0.<br>
+  <li>Etablissez les liens n&eacute;cessaires au projet.</li></ul><br>
+</p>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Action</td>
+    <td width="64%">Fonction</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.start</td>
+    <td>D&eacute;marre le module</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.destroy</td>
+    <td>Ferme le module</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.register</td>
+    <td>Enregistre le client. Celui-ci sera alors mis &agrave; jour lorsqu&#146;un 
+      autre client met &agrave; jour le texte sur le serveur.</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.unregister</td>
+    <td>Ne prend plus en compte le client</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.show</td>
+    <td>Affiche l&#146;interface (les deux zones de texte)</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.hide</td>
+    <td>Cache l&#146;interface (les deux zones de texte)</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.write</td>
+    <td>Ecrit un texte dans les zones &eacute;ditables de tous les clients (le 
+      texte en cours d&#146;&eacute;dition chez les diff&eacute;rents clients 
+      est &eacute;cras&eacute;)</td>
+  </tr>
+  <tr valign="top"> 
+    <td>module.événement <span style='font-family:Wingdings;'>à</span> template.validText</td>
+    <td>Permet de transmettre le texte &eacute;dit&eacute; au serveur qui le mettra 
+      &agrave; jour sur les autres clients.</td>
+  </tr>
+</table>
+<br>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="36%">Evénement</td>
+    <td width="64%">Fonction</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.entering <span style='font-family:Wingdings;'>&agrave;</span> 
+      module Action</td>
+    <td>La demande de lancement de la partie cliente du module engendre une action 
+    </td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.in <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>La fin de l&#146;initialisation du client engendre une action</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.out <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>La destruction du client engendre une action</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.shown <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>L&#146;affichage de l&#146;interface graphique engendre une action</td>
+  </tr>
+  <tr valign="top"> 
+    <td>template.hidden <span style='font-family:Wingdings;'>&agrave;</span> module 
+      Action</td>
+    <td>La disparition (mais pas la destruction) de l&#146;interface graphique 
+      engendre une action</td>
+  </tr>
+</table>
+<br>
+<table cellpadding="2" class="table2">
+  <tr class="table2top" valign="top"> 
+    <td width="15%">Zone</td>
+    <td width="50%">Fonction</td>
+    <td width="18%">Interface</td>
+    <td width="17%">Affectation</td>
+  </tr>
+  <tr valign="top"> 
+    <td width="15%">template.Text</td>
+    <td width="50%">Contient la zone cliente pour les deux zones de texte. </td>
+    <td width="18%"> Client</td>
+    <td width="17%"> Oui</td>
+  </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,73 @@
+_object                 Object:
+_avatar                 Avatar:
+_topview                Top view
+_walkview               Walk view
+_enRecGps               Play route
+_enTrcGps               Trace route
+_enComGps               Com route
+_dsRoute                Disable route
+_setComPort             Setup com port
+_ConfigComPort          Setup Communication Port 
+_contextShow            Show/Hide Terminal (Tab)
+_fullscreen             Fullscreen (Esc)
+_terminal               Terminal view (Tab)
+_confTerminalf          Terminal font
+_confTerminalc          Terminal color
+_help                   Help (Home) 
+_gotoUrl                Info page 
+_gotoUrlFb              Facebook 
+_gotoUrlGp              Google plus 
+_initMessage            >>session start:: stereobit online 
+_iCall                  Call 
+_iAnswer                Answer 
+_iList                  List 
+_iPager                 Chat 
+_iCom                   Comm 
+_iMute                  Mute 
+_iLogin                 Login
+_iPass                  eMode 
+_chPhoto                Change photo
+_chName                 Change nickname
+btn_save                Save
+btn_close               Close
+term3d_txtConfigMacro   Choose the key and enter your text which\nwill be associated for it. Validate each time.
+term3d_save             Save this key
+term3d_close            Close
+term3d_macro1           Good morning !
+term3d_macro2           Good afternoon !
+term3d_macro3           Good evening !
+term3d_macro4           How are you ?
+term3d_macro5           It's time ! Bye bye :-) !!
+term3d_macro6           See u !
+term3d_macro7           I'm back ...
+term3d_macro8           macro8
+term3d_macro9           macro9
+term3d_initMessage      key "HOME" to display an help
+term3d_txtHelp          TAB : show / hide board\nENTER : to send text\nSUPPR : to change color\nBACKSPACE : backspace\nPAGE DOWN/UP : scroll historic\nHOME : this help\nEND : control display\nINSER : configure your macros\nSHIFT + F1 <-> F9 : your macros
+term3d_contextColor     Choose your color
+term3d_contextText      Control text
+term3d_contextSize      Configuration display
+term3d_contextMacros    Configure yours macros
+term3d_contextShow      Show / Hide Term3d
+term3d_contextShowAv    Show / Hide Avatar List
+term3d_contextTrans     Transparency
+term3d_contextUrl       Open URLs contained in a message
+term3d_contextAway      Be away
+term3d_contextHelp      Display an help
+term3d_contectSave      Save messages in file
+term3d_alertCache       Les enregistrements du tchat sur votre disque dur dépasse les 10 Mo !\nDossier où ils sont stockés : ...scol\\cache\\xxxxx\\
+term3d_txtText          Choose the size and the type of the font
+term3d_plain            Plain
+term3d_bold             Bold
+term3d_italic           Italic
+term3d_displayText      Place the term where you want.\nIf you don't know leave or click on Default values.
+term3d_displayPosX      Distance between the left of the term and the left of the 3d
+term3d_displayPosY      Distance between the top of the term and the top of the 3d
+term3d_displayW         Width of term (must be higher than 100)
+term3d_displayH         Height of term (must be higher than 100)
+term3d_displayDefault   Default values
+term3d_PEOPLE1          person
+term3d_PEOPLE2          persons
+term3d_titleurl         Url ...
+term3d_msgurl           Do you want to open this url ?\n\n
+term3d_setSmileys       Smileys activated

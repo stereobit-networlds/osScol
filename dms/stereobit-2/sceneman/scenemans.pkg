@@ -1,0 +1,65 @@
+/* ChatRoom Server - DMS - feb 98 - by Sylvain HUET */
+
+defcom Ccreate=create S S S S;;
+defcom Chear=hear S;;
+
+typeof chaters=[CLIENT r1];;
+typeof intro=S;;
+
+fun broad(x,s)=_DMSsend this x s;;
+fun __speak(s)=
+ if s==nil || 0==strlen s then nil
+ else let hd strextr s -> l in
+ let hd l -> c in
+ if c==nil then nil
+ else if !strcmp c "go" then
+  (_DMSevent this DMSsender nth_list l 1 nil nil;
+   _DMSsend this DMSsender Chear [strcat s "\n"])
+ else let strcatn "<"::(_DMSgetLogin DMSsender)::"> "::s::nil -> sp in
+ (apply_on_list chaters @broad Chear [strcat sp "\n"];
+  _DMSevent this DMSsender "log" strcat "speak " sp nil;
+  _DMSevent this DMSsender "spy" s nil);;
+
+fun who(x,cli)=
+ _DMSsend this cli
+  Chear [strcatn "> "::(_DMSgetLogin x)::" is there\n"::nil];;
+
+fun __register()=
+ if findList chaters DMSsender then nil
+ else
+ (_DMSsend this DMSsender Chear [intro];
+  apply_on_list chaters @broad
+   Chear [strcatn "> "::(_DMSgetLogin DMSsender)::" is there\n"::nil];
+  apply_on_list chaters @who DMSsender;
+  set chaters=DMSsender::chaters;0);;
+
+fun logout(cli)=
+ if !findList chaters cli then nil
+ else
+ (set chaters=remove_from_list chaters cli;
+  apply_on_list chaters @broad
+   Chear [strcatn "> "::(_DMSgetLogin cli)::" is leaving\n"::nil];
+  _DMSevent this cli "destroyed" nil nil)
+;;
+
+fun activate(from,cli,action,param,rep)=
+ if !strcmp action "start" then
+  if findList chaters cli then nil
+  else
+  (_DMSevent this cli "entering" nil "destroy";
+   _DMScreateClientDMI this cli nil)
+ else if !strcmp action "destroy" then
+  (_DMSsend this cli Chear [strcat strcat ">> leaving " _DMSgetName this "\n"];
+   _DMSdelClientDMI this cli;
+   logout cli)
+ else if !strcmp action "!chgLogin" then
+  (apply_on_list chaters @broad Chear
+   [strcatn "> "::param::" -> "::(_DMSgetLogin cli)::"\n"::nil];0)
+ else if !strcmp action "broadMsg" then
+  (apply_on_list chaters @broad Chear [strcat param "\n"];0)
+ else nil;;
+
+fun IniDMI(file)=
+ let strextr _getpack _checkpack file ->l in
+  set intro=getInfo l "Intro";
+ _DMSregisterDMI this @activate nil @logout nil;;
