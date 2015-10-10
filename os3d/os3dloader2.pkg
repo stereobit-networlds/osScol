@@ -1311,7 +1311,7 @@ fun loadOsGroupPlayer(projstr, viewstr, groupstr, father, env)=
   loadCinematicsPlayer projstr viewstr groupstr.GRP_xmlMark;
   
   regLoadPluginInstances groupstr 1; /**<<<<<<<<<<<<<<<<<<<<<<<<< ****/
-  //exec projstr.PRJ_cbGroupLoaded with [projstr groupstr];
+  exec projstr.PRJ_cbGroupLoaded with [projstr groupstr];
   0;;
 
 
@@ -1328,6 +1328,7 @@ fun regLoadProject(projstr, viewstr, parent, pos, ang, scale, env)=
   if (projstr.PRJ_sPath == nil) || (!strcmp (strtrim projstr.PRJ_sPath) "") then nil else
   (
     //set bPluginsLoaded = 0;
+	let 0 -> bPluginsLoaded in
     
     if (projstr.PRJ_xmlFile != nil) then nil else
     let XMLload projstr.PRJ_sPath -> xmlscenestr in

@@ -1,0 +1,52 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+fun cbCloseEdit(p)=
+  let p -> [ctrlreply ctrlsecure] in
+  let itoa !(getEdCtrlCheckState ctrlreply) -> reply in
+  let itoa (getEdCtrlCheckState ctrlsecure) -> secure in
+    ["reply" reply]::
+    ["secure" secure]::
+    nil;;
+
+
+fun dynamicedit(winstr, inst, viewstr) =
+  let [400 90] -> [iw ih] in
+  (
+    setEdWindowSize winstr iw ih;
+    
+    let atoi (getPluginInstanceParam inst "reply") -> reply in
+    let if reply == nil then 1 else reply -> reply in
+    let atoi (getPluginInstanceParam inst "secure") -> secure in
+    let if secure == nil then 1 else secure -> secure in    
+    
+    let crEdCtrlCheck winstr 10 10 280 20 "Broad message only to other clients" EDWIN_RESIZE_MW -> ctrlreply in
+    let crEdCtrlCheck winstr 10 35 280 20 "Secure message (AES encrypt)" EDWIN_RESIZE_MW -> ctrlsecure in
+    (
+      setEdCtrlCheckState ctrlreply !reply;
+      setEdCtrlCheckState ctrlsecure secure;
+      
+      [mkfun1 @cbCloseEdit [ctrlreply ctrlsecure] nil];
+    );
+  );;

@@ -22,6 +22,8 @@ http://www.gnu.org/copyleft/lesser.txt
 -----------------------------------------------------------------------------
 */
 
+var _showcon = 1;; /****** enable console ******/
+
 var iMinVoyagerVersion = 0xd2ef8155;;
 
 proto initOs3dPlayer = fun [S S S S I ObjWin] I;; /*ObjWin param added *********/
@@ -207,7 +209,8 @@ fun loadOS3D(file, projname, pw, ph, fullscreen, winobj)=
       nil
   -> lfiles in
   (
-    //_showconsole; //<<<<<<<<<<<<<<<<<<<<<<<< console
+    if (_showcon == 0) then nil else
+		_showconsole; //<<<<<<<<<<<<<<<<<<<<<<<< show console
 	
     /*disable when loaded from .dmc file (local-use error check)*/
 	/********* download files, create list -dnfiles- in reverse order (disabled) */

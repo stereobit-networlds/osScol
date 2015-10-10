@@ -1,0 +1,94 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+struct PlugSCSMessage = [
+  PM_instance                : PInstance,
+  PM_netcomm                 : NetComm,
+  PM_bReply                  : I,
+  PM_bSecure                 : I
+
+  ]mkPlugSCSMessage;;
+
+
+fun deleteOb(inst, constr)=
+  0;;
+
+
+fun cbReceivedSCSMessage(inst, netstr, userstr, cmd, message, arg, constr)=
+  if (strcmp cmd strtoweb (getPluginInstanceName inst)) then nil else
+    let netFormatMessage netstr userstr message -> message in
+      _DMSevent this (getPluginInstanceEvent inst "Received scs message") message nil;
+  0;;
+
+
+fun cbReceivedSCSPrivateMessage(inst, netstr, userstr, cmd, message, arg, constr)=
+  if (strcmp cmd strtoweb (getPluginInstanceName inst)) then nil else
+    let netFormatMessage netstr userstr message -> message in
+      _DMSevent this (getPluginInstanceEvent inst "Received scs private message") strcatn (itoa userstr.NU_id)::" "::message::nil nil;
+  0;;
+
+
+fun cbSendSCSMessage(inst, from, action, param, reply, constr)=
+  if (constr.PM_bSecure) then
+    netSendBroadMessageSecure constr.PM_netcomm strtoweb (getPluginInstanceName inst) param constr.PM_bReply
+  else
+    netSendBroadMessage constr.PM_netcomm strtoweb (getPluginInstanceName inst) param constr.PM_bReply;
+  0;;
+
+
+fun cbSendSCSPrivateMessage(inst, from, action, param, reply, constr)=
+  let strfind " " param 0 -> pos in
+  let atoi substr param 0 pos -> uid in
+  let netGetUserById constr.PM_netcomm uid -> userstr in
+  let substr param (pos + 1) ((strlen param) - pos) -> message in
+  (
+    if (constr.PM_bSecure) then
+      netSendPrivateMessageSecure constr.PM_netcomm userstr strtoweb (getPluginInstanceName inst) message
+    else
+      netSendPrivateMessage constr.PM_netcomm userstr strtoweb (getPluginInstanceName inst) message;
+  );
+  0;;
+
+
+fun newOb(inst)=
+  let atoi (getPluginInstanceParam inst "reply") -> reply in
+  let if reply == nil then 1 else reply -> reply in
+  let atoi (getPluginInstanceParam inst "secure") -> secure in
+  let if secure == nil then 1 else secure -> secure in
+  let mkPlugSCSMessage [inst netcomOS3D reply secure] -> constr in
+  (
+    setPluginInstanceCbNetUserMessage inst mkfun7 @cbReceivedSCSMessage constr;
+    setPluginInstanceCbNetUserPrivateMessage inst mkfun7 @cbReceivedSCSPrivateMessage constr;
+    
+    PluginRegisterAction inst "Send scs message" mkfun6 @cbSendSCSMessage constr;
+    PluginRegisterAction inst "Send scs private message" mkfun6 @cbSendSCSPrivateMessage constr;
+    setPluginInstanceCbDel inst mkfun2 @deleteOb constr;
+  );
+  0;;
+
+
+fun IniPlug(file)=
+  PlugRegister @newOb nil;
+  setPluginEditor @dynamicedit;
+  0;;

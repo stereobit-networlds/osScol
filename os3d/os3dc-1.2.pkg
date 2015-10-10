@@ -19,6 +19,9 @@ defcom Cack=ack I I I;;
 
 defcom Sload=_load S;;
 
+defcom CloadOS=loadOS S;;       /** load openspace files from server**/
+typeof dnosfiles = [S r1];;     /** verified openspace download files **/
+
 typeof MngW3d=View3dManager;;
 typeof w3d=View3d;;
 
@@ -174,7 +177,7 @@ fun updatelist()=
   _RSTlist list;
   let itoa sizeav C3DobList -> nb in
   (
-    /*_ADDlist list 1000 strcatn ">> "::nb::" "::(_loc this "PEOPLE" nil)::nil;*****/
+    _ADDlist list 1000 strcatn ">> "::nb::" "::(_loc this "PEOPLE" nil)::nil;
     _DMSevent this "avatarList" strcat ">>" nb nil
   );
   apply_on_list C3DobList @addlist 0
@@ -566,8 +569,8 @@ fun controlStd(o,z)=
   )
 ;;
 
-fun speakStd(o,s)= 0;; /*************/ 
-/*_DMSsend this Cspeak [if (strlen s) > 4096 then (substr s 0 4096) else s];;*/
+fun speakStd(o,s)=   
+_DMSsend this Cspeak [if (strlen s) > 4096 then (substr s 0 4096) else s];;
 
 fun controlproceed(o,z)= exec o.controlOb with [o z];;
 
@@ -703,8 +706,7 @@ fun changed(ui,type,param,o)=
       nil
 ;;
 
-fun hearob(ui,action,param,o)= 0;; /**********/
-/*_DMSeventTag this "hear" param nil nil;;*/
+fun hearob(ui,action,param,o)= _DMSeventTag this "hear" param nil nil;;
 
 fun createAv(ui)=
   let ui.userUI.idU -> id in
@@ -740,15 +742,14 @@ fun createAv(ui)=
       if o.indexOb==nil then
         nil
       else
-        /*_DMSsend this Cack [nil o.indexOb nil]; *********/
+        _DMSsend this Cack [nil o.indexOb nil]; 
 		0;
       set o.setposOb=@setpos2Std;
       loadOb o
     );
     updatelist;
-    /* UcbDel this ui mkfun2 @leaving o;
-    UcbChange this ui mkfun4 @changed o *************/
-	0
+    UcbDel this ui mkfun2 @leaving o;
+    UcbChange this ui mkfun4 @changed o 
   );
   0
 ;;
@@ -771,8 +772,8 @@ fun createOb(ui)=
             x;
     set C3DobList=o::C3DobList;
     loadOb o;
-    /*UcbDel this ui mkfun2 @leavingOb o;
-    UcbChange this ui mkfun4 @changed o;*************/
+    UcbDel this ui mkfun2 @leavingOb o;
+    UcbChange this ui mkfun4 @changed o;
     0
   )
 ;;
@@ -861,7 +862,7 @@ fun getloadplg(f,z)=
         else
           tl l
       -> ll in
-        /*_RSCdownload this hd ll hd ll mkfun2 @getloadplg [ll ch a] 3;****/
+        _RSCdownload this hd ll hd ll mkfun2 @getloadplg [ll ch a] 3;
       nil
     )
 ;;
@@ -885,18 +886,18 @@ fun newplug2(a,param)=
           (
             set plugins=(mkPlug[a ch plugwaiting nil nil param 0 nil 0])::plugins;
             _scriptc ch "reg";
-            /*apply_on_list _DMSrelativpath path lneed @getfileplug this; *****/
-            /*let _DMSrelativpath path cl -> l in
+            apply_on_list _DMSrelativpath path lneed @getfileplug this;
+            let _DMSrelativpath path cl -> l in
               if l==nil then
                 _RSCdownload this nil nil mknode @newplug3 [ch cs a] 1
               else
-                _RSCdownload this hd l hd l mkfun2 @getloadplg [l ch a] 3;****/
+                _RSCdownload this hd l hd l mkfun2 @getloadplg [l ch a] 3;
             0
           )
 ;;
 
 fun newplug(file,param)=
-  /*_RSCdownload this file file mkfun2 @newplug2 param 1; *******/
+  _RSCdownload this file file mkfun2 @newplug2 param 1;
   0
 ;;
 
@@ -912,7 +913,7 @@ fun newplugExt(from,param)=
       let _openchannel nil preplug _envchannel _channel -> ch in
       (
         set plugins=(mkPlug[file ch plugwaiting nil nil tl l 0 nil 0])::plugins;
-        /*UsetUserClass this from name; **************/
+        UsetUserClass this from name;
         _scriptc ch "reg";
         _scriptc ch script;
         _scriptc ch mkscript SIniPlug [file];
@@ -1191,7 +1192,7 @@ fun clicklink(h,m,i)=
     else
       let c->[_ _ n _] in
       (
-        /*_DMSeventTag this n nil nil nil; ******************/
+        _DMSeventTag this n nil nil nil;
         0
       )
 ;;
@@ -1647,18 +1648,17 @@ fun loadSceneEnd(a,c)=
   C3D_LaunchWaitingInstance;
 
   _DMSevent this "getPlugin" nil "!addPlugin";
-  /*_DMSsend this Cregister [];   ********************************/
+  _DMSsend this Cregister [];
   _DMSevent this "getControl" nil "!control";
-  /*_DMSevent this "getFocus" _DMSgetName this "!speak"; *********/
+  _DMSevent this "getFocus" _DMSgetName this "!speak";
   if cel.Cel3ddapseudo then
-    /*_DMSevent this "hear" strcatn ">> "::(_loc this "ENTERING" nil)::" "::(_DMSgetName this)::"\n"::nil nil*/
-	0 /******************************/
+    _DMSevent this "hear" strcatn ">> "::(_loc this "ENTERING" nil)::" "::(_DMSgetName this)::"\n"::nil nil
   else
     nil;
   registerTri;
   registerNone;
   set start=1;
-  /*rev_apply_on_list Ulist this @newInst2 nil; *****************/
+  rev_apply_on_list Ulist this @newInst2 nil;
   0
 ;;
 
@@ -1724,8 +1724,7 @@ fun loadCursor(c,b)=
   if c==nil then
     nil
   else
-    /*_RSCdownload this c c @loadCursorEnd 1 **************/
-	0
+    _RSCdownload this c c @loadCursorEnd 1
 ;;
 
 fun __DownloadCursor()=
@@ -1762,15 +1761,13 @@ fun changeCursor(param)=
         let suite -> [milisec _] in
           set ParamCurseurs = (if milisec == nil then "250" else milisec)::iXhot::iYhot::iCoul1::iCoul2::lst;
         set n_curs = sizelist lst;
-        /*_DMSsend this CregCursor [linebuild lst] ****************/
-		0
+        _DMSsend this CregCursor [linebuild lst]
       )
       else
       (
         set ParamCurseurs = "0"::iXhot::iYhot::iCoul1::iCoul2::(hd lst)::nil;
         set n_curs = 1;
-        /*_DMSsend this CregCursor [linebuild (hd lst)::nil] *********/
-		0
+        _DMSsend this CregCursor [linebuild (hd lst)::nil]
       );
   0
 ;;
@@ -1839,9 +1836,9 @@ fun C3Dappend(l,op)=
       f::C3Dappend nxt op
 ;;
 
-fun C3Dbroad(s,b)= 0;;/*_DMSsend this C3Drequest s;; ***********/
+fun C3Dbroad(s,b)= _DMSsend this C3Drequest s;;
 
-fun C3Dautosave(auto, delay) = 0;;/*_DMSsend this CC3Dautosave [auto delay];;***/
+fun C3Dautosave(auto, delay) = _DMSsend this CC3Dautosave [auto delay];;
 
 /********************************************
 Fonction ajoutant op à la liste des requetes
@@ -2057,7 +2054,7 @@ fun enddldesc(fic,ref)=
     getErr fic
   else
   (
-    /*_DMSsend this C3DendAddM3d [fic]; ***********************/
+    _DMSsend this C3DendAddM3d [fic]; 
     let AnalyseDescC (strextr _getpack _checkpack fic) ref nil -> o in
     (
       set o.Obj3dEndLoad=mkfun1 @C3DexecEndAddM3d o;
@@ -2069,19 +2066,18 @@ fun enddldesc(fic,ref)=
 
 fun C3DopAddM3d(l)=
   let nth_list l 1 -> descadd in
-    /*_RSCdownload this
+    _RSCdownload this
                  descadd
                  descadd
                  mkfun2 @enddldesc nth_list l 2
-                 3; *********************************************/
+                 3; 
   0
 ;;
 
 fun C3D_EndDlBox (fic) =
   if (_checkpack fic) == nil then
   (
-    /*_DLGMessageBox _channel nil (_loc this "DOWNLOAD_ERROR" nil) (_loc this "EMPTY_FILE" fic::nil) 0;
-	***************************************/
+    _DLGMessageBox _channel nil (_loc this "DOWNLOAD_ERROR" nil) (_loc this "EMPTY_FILE" fic::nil) 0;
     nil
   )
   else
@@ -2096,8 +2092,7 @@ fun C3D_EndDlBox (fic) =
     set cel.Cel3dcol = [fic 10 0];
     set coll=mkInBox [fic nil nil 10 0];
     inboxLoading coll;
-    /*_DLGMessageBox _channel nil (_loc this "BOX_CHANGE_TITLE" nil) (_loc this "BOX_CHANGE_INFO" nil) 0;
-	*******************************************/
+    _DLGMessageBox _channel nil (_loc this "BOX_CHANGE_TITLE" nil) (_loc this "BOX_CHANGE_INFO" nil) 0;
     OB_ForceCurrentPos owner session
   );
   0
@@ -2105,7 +2100,7 @@ fun C3D_EndDlBox (fic) =
 
 fun C3DopSetBox(l) =
   let hd l -> boxfilename in
-    /*_RSCdownload this boxfilename boxfilename @C3D_EndDlBox 3; ******/
+    _RSCdownload this boxfilename boxfilename @C3D_EndDlBox 3;
   0
 ;;
 
@@ -2761,8 +2756,7 @@ fun Acontrol(from,action,param,ulist,tag)=
     0
   )
 ;;
-fun Ahear(from,action,param,ulist,tag)= 0;;/*_DMSeventTag this "hear" param nil nil;;
-******************************/
+fun Ahear(from,action,param,ulist,tag)= _DMSeventTag this "hear" param nil nil;;
 fun Aspeak(from,action,param,ulist,tag)= speak param;;
 fun AaddPlugin(from,action,param,ulist,tag)= newplugExt from param;;
 fun AChgCursor(from,action,param,ulist,tag)= changeCursor param;;
@@ -2780,7 +2774,7 @@ fun _beforend()=
   M3destroy session;
   0
 ;;
-fun _end(b)= 0;;/*_DMSdelete this;;***********************/
+fun _end(b)= _DMSdelete this;;
 fun _resize(x,s)=
   let x->[win x y w h] in
     resizeView3dManager MngW3d x y w h;
@@ -2796,7 +2790,7 @@ fun _resizeL(x,s)=
     _SIZElist list w h x y;
   0
 ;;
-fun _endx()= 0;; /*_DMSdelete this;; ******************/
+fun _endx()= _DMSdelete this;; 
 fun getplug(a,b)=let a->[file [param _]] in newplug file strextr param;;
 fun __setplugs(s)= apply_on_list strextr s @getplug 0;;
 fun __c3dress(s)= set cel.Cel3dress=strextr s;;
@@ -2806,7 +2800,7 @@ fun __ipos(s)=setipos s;;
 
 fun C3D_ManageV4Compliance () =
   if (_version >= 1002) then
-  (
+  ( /*loaded into .dmc file *****************/
     _load "dms/3d/os3d/os3dEngineExtension.pkg"; 
     set Engine3DIsV4Compliant = 1;
     1
@@ -2815,54 +2809,148 @@ fun C3D_ManageV4Compliance () =
     0
 ;;
 
+/*****************************************************/
+
+fun foolist(list)=
+  let 0 -> i in
+  while i < (sizelist list) do
+    let nth_list list i -> file in
+	( 
+	  set i = i + 1;
+      _fooS strcatn "OS file:"::file::"\n"::nil
+	);; 
+
+/*load OS player ****/
+fun loadOSPlayer(file, axwin, name)=
+  //_DLGrflmessage (_DLGMessageBox _channel nil "Load" strcat file " ok!" 0) @cbVersionCont nil;
+  let if axwin!=nil then axwin else DMSwin -> win in
+  os3dViewSCS file win 640 480;
+  0;;	
+  
+/* launch Player, when winAX full size win (DISABLED)****************/  
+fun preLoadOSPlayer(f, b)=
+  //_DLGrflmessage (_DLGMessageBox _channel nil "Load" strcat file " ok!" 0) @cbVersionCont nil;
+  let b -> [file win name] in
+  os3dViewSCS file DMSwin 640 480 ;
+  0;;
+
+fun initOSPlayer(param) =  
+  //os3dViewSCS (C3D_GetOpenspaceFile) DMSwin 640 480 	
+  _fooS strcatn "Init OS (client):"::param::"\n"::nil;
+  
+  let _DMSgetName this -> name3dOS in
+  let _DMSgetZone this "ViewOS" @_end @_resize @_end ->[win x y w h] in  
+  let if param!=nil then param else C3D_GetOpenspaceFile -> osfile in 
+  (
+    _RSCdownload this osfile osfile mknode @preLoadOSPlayer [osfile win name3dOS] 3; 
+    //_RSCdownload this osfile osfile @loadOSPlayer 1; 
+    //loadOSPlayer osfile win name3dOS /*rcdnload into os3dload->preinitosplayer*/  
+  0);;
+  
+fun endDownloadOSFile(file)=
+  _fooS strcatn "OS File downloaded:"::file::"\n"::nil; /*** foo ********/
+  set dnosfiles = file::dnosfiles; /*verify list */
+  0;;
+  
+fun endDownloadOSFiles(file,b)=
+  let b -> [_ xmlfile sf] in
+  (
+    _fooS strcatn "OS File downloaded:"::file::"\n"::nil; /*** foo ********/
+    set dnosfiles = file::dnosfiles;                      /*verify list */
+    if (sf != sizelist dnosfiles) then nil                /*when last file **/
+    else
+	  let _DMSgetName this -> name3dOS in
+      let _DMSgetZone this "ViewOS" @_end @_resize @_end ->[win x y w h] in
+      (	
+	    //_DLGrflmessage (_DLGMessageBox _channel nil "Win" strcatn (itoa w)::"-"::(itoa h)::nil 0) @cbVersionCont nil;
+        loadOSPlayer xmlfile win name3dOS /*<< fire up OS Player here ***/
+	  );  
+  );;  
+
+fun downloadOSFiles(files, xmlfile)=
+  let 0 -> i in
+  let sizelist files -> sf in
+  while i < sf do
+    let nth_list files i -> file in
+    (
+	 //_RSCdownload this file file @endDownloadOSFile 1;
+	 _RSCdownload this file file mknode @endDownloadOSFiles [nil xmlfile sf] 3;
+     set i = i+1
+	);;  
+	
+fun isDownLoaded(file) = 
+  let _checkpack file -> ret in 
+  if (ret == nil) then 0 else 1;;
+  
+/* launch by server response **/  
+fun __initOSPlayerS(param, osfiles) =  
+  //os3dViewSCS (C3D_GetOpenspaceFile) DMSwin 640 480 	
+  _fooS strcatn "Init OS (server):"::param::"\n"::nil;  
+  if (osfiles==nil) then
+    loadOSPlayer nil nil nil /*no xmlfile defined *****/
+  else	  
+  (
+    _fooS osfiles;                    /*** foo ********/
+    //foolist (lineextr osfiles);
+	set dnosfiles = nil; /*init verify list */
+    downloadOSFiles lineextr osfiles C3D_GetOpenspaceFile;
+	
+    //let if param!=nil then param else C3D_GetOpenspaceFile -> file in
+    //loadOSPlayer file //param is empty !!!
+	0
+  );;  
+	
+/**************************************************/	
+	
 fun IniDMI(param)=
 /* GRAPHICDRESSING_InitDressing;
  GRAPHICDRESSING_SetTheme nil;*/
   C3D_ManageV4Compliance;
-  
-  /*start openspace 3d viewer *********************/
-  /*os3dViewSCS nil DMSwin;*/
 
-  /*set preplug=mkscript Sload [strcat _DMSgetpath _DMSgetClass this preplug];
-  *********************************/
-  /*_DMSregister this @_beforend; ****************/
-  /*_DMSdefineActions this  ["!control" @Acontrol]::
+  set preplug=mkscript Sload [strcat _DMSgetpath _DMSgetClass this preplug];
+  _DMSregister this @_beforend; 
+  _DMSdefineActions this  ["!control" @Acontrol]::
                           ["hear" @Ahear]::
                           ["!speak" @Aspeak]::
                           ["!addPlugin" @AaddPlugin]::
                           ["!ChgCursor" @AChgCursor]::
                           ["!centerOnPlayer" @AcenterOnPlayer]::
                           ["!c3dPositionSize" @Ac3dPositionSize]::
-                          nil; *********************/
-  /*UcbCreate this @newInst; **********************/
+                          nil; 
+  UcbCreate this @newInst; 
   set tickcount=_tickcount;
   set SELECT_CURSOR = HandCursor;
   set MngW3d =
-    /* let _DMSgetName this -> name3d in **************/
-    /* let _DMSgetZone this "View" @_end @_resize @_end ->[win x y w h] in ***/
+    let _DMSgetName this -> name3d in
+    let _DMSgetZone this "View" @_end @_resize @_end ->[win x y w h] in
     (
-      /*_DMSevent this "sendingPositionSize"
+      _DMSevent this "sendingPositionSize"
                 strbuild ("x"::(itoa x)::nil)::("y"::(itoa y)::nil)::("w"::(itoa w)::nil)::("h"::(itoa h)::nil)::nil
-                nil;***************************/
-      //if win==nil then
-         iniView3dManager _channel DMSwin [nil nil] [500 300] 7 "name3d" @_endx
-      //else
-         //iniView3dManager _channel win [x y] [w h] 14 name3d @_endx
+                nil;
+				
+      /********* HIDE OLD 3d win *********** 
+	  if win==nil then
+         iniView3dManager _channel DMSwin [nil nil] [500 300] 7 name3d @_endx
+      else
+         iniView3dManager _channel win [x y] [w h] 14 name3d @_endx
+	  *************************************/ 
+      if win==nil then nil else nil	
     );
 	/* viewOS zone loads SO3engine win (test)******************************/
-	//let _DMSgetName this -> name3dOS in
-    //let _DMSgetZone this "ViewOS" @_end @_resize @_end ->[win x y w h] in
+	let _DMSgetName this -> name3dOS in
+    let _DMSgetZone this "ViewOS" @_end @_resize @_end ->[win x y w h] in
     (
       /*_DMSevent this "sendingPositionSize"
                 strbuild ("x"::(itoa x)::nil)::("y"::(itoa y)::nil)::("w"::(itoa w)::nil)::("h"::(itoa h)::nil)::nil
                 nil;*/
-      //if win==nil then
-         //os3dViewSCS nil DMSwin
-      //else
-         //os3dViewSCS nil win
-	  0	 
+      /*if win==nil then
+         iniView3dManager _channel DMSwin [nil nil] [500 300] 7 name3dOS @_endx
+      else
+         iniView3dManager _channel win [x y] [w h] 14 name3dOS @_endx */
+	  //os3dViewSCS nil DMSwin
+	  if win==nil then nil else nil	 
     );	
-  /*let _DMSgetZone this "Info" @_end @_resizeI @_end ->[win x y w h] in
+  let _DMSgetZone this "Info" @_end @_resizeI @_end ->[win x y w h] in
     if win==nil then
       nil
     else
@@ -2874,13 +2962,19 @@ fun IniDMI(param)=
     (
       set list=_CRlist _channel win x y w h LB_DOWN+LB_VSCROLL;
       _CBlistClick list @lclick 0
-    );**********/
-  /*let hd strextr param -> l in
+    );
+  let hd strextr param -> l in
   (
     set position=hd tl l;
     preloadScene3d;
-    _RSCdownload this hd l hd l mkfun2 @loadScene3d [hd l @loadSceneEnd] 3
-  )*/0
+    _RSCdownload this hd l hd l mkfun2 @loadScene3d [hd l @loadSceneEnd] 3;
+	
+	/* launch Player, when winAX full size win ****************/
+	//initOSPlayer nil; 
+	
+    /** <- register openspace files..response to open player **/
+    _DMSsend this CloadOS [nil]; /*launch by server response**/	
+  )
 ;;
 
 /* Gestion de l'échange de positions */
@@ -2893,7 +2987,7 @@ fun SendPosition()=
   let lastPos -> [lx ly lz] in let lastAng -> [la lb lc] in
   if lx!=x || ly!=y || lz!=z || la!=a || lb!=b || lc!=c then
   (set sendtime=_tickcount;
-   /*_DMSsend this Csetpos [owner.indexOb x y z a b c]; ***********/
+   _DMSsend this Csetpos [owner.indexOb x y z a b c];
    set Ack=0;
    set lastPos=[x y z];
    set lastAng=[a b c])
@@ -2908,8 +3002,8 @@ fun __ack(delay)=
 fun __setpos(n,x,y,z,a,b,c,t)=
  let search_in_list C3DobList @obbyid n -> p in
  if p==owner || p==nil then nil
- else if x==nil then 0/*_DMSsend this Cack [owner.indexOb p.indexOb t] ****/
+ else if x==nil then _DMSsend this Cack [owner.indexOb p.indexOb t]
  else let p.o3Ob -> sh in
  (if nil==M3getFather session sh then M3link session sh shellav else nil;
   exec p.setposOb with [p [x y z] [a b c]];
-  /*_DMSsend this Cack [owner.indexOb p.indexOb t]*****/0);;
+  _DMSsend this Cack [owner.indexOb p.indexOb t]);;

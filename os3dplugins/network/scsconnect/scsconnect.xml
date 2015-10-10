@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<PLUGIN name="SCS Connect" version="1.0" type="network">
+  <DESCRIPTION>SCS Connector</DESCRIPTION>
+  <HELP>http://www.openspace3d.com/documentation/fr/plugits/network/messageplugit.html</HELP>
+  <RESOURCE></RESOURCE>
+  <EDITOR>
+    <SCRIPT path="./escsconnect.pkg" />
+    <PARAM name="reply" type="value" />
+    <PARAM name="secure" type="secure" />
+  </EDITOR>
+  <CLIENT minstance="true">
+    <SCRIPT path="./cscsconnect.pkg" />
+    <ACTION name="Send scs message" />
+    <ACTION name="Send scs private message" />
+    <EVENT name="Received scs message" />
+    <EVENT name="Received scs private message" />
+  </CLIENT>
+</PLUGIN>
