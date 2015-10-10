@@ -2927,10 +2927,14 @@ fun IniDMI(param)=
       _DMSevent this "sendingPositionSize"
                 strbuild ("x"::(itoa x)::nil)::("y"::(itoa y)::nil)::("w"::(itoa w)::nil)::("h"::(itoa h)::nil)::nil
                 nil;
-      if win==nil then
+				
+      /********* HIDE OLD 3d win *********** 
+	  if win==nil then
          iniView3dManager _channel DMSwin [nil nil] [500 300] 7 name3d @_endx
       else
          iniView3dManager _channel win [x y] [w h] 14 name3d @_endx
+	  *************************************/ 
+      if win==nil then nil else nil	
     );
 	/* viewOS zone loads SO3engine win (test)******************************/
 	let _DMSgetName this -> name3dOS in
