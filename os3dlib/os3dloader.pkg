@@ -1,0 +1,1814 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/**************************************************
+ OpenSpace 3D XOS Loader
+ Author: Bastien BOURINEAU / I-maginer
+ Last update: 11.16.2010
+
+**************************************************/
+
+/*
+fun getGroupByName(projstr, name)=
+  let sizelist projstr.PRJ_lGroups -> size in
+  let nil -> group in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list projstr.PRJ_lGroups i -> elem in
+      let elem -> [_ groupstr] in
+      if strcmp name groupstr.GRP_sName then nil else
+        set group = groupstr;
+      
+      set i = i + 1;
+    );
+    group;
+  );;
+*/
+
+
+fun newOsSceneGroupPlayer(projstr, viewstr, groupmark, name, id, father, scale, pos, ang)=
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let if (projstr.PRJ_bMode != 2) then (strcatn (itoa id)::"."::name::nil) else (strcatn projstr.PRJ_sName::"."::(itoa id)::"."::name::nil) -> grpname in
+  let SO3SceneNodeCreate (V3DgetSession sessionstr) grpname -> shell in
+  let mkGroup [grpname nil projstr shell nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil] -> groupstr in 
+  (
+    set groupstr.GRP_xmlMark = groupmark;
+    
+    SO3ObjectLink shell father;
+    SO3GroupCreate (V3DgetSession sessionstr) grpname;
+    SO3ObjectSetPosition shell pos;
+    SO3ObjectSetOrientation shell ang;
+    SO3ObjectSetScale shell scale;
+    
+    set projstr.PRJ_lGroups = [groupmark groupstr]::projstr.PRJ_lGroups;
+ 
+    [groupstr shell];
+  );;
+
+
+fun getGroupName(projstr, groupmark)=
+  let XMLgetParam groupmark "id" -> id in
+  let XMLgetParam groupmark "name" -> name in
+  if (id == nil) || (name == nil) then
+    if (projstr.PRJ_bMode != 2) then "Scene" else strcat projstr.PRJ_sName ".Scene"
+  else
+    if (projstr.PRJ_bMode != 2) then strcatn id::"."::name::nil else strcatn projstr.PRJ_sName::"."::id::"."::name::nil;;
+
+
+fun getObjectName(projstr, id, name)=
+  if (projstr.PRJ_bMode != 2) then
+    strcatn id::"."::name::nil
+  else
+    strcatn projstr.PRJ_sName::"."::id::"."::name::nil;;
+
+
+fun getParamName(projstr, name)=
+  if (projstr.PRJ_bMode != 2) then
+    name
+  else
+    strcatn projstr.PRJ_sName::"."::name::nil;;
+
+
+fun resetEnvironmentPlayer(projstr, viewstr, groupmark)=
+  let getGroupName projstr groupmark -> resgroup in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let V3DgetDefaultViewport viewstr -> defaultviewportstr in
+  let defaultviewportstr.V3D_viewport -> viewport in
+
+  let XMLgetMarkByValueFromMarkSons groupmark "environment" -> envxml in
+  if envxml == nil then nil else
+  (
+    // Reset env
+    if (sizelist (SO3SkyGetLayeredCloudIndexes (V3DgetSession sessionstr))) <= 0 then nil else
+      SO3SkyRemoveLayeredCloud (V3DgetSession sessionstr) (hd (SO3SkyGetLayeredCloudIndexes (V3DgetSession sessionstr)));
+
+    SO3EnvironmentSetEnable (V3DgetSession sessionstr) 0;
+    SO3EnvironmentUnregisterViewport (V3DgetSession sessionstr) defaultviewportstr.V3D_viewport;
+    SO3WaterSetEnable (V3DgetSession sessionstr) 0;
+    SO3SkySetEnable (V3DgetSession sessionstr) 0;
+    SO3EnvironmentSetTimeSpeedFactor (V3DgetSession sessionstr) 0.0;
+    
+    let XMLgetMarkByValueFromMarkSons envxml "skyBox" -> skyboxstr in
+    let XMLgetMarkByValueFromMarkSons envxml "skyDome" -> skydomestr in
+    let XMLgetMarkByValueFromMarkSons envxml "skyPlane" -> skyplanstr in
+    let XMLgetMarkByValueFromMarkSons envxml "physic" -> physicstr in
+    let XMLgetMarkByValueFromMarkSons envxml "shadows" -> shadowstr in
+    let XMLgetMarkByValueFromMarkSons envxml "fog" -> fogstr in
+    (
+      if (fogstr == nil) then nil else
+        V3DsetSceneFog sessionstr SO3_FOG_NONE 0xffffff 0.0 0.0 0.0;
+        
+      if (skyboxstr == nil) then nil else
+        SO3SceneSetSkyBoxEnable (V3DgetSession sessionstr) 0;
+      
+      if (skydomestr == nil) then nil else
+        SO3SceneSetSkyDomeEnable (V3DgetSession sessionstr) 0;
+      
+      if (skyplanstr == nil) then nil else
+        SO3SceneSetSkyPlaneEnable (V3DgetSession sessionstr) 0;
+     
+      let XMLgetMarksByValueFromMarkSons envxml "compositor" -> lcompmark in
+      while (lcompmark != nil) do
+      (
+        let hd lcompmark -> compmark in
+        let XMLgetParam compmark "name" -> compname in
+        (
+          V3DunRegisterCompositor defaultviewportstr compname;
+          SO3ViewportRemoveCompositor defaultviewportstr.V3D_viewport compname;
+        );
+        set lcompmark = tl lcompmark;
+      );
+      
+      SO3ViewportSetMaterialScheme defaultviewportstr.V3D_viewport "default";
+      
+      if (physicstr == nil) then nil else
+      (
+        V3DphysSetArchitectureMode sessionstr SO3_PA_DEFAULT;
+        V3DphysSetSolverMode sessionstr SO3_SM_ADAPTATIVE;
+        V3DphysSetFrictionMode sessionstr SO3_SM_ADAPTATIVE;
+        
+        V3DphysSetWorld sessionstr [1000.0 1000.0 1000.0];
+        V3DphysSetFps sessionstr 60;
+        V3DphysSetGravity sessionstr [0.0 (-.9.81) 0.0];
+        V3DphysEnablePhysic sessionstr 0;
+      );
+      
+      if (shadowstr == nil) then nil else    
+        SO3SceneSetShadowTechnique (V3DgetSession sessionstr) SO3_SHADOWTYPE_NONE;
+
+      V3DsetViewportColor defaultviewportstr make_rgba iDefaultBackGroundRColor iDefaultBackGroundGColor iDefaultBackGroundBColor 0;
+      V3DsetAmbientLight sessionstr make_rgba iDefaultAmbiantRColor iDefaultAmbiantGColor iDefaultAmbiantBColor 0;
+    
+      SO3ViewportSetHDREnabled viewport 0;
+      
+      SO3ViewportSetSSAOEnabled viewport 0;
+      SO3ViewportSetSSAOTechnique viewport SO3_SSAO_TECHNIQUE_CRYTEK;
+      SO3ViewportSetSSAOFilter viewport SO3_SSAO_FILTER_NONE;
+      
+      SO3ViewportSetSSAOTechniqueParameters viewport SO3_SSAO_TECHNIQUE_CRYTEK ["cDefaultAccessibility" 0.5]::["cEdgeHighlight" 0.0]::
+                                                       ["cOffsetScale" 0.01]::["cSampleInScreenspace" 0.0]::
+                                                         ["cSampleLengthScreenSpace" 0.06]::["cSampleLengthWorldSpace" 2.0]::nil;
+    );
+  );
+  0;;
+
+
+fun deleteGroup(projstr, groupstr, viewstr)=
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  (
+    // remove group plugITs instances
+    removeAllPluginInstanceFromGroup groupstr;
+    
+    if (!projstr.PRJ_bUseEnvironment) then nil else
+      resetEnvironmentPlayer projstr viewstr groupstr.GRP_xmlMark;
+    
+    SO3ObjectDestroy groupstr.GRP_shell;
+    
+    SO3GroupDelete (V3DgetSession sessionstr) groupstr.GRP_sName;
+    
+    set groupstr.GRP_shell = nil;
+    set projstr.PRJ_lGroups = V3DremoveIdxFromList projstr.PRJ_lGroups groupstr.GRP_xmlMark;
+  );
+  0;;
+
+
+fun deleteProjectCamera(projstr, sessionstr, markstr)=
+  let XMLgetParam markstr "id" -> id in
+  let XMLgetParam markstr "name" -> name in
+  let (getObjectName projstr id name) -> name in
+  let V3DgetObjectByName sessionstr name -> cam in
+    V3DdelCamera sessionstr cam;
+  0;;
+
+
+fun deleteProjectAnim(projstr, sessionstr, markstr)=
+  let XMLgetParam markstr "id" -> id in
+  let XMLgetParam markstr "name" -> name in
+  let (getObjectName projstr id name) -> name in
+  let V3DgetAnimationByName sessionstr name -> animstr in
+    V3DdelAnimation sessionstr animstr;
+  0;;
+
+
+fun searchProjectResToDelete(projstr, sessionstr, markstr)=
+  let markstr.XMLsons -> l in
+  while (l != nil) do
+  (
+    let hd l -> sonstr in
+      searchProjectResToDelete projstr sessionstr sonstr;
+    
+    set l = tl l;
+  );
+  
+  if (!strcmpi markstr.XMLvalue "camera") then
+    deleteProjectCamera projstr sessionstr markstr
+  else if (!strcmpi markstr.XMLvalue "animation") then
+    deleteProjectAnim projstr sessionstr markstr
+  else nil;
+  0;;
+
+
+fun deleteProject(projstr, viewstr)=
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let projstr.PRJ_xmlFile.XMLmarks -> l in
+  while (l != nil) do
+  (
+    let hd l -> markstr in
+      searchProjectResToDelete projstr sessionstr markstr;
+    
+    set l = tl l;
+  );
+  
+  let projstr.PRJ_lGroups -> lgrp in
+  while (lgrp != nil) do
+  (
+    let hd lgrp -> [_ groupstr] in
+      deleteGroup projstr groupstr viewstr;
+    
+    set lgrp = tl lgrp;
+  );
+  
+  XMLclose projstr.PRJ_xmlFile;
+  deleteGroup projstr projstr.PRJ_group viewstr;
+  exec projstr.PRJ_cbSceneDestroyed with [projstr];
+  0;;
+
+
+/* ********************************************************************************************* /
+  Os scene Loader
+/ ********************************************************************************************* */
+fun loadCinematicsPlayer(projstr, viewstr, groupmark)=
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let XMLgetMarkByValueFromMarkSons groupmark "cinematics" -> cinematicsxml in
+  let XMLgetMarksByValueFromMarkSons cinematicsxml "animation" -> lanimmarks in
+  let nil -> lanims in
+  (
+    while (lanimmarks != nil) do
+    (
+      let hd lanimmarks -> animmark in
+      let XMLgetParam animmark "id" -> id in
+      let XMLgetParam animmark "name" -> animname in
+      let XMLgetBoolParam animmark "enable" -> animstate in
+      let XMLgetBoolParam animmark "loop" -> animloop in
+      let atof XMLgetParam animmark "speed" -> animspeed in
+      let atof XMLgetParam animmark "weight" -> animweight in
+      let XMLgetBoolParam animmark "skipFrame" -> skipFrame in
+      let if (XMLgetParam animmark "skipFrame") == nil then 1 else skipFrame -> skipFrame in
+      
+      let if (animspeed == nil) then fDefaultAnimationSpeed else animspeed -> animspeed in
+      let (getObjectName projstr id animname) -> curanimname in
+      
+      let V3DaddSequenceAnimation sessionstr (atoi id) animname curanimname animspeed animweight animstate animloop -> animstr in
+      (
+        V3DanimationSetDefaultSkipFrame animstr skipFrame;
+        set lanims = [animstr animmark]::lanims;
+      );
+      
+      set lanimmarks = tl lanimmarks;
+    );
+    
+    while (lanims != nil) do    
+    (
+      let hd lanims -> [animstr animmark] in    
+      let XMLgetMarksByValueFromMarkSons animmark "track" -> ltrackmarks in
+      while (ltrackmarks != nil) do
+      (
+        let V3DaddSequenceAnimationTrack animstr -> trackidx in
+        let hd ltrackmarks -> trackmark in
+        let XMLgetMarksByValueFromMarkSons trackmark "keyframe" -> lkeymarks in
+        while (lkeymarks != nil) do
+        (
+          let hd lkeymarks -> keymark in
+          let XMLgetParam keymark "animId" -> keyanimid in
+          let XMLgetParam keymark "animName" -> keyanim in
+          let (getObjectName projstr keyanimid keyanim) -> curkeyanimname in
+          let atof XMLgetParam keymark "length" -> length in
+          let atof XMLgetParam keymark "transition" -> transition in
+          let atof XMLgetParam keymark "decal" -> decal in
+          let V3DgetAnimationByName sessionstr curkeyanimname -> keyanimstr in
+          (
+            if (keyanimstr == nil) then nil else
+              V3DaddSequenceAnimationKey animstr trackidx keyanimstr length transition decal;
+          );
+          
+          set lkeymarks = tl lkeymarks;
+        );
+        
+        set ltrackmarks = tl ltrackmarks;
+      );
+      
+      set lanims = tl lanims;
+    );
+  );
+  0;;
+
+
+fun getOsGroupResourcesPlayer(groupstr)=
+  let XMLgetMarkByValueFromMarkSons groupstr.GRP_xmlMark "resources" -> resourcesmark in
+  let XMLgetMarksByValueFromMarkSons resourcesmark "resource" -> lresourcemarks in
+  let nil -> lfiles in
+  (
+    while (lresourcemarks != nil) do
+    (
+      let hd lresourcemarks -> resourcemark in
+      let XMLgetParam resourcemark "type" -> type in
+      let XMLgetParam resourcemark "path" -> path in
+      let getPathFile path "" -> [dir _] in
+      (
+        set groupstr.GRP_lAvailableResourcesFiles = addUniqueStri groupstr.GRP_lAvailableResourcesFiles path; //quicksort (lcat groupstr.GRP_lAvailableResourcesFiles path::nil) @suppDoublon;
+      );
+      
+      set lresourcemarks = tl lresourcemarks;
+    );
+  );
+  0;;
+
+
+fun loadEnvironmentPlayer(projstr, viewstr, groupmark)=
+  let getGroupName projstr groupmark -> resgroup in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let V3DgetDefaultViewport viewstr -> defaultviewportstr in
+  let defaultviewportstr.V3D_viewport -> viewport in
+  
+  let XMLgetMarkByValueFromMarkSons groupmark "environment" -> envxml in
+  if envxml == nil then nil else
+  (
+    let XMLgetMarkByValueFromMarkSons envxml "colourAmbient" -> ambientstr in
+    let make_rgba (ftoi ((atof XMLgetParam ambientstr "r") *. 255.0)) (ftoi ((atof XMLgetParam ambientstr "g") *. 255.0)) (ftoi ((atof XMLgetParam ambientstr "b") *. 255.0)) 0 -> ambientcolor in
+    let XMLgetMarkByValueFromMarkSons envxml "colourBackground" -> backstr in
+    let make_rgba (ftoi ((atof XMLgetParam backstr "r") *. 255.0)) (ftoi ((atof XMLgetParam backstr "g") *. 255.0)) (ftoi ((atof XMLgetParam backstr "b") *. 255.0)) 0 -> backcolor in
+    
+    let XMLgetMarkByValueFromMarkSons envxml "materialScheme" -> matschemestr in
+    let XMLgetParam matschemestr "name" -> schemename in
+    
+    let XMLgetMarkByValueFromMarkSons envxml "skyBox" -> skyboxstr in
+    let XMLgetBoolParam skyboxstr "enable" -> skyboxenable in
+    let XMLgetParam skyboxstr "material" -> skyboxmat in
+    let atof XMLgetParam skyboxstr "distance" -> skyboxdistance in
+    let XMLgetBoolParam skyboxstr "drawFirst" -> skyboxdrawfirst in
+    let XMLgetMarkByValueFromMarkSons skyboxstr "rotation" -> skyboxrotstr in
+    let atof XMLgetParam skyboxrotstr "qx" -> skyboxqx in
+    let atof XMLgetParam skyboxrotstr "qy" -> skyboxqy in
+    let atof XMLgetParam skyboxrotstr "qz" -> skyboxqz in
+    let atof XMLgetParam skyboxrotstr "qw" -> skyboxqw in
+    
+    let XMLgetMarkByValueFromMarkSons envxml "skyDome" -> skydomestr in
+    let XMLgetBoolParam skydomestr "enable" -> skydomeenable in
+    let XMLgetParam skydomestr "material" -> skydomemat in
+    let atof XMLgetParam skydomestr "distance" -> skydomedistance in
+    let atof XMLgetParam skydomestr "tiling" -> skydometiling in
+    let atof XMLgetParam skydomestr "curvature" -> skydomecurve in
+    let atoi XMLgetParam skydomestr "xSegments" -> skydomexseg in
+    let atoi XMLgetParam skydomestr "ySegments" -> skydomeyseg in
+    let XMLgetBoolParam skydomestr "drawFirst" -> skydomedrawfirst in
+    let XMLgetMarkByValueFromMarkSons skydomestr "rotation" -> skydomerotstr in
+    let atof XMLgetParam skydomerotstr "qx" -> skydomeqx in
+    let atof XMLgetParam skydomerotstr "qy" -> skydomeqy in
+    let atof XMLgetParam skydomerotstr "qz" -> skydomeqz in
+    let atof XMLgetParam skydomerotstr "qw" -> skydomeqw in
+    
+    let XMLgetMarkByValueFromMarkSons envxml "skyPlane" -> skyplanstr in
+    let XMLgetBoolParam skyplanstr "enable" -> skyplanenable in
+    let XMLgetParam skyplanstr "material" -> skyplanmat in
+    let atof XMLgetParam skyplanstr "planeX" -> skyplanx in
+    let atof XMLgetParam skyplanstr "planeY" -> skyplany in
+    let atof XMLgetParam skyplanstr "planeZ" -> skyplanz in
+    let atof XMLgetParam skyplanstr "planeD" -> skypland in
+    let atof XMLgetParam skyplanstr "scale" -> skyplanscale in
+    let atof XMLgetParam skyplanstr "bow" -> skyplanbow in
+    let atof XMLgetParam skyplanstr "tiling" -> skyplantiling in
+    let atoi XMLgetParam skyplanstr "xSegments" -> skyplanxseg in
+    let atoi XMLgetParam skyplanstr "ySegments" -> skyplanyseg in  
+    let XMLgetBoolParam skyplanstr "drawFirst" -> skyplandrawfirst in
+    
+    let XMLgetMarkByValueFromMarkSons envxml "physic" -> physicstr in
+    let XMLgetParam physicstr "architectureModel" -> physicarch in
+    let XMLgetParam physicstr "solverModel" -> physicsolver in
+    let XMLgetParam physicstr "frictionModel" -> physicfriction in
+    let atoi XMLgetParam physicstr "framerate" -> physicfps in
+    let XMLgetBoolParam physicstr "enable" -> physicenable in
+    
+    let atof XMLgetParam physicstr "gravity" -> physicgravity in
+    let XMLgetMarkByValueFromMarkSons physicstr "gravity" -> gravitystr in
+    let atof XMLgetParam gravitystr "x" -> gx in
+    let atof XMLgetParam gravitystr "y" -> gy in
+    let atof XMLgetParam gravitystr "z" -> gz in
+    let if gravitystr == nil then [0.0 (-.physicgravity) 0.0] else [gx gy gz] -> [gx gy gz] in
+    
+    let XMLgetMarkByValueFromMarkSons physicstr "worldSize" -> worldsizestr in
+    let atof XMLgetParam worldsizestr "x" -> physicwx in
+    let atof XMLgetParam worldsizestr "y" -> physicwy in
+    let atof XMLgetParam worldsizestr "z" -> physicwz in
+    
+    let XMLgetMarkByValueFromMarkSons envxml "fog" -> fogstr in
+    let XMLgetParam fogstr "mode" -> sfogmode in
+    let atof XMLgetParam fogstr "linearStart" -> foglinearStart in
+    let atof XMLgetParam fogstr "linearEnd" -> foglinearEnd in
+    let atof XMLgetParam fogstr "density" -> fogdensity in
+    let XMLgetMarkByValueFromMarkSons fogstr "colourDiffuse" -> fogambstr in
+    let make_rgba (ftoi ((atof XMLgetParam fogambstr "r") *. 255.0)) (ftoi ((atof XMLgetParam fogambstr "g") *. 255.0)) (ftoi ((atof XMLgetParam fogambstr "b") *. 255.0)) 0 -> fogcolor in
+
+    let XMLgetMarkByValueFromMarkSons envxml "dynamicEnv" -> dynenvstr in
+    (
+      // Apply dynamic env
+      if dynenvstr == nil then nil else
+      let XMLgetBoolParam dynenvstr "enable" -> envenable in
+      let XMLgetMarkByValueFromMarkSons dynenvstr "date" -> datestr in
+      let XMLgetBoolParam datestr "current" -> datecurrent in
+      let atoi XMLgetParam datestr "year" -> dateyear in
+      let atoi XMLgetParam datestr "month" -> datemonth in
+      let atoi XMLgetParam datestr "day" -> dateday in
+      let atoi XMLgetParam datestr "hours" -> datehours in
+      let atoi XMLgetParam datestr "minutes" -> dateminutes in
+      let atof XMLgetParam datestr "timeSpeed" -> datetimespeed in
+      
+      let XMLgetMarkByValueFromMarkSons dynenvstr "location" -> locationstr in
+      let atof XMLgetParam locationstr "longitude" -> loclongitude in
+      let atof XMLgetParam locationstr "latitude" -> loclatitude in
+      
+      let XMLgetMarkByValueFromMarkSons dynenvstr "sun" -> sunstr in
+      let XMLgetBoolParam sunstr "enable" -> sunenable in
+      let XMLgetMarkByValueFromMarkSons sunstr "lightColour" -> suncolorstr in
+      let make_rgba (ftoi ((atof XMLgetParam suncolorstr "r") *. 255.0)) (ftoi ((atof XMLgetParam suncolorstr "g") *. 255.0)) (ftoi ((atof XMLgetParam suncolorstr "b") *. 255.0)) 0 -> suncolor in
+  
+      let XMLgetMarkByValueFromMarkSons dynenvstr "moon" -> moonstr in
+      let XMLgetBoolParam moonstr "enable" -> moonenable in
+      let XMLgetParam moonstr "texture" -> moontexture in
+      let XMLgetMarkByValueFromMarkSons moonstr "lightColour" -> mooncolorstr in
+      let make_rgba (ftoi ((atof XMLgetParam mooncolorstr "r") *. 255.0)) (ftoi ((atof XMLgetParam mooncolorstr "g") *. 255.0)) (ftoi ((atof XMLgetParam mooncolorstr "b") *. 255.0)) 0 -> mooncolor in
+      
+      let XMLgetMarkByValueFromMarkSons dynenvstr "weather" -> weatherstr in
+      let atof XMLgetParam weatherstr "humidity" -> weatherhumidity in
+      let XMLgetMarkByValueFromMarkSons weatherstr "wind" -> windstr in
+      let atof XMLgetParam windstr "xDirection" -> windxdirection in
+      let atof XMLgetParam windstr "yDirection" -> windydirection in
+      let atof XMLgetParam windstr "speed" -> windspeed in
+      
+      let XMLgetMarkByValueFromMarkSons dynenvstr "sky" -> skystr in
+      let XMLgetBoolParam skystr "enable" -> skyenable in
+      let XMLgetBoolParam skystr "hdr" -> skyhdr in
+      let if ((XMLgetParam skystr "3dclouds") == nil) then XMLgetBoolParam skystr "clouds3d" else XMLgetBoolParam skystr "3dclouds" -> sky3dclouds in
+      let XMLgetBoolParam skystr "lightning" -> skylightning in
+      let atof XMLgetParam skystr "cloudsCeiling" -> skyceiling in
+      let XMLgetParam skystr "starsTexture" -> skystarstexture in
+      
+      let XMLgetMarkByValueFromMarkSons dynenvstr "water" -> waterstr in
+      let XMLgetBoolParam waterstr "enable" -> waterenable in
+      let XMLgetBoolParam waterstr "underWater" -> waterunder in
+      let XMLgetBoolParam waterstr "foam" -> waterfoam in
+      let XMLgetBoolParam waterstr "caustics" -> watercaustics in
+      let atof XMLgetParam waterstr "causticsPower" -> watercausticspower in
+      let if watercausticspower == nil then 10.0 else watercausticspower -> watercausticspower in
+      let atof XMLgetParam waterstr "waveStrength" -> waterstrength in
+      let atof XMLgetParam waterstr "ChoppyStrength" -> waterchoppy in
+      let atof XMLgetParam waterstr "waveScale" -> waterscale in
+      let atoi XMLgetParam waterstr "waveComplexity" -> watercomplexity in
+      
+      let atof XMLgetParam waterstr "level" -> waterlevel in
+      let atof XMLgetParam waterstr "depth" -> waterdepth in
+      let XMLgetMarkByValueFromMarkSons waterstr "waterColour" -> watercolorstr in
+      let make_rgba (ftoi ((atof XMLgetParam watercolorstr "r") *. 255.0)) (ftoi ((atof XMLgetParam watercolorstr "g") *. 255.0)) (ftoi ((atof XMLgetParam watercolorstr "b") *. 255.0)) 0 -> watercolor in
+      (
+        SO3EnvironmentRegisterViewport (V3DgetSession sessionstr) defaultviewportstr.V3D_viewport;
+  
+        if(!datecurrent) then
+        (
+          SO3EnvironmentSetDateTime (V3DgetSession sessionstr) dateyear datemonth dateday datehours dateminutes 0;
+          SO3EnvironmentSetTimeSpeedFactor (V3DgetSession sessionstr) datetimespeed;
+        )
+        else
+        (
+          let getCurrentDateTime 1 -> [day month year hours minutes seconds] in
+            SO3EnvironmentSetDateTime (V3DgetSession sessionstr) year month day hours minutes seconds;
+          SO3EnvironmentSetTimeSpeedFactor (V3DgetSession sessionstr) 1.0;
+          0;
+        );
+         
+        SO3EnvironmentSetLongitude (V3DgetSession sessionstr) loclongitude;
+        SO3EnvironmentSetLatitude (V3DgetSession sessionstr) loclatitude;
+        
+        //TODO enable sun
+        SO3SunSetLightColor (V3DgetSession sessionstr) suncolor;
+                    
+        //TODO enable moon
+        SO3MoonSetLightColor (V3DgetSession sessionstr) suncolor;
+                    
+        SO3EnvironmentSetHumidity (V3DgetSession sessionstr) weatherhumidity;
+        SO3EnvironmentSetWindDirection (V3DgetSession sessionstr) windxdirection windydirection;
+        SO3EnvironmentSetWindSpeed (V3DgetSession sessionstr) windspeed;
+  
+        SO3SkySetHdrEnable (V3DgetSession sessionstr) skyhdr;
+        SO3SkySetCloudCeiling (V3DgetSession sessionstr) skyceiling;
+        if (sky3dclouds) then
+        (
+          SO3SkyComponentSetEnabled (V3DgetSession sessionstr) SO3_SKY_COMPONENT_VOLUMETRIC_CLOUD 1;
+          SO3SkySetLightningEnable (V3DgetSession sessionstr) skylightning;
+          0;
+        )
+        else
+        (
+          SO3SkyComponentSetEnabled (V3DgetSession sessionstr) SO3_SKY_COMPONENT_LAYERER_CLOUD 1;
+          SO3SkyAddLayeredCloud (V3DgetSession sessionstr);
+          0;
+        );
+        //TODO stars texture
+        
+        SO3WaterComponentSetEnabled (V3DgetSession sessionstr) SO3_WATER_COMPONENT_UNDERWATER waterunder;
+        SO3WaterComponentSetEnabled (V3DgetSession sessionstr) SO3_WATER_COMPONENT_FOAM waterfoam;
+        SO3WaterComponentSetEnabled (V3DgetSession sessionstr) SO3_WATER_COMPONENT_CAUSTICS watercaustics;
+        SO3WaterSetPerlinNoiseParameters (V3DgetSession sessionstr) waterscale nil nil nil nil nil nil;
+        SO3WaterSetGeometryComplexity (V3DgetSession sessionstr) watercomplexity;
+        SO3WaterSetWaveParameters (V3DgetSession sessionstr) waterstrength nil waterchoppy;        
+        SO3WaterSetPosition (V3DgetSession sessionstr) [0.0 waterlevel 0.0];
+        SO3WaterSetDepthParameters (V3DgetSession sessionstr) (waterdepth /. 2.0) waterdepth;
+        SO3WaterSetColor (V3DgetSession sessionstr) watercolor;
+        SO3WaterSetCausticsParameters (V3DgetSession sessionstr) 100.0 /. (if waterscale >. 0.0 then waterscale else 1.0) watercausticspower nil;
+        
+        SO3SkySetEnable (V3DgetSession sessionstr) skyenable;
+        SO3WaterSetEnable (V3DgetSession sessionstr) waterenable;
+        SO3EnvironmentSetEnable (V3DgetSession sessionstr) envenable;
+        SO3EnvironmentSetPaused (V3DgetSession sessionstr) if envenable then 0 else 1;
+        
+        if (!envenable) then nil else
+          V3DuseDefaultLight sessionstr 0;
+      );
+
+      if (fogstr != nil) then
+        V3DsetSceneFog sessionstr (getOgreFogType sfogmode) fogcolor fogdensity foglinearStart foglinearEnd
+      else
+        V3DsetSceneFog sessionstr SO3_FOG_NONE 0xffffff 0.0 0.0 0.0;
+      
+      if (skyboxstr != nil) then
+      let (SO3SceneGetMaterial (V3DgetSession sessionstr) resgroup skyboxmat) -> skymat in
+      (
+        SO3SceneSetSkyBox (V3DgetSession sessionstr) skymat skyboxdistance [skyboxqx skyboxqy skyboxqz skyboxqw] resgroup skyboxenable skyboxdrawfirst;
+      )
+      else
+      (
+        SO3SceneSetSkyBoxEnable (V3DgetSession sessionstr) 0;
+      );
+      
+      if (skydomestr != nil) then
+      let (SO3SceneGetMaterial (V3DgetSession sessionstr) resgroup skydomemat) -> skymat in
+      (
+        SO3SceneSetSkyDome (V3DgetSession sessionstr) skymat skydomedistance [skydomeqx skydomeqy skydomeqz skydomeqw] (if skydomecurve == nil then 0.0 else skydomecurve) skydometiling skydomexseg skydomeyseg (-1) resgroup skydomeenable skydomedrawfirst;
+      )
+      else
+      (
+        SO3SceneSetSkyDomeEnable (V3DgetSession sessionstr) 0;
+      );
+      
+      if (skyplanstr != nil) then
+      let (SO3SceneGetMaterial (V3DgetSession sessionstr) resgroup skyplanmat) -> skymat in
+      (
+        SO3SceneSetSkyPlane (V3DgetSession sessionstr) skymat skypland [skyplanx skyplany skyplanz] skyplanscale skyplantiling (if skyplanbow == nil then 0.0 else skyplanbow) skyplanxseg skyplanyseg resgroup skyplanenable skyplandrawfirst;
+      )
+      else
+      (
+        SO3SceneSetSkyPlaneEnable (V3DgetSession sessionstr) 0;
+      );
+      
+      let XMLgetMarksByValueFromMarkSons envxml "compositor" -> lcompmark in
+      while (lcompmark != nil) do
+      (
+        let hd lcompmark -> compmark in
+        let XMLgetParam compmark "name" -> compname in
+        let XMLgetParam compmark "scheme" -> compschemename in
+        let XMLgetBoolParam compmark "enable" -> compstate in
+        (
+          V3DregisterCompositor defaultviewportstr compname compschemename;
+          if !compstate then nil else
+            SO3ViewportAddCompositor defaultviewportstr.V3D_viewport compname compschemename;
+        );
+        
+        set lcompmark = tl lcompmark;
+      );
+      
+      SO3ViewportSetMaterialScheme defaultviewportstr.V3D_viewport schemename;
+      
+      if physicstr != nil then
+      (
+        V3DphysSetArchitectureModeByName sessionstr physicarch;
+        V3DphysSetSolverModeByName sessionstr physicsolver;
+        V3DphysSetFrictionModeByName sessionstr physicfriction;
+        
+        V3DphysSetWorld sessionstr [physicwx physicwy physicwz];
+        V3DphysSetFps sessionstr physicfps;
+        V3DphysSetGravity sessionstr [gx gy gz];
+        V3DphysEnablePhysic sessionstr 0;
+      )
+      else
+      (
+        V3DphysEnablePhysic sessionstr 0;
+      );
+    
+      V3DsetViewportColor defaultviewportstr backcolor;
+      V3DsetAmbientLight sessionstr ambientcolor;  
+    
+      //shadow
+      let XMLgetMarkByValueFromMarkSons envxml "shadows" -> shadowstr in
+      let getOgreMaxShadowMethod (XMLgetParam shadowstr "technique") -> shadowtechnique in
+      let getOgreMaxShadowPreset (XMLgetParam shadowstr "preset") -> shadowpreset in
+      let getOgreMaxShadowPresetMode (XMLgetParam shadowstr "presetMode") -> shadowpresetmode in
+      let getOgreMaxShadowPresetQuality (XMLgetParam shadowstr "presetQuality") -> shadowpresetquality in
+      let XMLgetBoolParam shadowstr "selfShadow" -> selfshadow in
+      let atof XMLgetParam shadowstr "farDistance" -> shadowfardist in
+      let atof XMLgetParam shadowstr "extrusionDistance" -> extdistance in
+      let XMLgetParam shadowstr "casterMaterial" -> shadowcaster in
+      let XMLgetParam shadowstr "receiverMaterial" -> shadowreceiver in
+      
+      let XMLgetMarkByValueFromMarkSons shadowstr "colourShadow" -> shadowcolorstr in
+      let make_rgba (ftoi ((atof XMLgetParam shadowcolorstr "r") *. 255.0)) (ftoi ((atof XMLgetParam shadowcolorstr "g") *. 255.0)) (ftoi ((atof XMLgetParam shadowcolorstr "b") *. 255.0)) 0 -> shadowcolor in
+      let XMLgetMarkByValueFromMarkSons shadowstr "shadowCameraSetup" -> shadowcamerastr in
+      let getOgreMaxCameraShadowType (XMLgetParam shadowcamerastr "type") -> shadowcameratype in
+      let atof XMLgetParam shadowcamerastr "planeX" -> scamplanx in
+      let atof XMLgetParam shadowcamerastr "planeY" -> scamplany in
+      let atof XMLgetParam shadowcamerastr "planeZ" -> scamplanz in
+      let atof XMLgetParam shadowcamerastr "planeD" -> scampland in    
+      
+      let XMLgetMarkByValueFromMarkSons shadowstr "shadowTextures" -> shadowtexturestr in
+      let atoi XMLgetParam shadowtexturestr "size" -> shadowtexturesize in
+      let atoi XMLgetParam shadowtexturestr "count" -> shadowtexturecount in
+      let atof XMLgetParam shadowtexturestr "offset" -> shadowtextureoffset in
+      let atof XMLgetParam shadowtexturestr "fadeStart" -> shadowtexturefadestart in
+      let atof XMLgetParam shadowtexturestr "fadeEnd" -> shadowtexturefadestop in
+      if shadowstr != nil then
+      (
+        if (shadowpreset == SO3_SHADOWS_PRESET_NONE || shadowpreset == nil) then
+        (
+          V3DsetShadowTechnique sessionstr shadowtechnique shadowfardist shadowcolor selfshadow;
+    
+          if (!strcmp shadowcaster "") || shadowcaster == nil then nil else
+            SO3SceneSetShadowCaster (V3DgetSession sessionstr) shadowcaster;
+    
+          if (!strcmp shadowreceiver "") || shadowreceiver == nil then nil else
+            SO3SceneSetShadowReceiver (V3DgetSession sessionstr) shadowreceiver;
+            
+          if shadowcamerastr == nil then nil else
+            V3DsetShadowCameraType sessionstr shadowcameratype scamplanx scamplany scamplanz scampland;
+            
+          if shadowtexturestr == nil then nil else
+            V3DsetShadowTextureParams sessionstr shadowtexturesize shadowtexturecount shadowtextureoffset shadowtexturefadestart shadowtexturefadestop;
+          0;
+        )
+        else
+        (
+          SO3SceneSetShadowFarDistance (V3DgetSession sessionstr) shadowfardist;
+          SO3SceneSetShadowDirectionalLightExtrusionDistance (V3DgetSession sessionstr) extdistance;
+          SO3SceneSetShadowColor (V3DgetSession sessionstr) shadowcolor;  
+          SO3SceneSetShadowQuality (V3DgetSession c3dXsession) shadowpresetquality; 
+          SO3SceneSetShadowLightingTechnique (V3DgetSession c3dXsession) shadowpresetmode;
+          SO3SceneSetShadowPreset (V3DgetSession c3dXsession) shadowpreset;
+          0;
+        );
+        0;
+      )
+      else
+      (
+        SO3SceneSetShadowPreset (V3DgetSession c3dXsession) SO3_SHADOWS_PRESET_NONE;
+        SO3SceneSetShadowTechnique (V3DgetSession sessionstr) SO3_SHADOWTYPE_NONE;
+      );
+      
+      //SSAO
+      let XMLgetMarkByValueFromMarkSons envxml "SSAO" -> ssaostr in
+      let atoi XMLgetParam ssaostr "technique" -> ssaotechnique in
+      let atoi XMLgetParam ssaostr "filter" -> ssaofilter in
+      let XMLgetBoolParam ssaostr "enable" -> ssaoenable in
+      if ssaostr == nil then nil else
+      ( 
+        SO3ViewportSetSSAOTechnique viewport ssaotechnique;
+        SO3ViewportSetSSAOFilter viewport ssaofilter;
+        SO3ViewportSetSSAOEnabled viewport ssaoenable;
+        
+        let ssaostr.XMLsons -> l in
+        while (l != nil) do
+        (
+          let hd l -> ssaoparam in
+          (
+            let atof XMLgetParam ssaoparam "value" -> value in
+              SO3ViewportSetSSAOTechniqueParameterValue viewport ssaotechnique ssaoparam.XMLvalue value;
+          );
+          set l = tl l;
+        );
+      );
+      
+      //HDR
+      let XMLgetMarkByValueFromMarkSons envxml "HDR" -> hdrstr in
+      let XMLgetBoolParam hdrstr "enable" -> hdrenable in
+      let atof XMLgetParam hdrstr "blurAmount" -> blurAmount in
+      let if (blurAmount == nil) then 0.2 else blurAmount -> blurAmount in
+      let atof XMLgetParam hdrstr "effectAmount" -> effectAmount in
+      let if (effectAmount == nil) then 0.4 else effectAmount -> effectAmount in
+      let atof XMLgetParam hdrstr "gamma" -> gamma in
+      let if (gamma == nil) then 1.0 else gamma -> gamma in
+      if hdrstr == nil then nil else
+      (
+        SO3ViewportSetHDREnabled viewport hdrenable;
+        SO3ViewportSetHDRBlurAmount viewport blurAmount;
+        SO3ViewportSetHDREffectAmount viewport effectAmount;
+        SO3ViewportSetHDRGamma viewport gamma;
+      );
+      
+      // Main viewport visibility mask
+      let 0 -> mask in
+      let XMLgetMarkByValueFromMarkSons envxml "layers" -> layersstr in
+      if (layersstr == nil) then nil else
+      (
+        let layersstr.XMLsons -> l in
+        while (l != nil) do
+        (
+          let hd l -> layerstr in
+          let atoi XMLgetParam layerstr "id" -> layerid in
+          let XMLgetBoolParam layerstr "enable" -> layerenable in
+            set mask = mask | (layerenable << layerid);
+          
+          set l = tl l;
+        );
+        SO3ViewportSetVisibilityMask viewport mask;
+      );
+      
+      //default camera
+      let XMLgetMarkByValueFromMarkSons envxml "defaultCamera" -> defcamerastr in
+      let XMLgetBoolParam defcamerastr "orthographic" -> cameraortho in
+      let atof XMLgetParam defcamerastr "windowScale" -> windowscale in
+      let atof XMLgetParam defcamerastr "fov" -> camerafov in
+      let if camerafov == nil then 57.29 else camerafov -> camerafov in
+      let atof XMLgetParam defcamerastr "focalLenght" -> camerafocallength in
+      let if camerafocallength == nil then 1.0 else camerafocallength -> camerafocallength in
+      let atof XMLgetParam defcamerastr "dist" -> cameradist in
+      let if cameradist == nil then
+            let SO3ObjectGetPosition (V3DgetDefaultCamera sessionstr) -> [_ _ d] in
+              d
+          else
+            cameradist
+      -> cameradist in
+      
+      let XMLgetMarkByValueFromMarkSons defcamerastr "clipping" -> camclippingstr in
+      let atof XMLgetParam camclippingstr "near" -> camclipnear in
+      let if camclipnear == nil then 0.01 else camclipnear -> camclipnear in
+      let atof XMLgetParam camclippingstr "far" -> camclipfar in
+      let if camclipfar == nil then 10000.0 else camclipfar -> camclipfar in
+      
+      let XMLgetMarkByValueFromMarkSons defcamerastr "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let if xpos == nil then 0.0 else xpos -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let if ypos == nil then 0.0 else ypos -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let if zpos == nil then 0.0 else zpos -> zpos in
+      let XMLgetMarkByValueFromMarkSons defcamerastr "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "x" -> xang in
+      let atof XMLgetParam noderotstr "y" -> yang in
+      let atof XMLgetParam noderotstr "z" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+      let if (noderotstr == nil) then
+            V3DgetShellNavAng sessionstr
+          else
+            [xang yang zang wang]
+      -> [xang yang zang wang] in
+      (
+        let SO3MathsDegreeToRadian camerafov -> fov in
+          V3DsetCamera (V3DgetDefaultCamera sessionstr) camerafocallength fov camclipnear camclipfar;
+        
+        let SO3MathsDegreeToRadian camerafov -> fov in
+          V3DsetCamera (V3DgetDefaultCamera sessionstr) camerafocallength fov camclipnear camclipfar;
+        
+        SO3ObjectSetPosition (V3DgetDefaultCamera sessionstr) [0.0 0.0 cameradist];
+        V3DsetShellNavPos sessionstr [xpos ypos zpos];
+      
+        if (noderotstr == nil) then nil else
+          V3DsetShellNavAng sessionstr SO3MathsEulerXYZToQuat [(SO3MathsDegreeToRadian xang) (SO3MathsDegreeToRadian yang) (SO3MathsDegreeToRadian zang)];
+        
+        V3DsetOrthographicMode (V3DgetDefaultCamera sessionstr) cameraortho;
+        V3DsetOrthographicScale (V3DgetDefaultCamera sessionstr) windowscale;
+      );
+    );
+  );
+  0;;
+
+
+fun loadPhysicBody(sessionstr, shell, nodexml)=
+  let XMLgetMarkByValueFromMarkSons nodexml "body" -> bodystr in
+  let XMLgetParam bodystr "type" -> bodytype in
+  let XMLgetParam bodystr "material" -> bodymatname in
+  let atof XMLgetParam bodystr "mass" -> bodymass in
+  let XMLgetBoolParam bodystr "enable" -> bodyenable in
+  let if ((XMLgetParam bodystr "autoSleep") == nil) then 1 else XMLgetBoolParam bodystr "autoSleep" -> bodyautosleep in
+  let XMLgetBoolParam bodystr "continuousColl" -> bodycontinuous in
+  let XMLgetMarkByValueFromMarkSons bodystr "damping" -> dampingstr in
+  let atof XMLgetParam dampingstr "linear" -> bodydampingl in
+  let atof XMLgetParam dampingstr "x" -> bodydampingx in
+  let atof XMLgetParam dampingstr "y" -> bodydampingy in
+  let atof XMLgetParam dampingstr "z" -> bodydampingz in
+  let XMLgetMarkByValueFromMarkSons bodystr "centerOfMass" -> centermassstr in
+  let if centermassstr == nil then 1 else XMLgetBoolParam centermassstr "auto" -> centermassauto in
+  let atof XMLgetParam centermassstr "x" -> centermassx in
+  let atof XMLgetParam centermassstr "y" -> centermassy in
+  let atof XMLgetParam centermassstr "z" -> centermassz in
+  let XMLgetMarkByValueFromMarkSons bodystr "bodySize" -> bodysizestr in
+  let atof XMLgetParam bodysizestr "x" -> sizex in
+  let atof XMLgetParam bodysizestr "y" -> sizey in
+  let atof XMLgetParam bodysizestr "z" -> sizez in
+  if bodystr == nil then nil else
+  (
+    let if (!strcmpi bodytype "collisionTree") then
+          // remove hd when engine updated
+          SO3BodyCreateCollisionTree shell 1
+        else if (!strcmpi bodytype "ellipsoid") then
+          V3DphysCreateBodyEllipsoid shell (if bodysizestr == nil then nil else [sizex sizey sizez])
+        else if (!strcmpi bodytype "box") then
+          V3DphysCreateBodyBox shell (if bodysizestr == nil then nil else [sizex sizey sizez])
+        else if (!strcmpi bodytype "shape") then
+          SO3BodyCreateShape shell 0.0
+        else if (!strcmpi bodytype "concave") then
+          SO3BodyCreateConcaveShape shell 0.0
+        else if (!strcmpi bodytype "cylinder") then
+          V3DphysCreateBodyCylinder shell (if bodysizestr == nil then nil else [sizex sizey sizez])
+        else if (!strcmpi bodytype "chamfer cylinder") then
+          V3DphysCreateBodyChamferCylinder shell (if bodysizestr == nil then nil else [sizex sizey sizez])
+        else if (!strcmpi bodytype "capsule") then
+          V3DphysCreateBodyCapsule shell (if bodysizestr == nil then nil else [sizex sizey sizez])
+        else if (!strcmpi bodytype "cone") then
+          V3DphysCreateBodyCone shell (if bodysizestr == nil then nil else [sizex sizey sizez])
+        else if (!strcmpi bodytype "pyramid") then
+          V3DphysCreateBodyPyramid shell (if bodysizestr == nil then nil else [sizex sizey sizez])
+        else nil
+    -> body in
+    if body == nil then nil else
+    (
+      V3DphysSetBodyMaterial sessionstr body bodymatname;
+      SO3BodySetMass body bodymass;
+      SO3BodySetContiniousCollisionMode body bodycontinuous;
+      SO3BodySetAutoSleep body bodyautosleep;
+      SO3BodySetCenterOfMass body if centermassauto then SO3BodyCalculateOffset body else [centermassx centermassy centermassz];
+      
+      if dampingstr == nil then nil else
+      (
+        SO3BodySetLinearDamping body bodydampingl;
+        SO3BodySetAngularDamping body [bodydampingx bodydampingy bodydampingz];
+      );
+      
+      V3DphysEnableBody body bodyenable;
+    );
+  );
+  0;;
+
+
+fun loadBonesChildsFromXosPlayer(projstr, sessionstr, bone, meshstr)=
+  let SO3ObjectGetName bone -> bonename in
+  let cutDotName bonename -> [id name] in
+  let SO3ObjectGetPosition bone -> [rbxp rbyp rbzp] in
+  let SO3ObjectGetOrientation bone -> [rbxq rbyq rbzq rbwq] in
+  let SO3ObjectGetScale bone -> [rbxs rbys rbzs] in
+  let SO3ObjectGetChildren bone -> lchild in
+  
+  let XMLgetMarkByValueAndParamValueFromMarkSons meshstr "bone" "name" name -> srcbonexml in
+  let XMLgetMarkByValueFromMarkSons srcbonexml "position" -> nodeposstr in
+  let if nodeposstr == nil then rbxp else atof XMLgetParam nodeposstr "x" -> rbxp in
+  let if nodeposstr == nil then rbyp else atof XMLgetParam nodeposstr "y" -> rbyp in
+  let if nodeposstr == nil then rbzp else atof XMLgetParam nodeposstr "z" -> rbzp in
+  let XMLgetMarkByValueFromMarkSons srcbonexml "rotation" -> noderotstr in
+  let if noderotstr == nil then rbxq else atof XMLgetParam noderotstr "qx" -> rbxq in
+  let if noderotstr == nil then rbyq else atof XMLgetParam noderotstr "qy" -> rbyq in
+  let if noderotstr == nil then rbzq else atof XMLgetParam noderotstr "qz" -> rbzq in
+  let if noderotstr == nil then rbwq else atof XMLgetParam noderotstr "qw" -> rbwq in
+  let XMLgetMarkByValueFromMarkSons srcbonexml "scale" -> nodescalestr in
+  let if nodescalestr == nil then rbxs else atof XMLgetParam nodescalestr "x" -> rbxs in
+  let if nodescalestr == nil then rbys else atof XMLgetParam nodescalestr "y" -> rbys in
+  let if nodescalestr == nil then rbzs else atof XMLgetParam nodescalestr "z" -> rbzs in
+  (
+    exec projstr.PRJ_cbObjectLoaded with [projstr srcbonexml bonename iTypeBone];
+    
+    SO3ObjectSetPosition bone [rbxp rbyp rbzp];
+    SO3ObjectSetOrientation bone [rbxq rbyq rbzq rbwq];
+    SO3ObjectSetScale bone [rbxs rbys rbzs];
+    
+    loadPhysicBody sessionstr bone srcbonexml;
+    
+    while lchild != nil do
+    (
+      loadBonesChildsFromXosPlayer projstr sessionstr (hd lchild) srcbonexml;    
+      set lchild = tl lchild;
+    );
+  );
+  0;;
+
+
+fun loadOsGraphPlayer(projstr, viewstr, srcnodemark, destgroup, father)=
+  let getGroupName projstr destgroup -> resgroup in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let XMLgetMarksByValuesFromMarkSons srcnodemark "shell"::"mesh"::"light"::"camera"::"particle"::"cubemap"::"reflectionmap"::nil -> lmarks in
+  (
+    // SHELL
+    let switchstr lmarks "shell" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> nodename in
+      let XMLgetBoolParam nodexml "hidden" -> nodehidden in
+      let XMLgetBoolParam nodexml "staticGeometry" -> nodestaticgeometry in
+      let XMLgetMarkByValueFromMarkSons nodexml "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let XMLgetMarkByValueFromMarkSons nodexml "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "qx" -> xang in
+      let atof XMLgetParam noderotstr "qy" -> yang in
+      let atof XMLgetParam noderotstr "qz" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+      let XMLgetMarkByValueFromMarkSons nodexml "scale" -> nodescalestr in
+      let atof XMLgetParam nodescalestr "x" -> xscale in
+      let atof XMLgetParam nodescalestr "y" -> yscale in
+      let atof XMLgetParam nodescalestr "z" -> zscale in
+      
+      let SO3SceneNodeCreate (V3DgetSession sessionstr) (getObjectName projstr id nodename) -> shell in 
+      (
+        if father == nil then nil else
+          SO3ObjectLink shell father;
+        
+        SO3ObjectSetPosition shell [xpos ypos zpos];
+        SO3ObjectSetOrientation shell [xang yang zang wang];
+        SO3ObjectSetScale shell [xscale yscale zscale];
+        
+        SO3ObjectSetAsStaticGeometry shell nodestaticgeometry;
+
+        // physics
+        loadPhysicBody sessionstr shell nodexml;
+                
+        exec projstr.PRJ_cbObjectLoaded with [projstr nodexml (getObjectName projstr id nodename) iTypeNode];
+        loadOsGraphPlayer projstr viewstr nodexml destgroup shell;
+
+        // do it after sons loaded
+        SO3ObjectSetVisible shell !nodehidden 1;
+      );
+      
+      set lnodexml = tl lnodexml;
+    );
+  
+    // ENTITY
+    let switchstr lmarks "mesh" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> meshstr in
+      let XMLgetParam meshstr "id" -> id in
+      let XMLgetParam meshstr "name" -> meshname in
+      let XMLgetParam meshstr "path" -> meshpath in
+      let XMLgetParam meshstr "skeletonlink" -> sklpath in
+      let XMLgetBoolParam meshstr "indexMaterials" -> indexmat in
+      let XMLgetBoolParam meshstr "castShadows" -> meshcastshadow in
+      let XMLgetBoolParam meshstr "hidden" -> meshhidden in
+      let XMLgetBoolParam meshstr "staticGeometry" -> meshstaticgeometry in
+      let XMLgetBoolParam meshstr "receiveShadows" -> meshreceiveshadow in  
+      let XMLgetMarkByValueFromMarkSons meshstr "subentities" -> subentitiesstr in
+      let XMLgetMarksByValueFromMarkSons subentitiesstr "subentity" -> lentitystr in
+      let atof XMLgetParam meshstr "renderingDistance" -> meshrenderdistance in
+      let htoi XMLgetParam meshstr "visibilityFlags" -> meshvisibilityflags in
+      
+      let XMLgetMarkByValueFromMarkSons meshstr "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let XMLgetMarkByValueFromMarkSons meshstr "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "qx" -> xang in
+      let atof XMLgetParam noderotstr "qy" -> yang in
+      let atof XMLgetParam noderotstr "qz" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+      let XMLgetMarkByValueFromMarkSons meshstr "scale" -> nodescalestr in
+      let atof XMLgetParam nodescalestr "x" -> xscale in
+      let atof XMLgetParam nodescalestr "y" -> yscale in
+      let atof XMLgetParam nodescalestr "z" -> zscale in
+      
+      let if meshpath != nil then
+            SO3SceneLoadEntity (V3DgetSession sessionstr) resgroup (getObjectName projstr id meshname) _checkpack meshpath
+          else nil
+      -> mesh in
+      (
+        SO3ObjectSetPosition mesh [xpos ypos zpos];
+        SO3ObjectSetOrientation mesh [xang yang zang wang];
+        SO3ObjectSetScale mesh [xscale yscale zscale];
+        SO3ObjectSetRenderingDistance mesh meshrenderdistance;
+        SO3EntitySetVisibilityFlags mesh meshvisibilityflags;
+        
+        if father == nil then nil else
+          SO3ObjectLink mesh father;
+        
+        if (_checkpack sklpath) == nil then nil else
+        (
+          V3DaddResource sessionstr sklpath resgroup SO3_RESOURCE_SKELETON;
+          SO3EntityAttachSkeleton mesh _checkpack sklpath;
+          let SO3GetRootBonesFromMesh mesh -> rootbones in
+          while (rootbones != nil) do
+          (
+            loadBonesChildsFromXosPlayer projstr sessionstr (hd rootbones) meshstr;
+            set rootbones = tl rootbones;
+          );
+        );
+
+        while (lentitystr != nil) do
+        (
+          let hd lentitystr -> elem in
+          let atoi XMLgetParam elem "index" -> subidx in
+          let XMLgetParam elem "materialName" -> submatname in
+          let SO3SceneGetMaterial (V3DgetSession sessionstr) resgroup submatname -> submat in
+          (
+            SO3EntitySetMaterial mesh submat subidx;
+          );
+          set lentitystr = tl lentitystr;
+        );
+                
+        V3DaddResource sessionstr meshpath resgroup SO3_RESOURCE_MESH;
+
+        // physics
+        loadPhysicBody sessionstr mesh meshstr;
+        
+        SO3ObjectSetCastShadows mesh meshcastshadow;
+        SO3ObjectSetAsStaticGeometry mesh meshstaticgeometry;
+        
+        exec projstr.PRJ_cbObjectLoaded with [projstr meshstr (getObjectName projstr id meshname) iTypeEntity];
+        loadOsGraphPlayer projstr viewstr meshstr destgroup mesh;
+        
+        // do it after sons loaded
+        SO3ObjectSetVisible mesh !meshhidden 0;
+      );
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // LIGHT
+    let switchstr lmarks "light" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> lightstr in
+      let getOgreMaxLightType (XMLgetParam lightstr "type") -> lighttype in
+      let XMLgetParam lightstr "id" -> id in
+      let XMLgetParam lightstr "name" -> lightname in
+      let XMLgetBoolParam lightstr "castShadows" -> lightcastshadow in
+      let atof (XMLgetParam lightstr "renderingDistance") -> lightrenderdistance in
+      let XMLgetParam lightstr "enable" -> slightenable in
+      let if slightenable == nil then 1 else (XMLgetBoolParam lightstr "enable") -> lightenable in
+      let atof XMLgetParam lightstr "power" -> lightpower in
+      
+      let XMLgetMarkByValueFromMarkSons lightstr "colourDiffuse" -> lightdiffusestr in
+      let make_rgba (ftoi ((atof XMLgetParam lightdiffusestr "r") *. 255.0)) (ftoi ((atof XMLgetParam lightdiffusestr "g") *. 255.0)) (ftoi ((atof XMLgetParam lightdiffusestr "b") *. 255.0)) 0 -> lightdiffusecolor in
+      
+      let XMLgetMarkByValueFromMarkSons lightstr "colourSpecular" -> lightspecularstr in
+      let make_rgba (ftoi ((atof XMLgetParam lightspecularstr "r") *. 255.0)) (ftoi ((atof XMLgetParam lightspecularstr "g") *. 255.0)) (ftoi ((atof XMLgetParam lightspecularstr "b") *. 255.0)) 0 -> lightspecularcolor in
+      
+      let XMLgetMarkByValueFromMarkSons lightstr "lightAttenuation" -> lightattenuationstr in
+      let atof XMLgetParam lightattenuationstr "range" -> lightrange in
+      
+      let XMLgetMarkByValueFromMarkSons lightstr "lightRange" -> lightrangestr in
+      let atof XMLgetParam lightrangestr "inner" -> lightinner in
+      let atof XMLgetParam lightrangestr "outer" -> lightouter in 
+       
+      let XMLgetMarkByValueFromMarkSons lightstr "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let XMLgetMarkByValueFromMarkSons lightstr "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "qx" -> xang in
+      let atof XMLgetParam noderotstr "qy" -> yang in
+      let atof XMLgetParam noderotstr "qz" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+      let XMLgetMarkByValueFromMarkSons lightstr "scale" -> nodescalestr in
+      let atof XMLgetParam nodescalestr "x" -> xscale in
+      let atof XMLgetParam nodescalestr "y" -> yscale in
+      let atof XMLgetParam nodescalestr "z" -> zscale in
+
+      let SO3LightCreate (V3DgetSession sessionstr) (getObjectName projstr id lightname) -> light in
+      (
+        if (projstr.PRJ_bMode == 2) then nil else
+          V3DuseDefaultLight sessionstr 0;
+        
+        SO3LightSetVisible light lightenable;
+        SO3ObjectSetRenderingDistance light lightrenderdistance;
+        
+        if father == nil then nil else
+          SO3ObjectLink light father;
+        
+        SO3ObjectSetPosition light [xpos ypos zpos];
+        SO3ObjectSetOrientation light [xang yang zang wang];
+        SO3ObjectSetScale light [xscale yscale zscale];
+
+        SO3LightSetType light lighttype;
+        SO3LightSetPowerScale light lightpower;
+        SO3LightSetDiffuseColor light lightdiffusecolor;
+        SO3LightSetSpecularColor light lightspecularcolor;
+        SO3LightSetAttenuationAuto light lightrange;
+        SO3ObjectSetCastShadows light lightcastshadow;
+      
+        if lightrangestr == nil then nil else
+        (
+          SO3LightSetSpotInnerAngle light lightinner;
+          SO3LightSetSpotOuterAngle light lightouter;
+        );
+        
+        exec projstr.PRJ_cbObjectLoaded with [projstr lightstr (getObjectName projstr id lightname) iTypeLight];
+        loadOsGraphPlayer projstr viewstr lightstr destgroup light;
+      );
+      
+      set lnodexml = tl lnodexml;
+    );
+  
+    // CAMERA
+    let switchstr lmarks "camera" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> camerastr in
+      let XMLgetParam camerastr "id" -> id in
+      let XMLgetParam camerastr "name" -> cameraname in
+      let atof XMLgetParam camerastr "fov" -> camerafov in
+      let atof XMLgetParam camerastr "focalLenght" -> camerafocallength in
+      let if camerafocallength == nil then 1.0 else camerafocallength -> camerafocallength in
+      
+      let XMLgetMarkByValueFromMarkSons camerastr "clipping" -> camclippingstr in
+      let atof XMLgetParam camclippingstr "near" -> camclipnear in
+      let atof XMLgetParam camclippingstr "far" -> camclipfar in
+      
+      let XMLgetMarkByValueFromMarkSons camerastr "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let XMLgetMarkByValueFromMarkSons camerastr "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "qx" -> xang in
+      let atof XMLgetParam noderotstr "qy" -> yang in
+      let atof XMLgetParam noderotstr "qz" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+      let XMLgetMarkByValueFromMarkSons camerastr "scale" -> nodescalestr in
+      let atof XMLgetParam nodescalestr "x" -> xscale in
+      let atof XMLgetParam nodescalestr "y" -> yscale in
+      let atof XMLgetParam nodescalestr "z" -> zscale in
+
+      let V3DaddCamera sessionstr (getObjectName projstr id cameraname) -> camera in 
+      (
+        if father == nil then nil else
+          SO3ObjectLink camera father;
+        
+        SO3ObjectSetPosition camera [xpos ypos zpos];
+        SO3ObjectSetOrientation camera [xang yang zang wang];
+        SO3ObjectSetScale camera [xscale yscale zscale];
+        
+        V3DsetCamera camera camerafocallength camerafov camclipnear camclipfar;
+        
+        exec projstr.PRJ_cbObjectLoaded with [projstr camerastr (getObjectName projstr id cameraname) iTypeCamera];
+        loadOsGraphPlayer projstr viewstr camerastr destgroup camera;
+      );
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // PARTICLE
+    let switchstr lmarks "particle" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> partstr in
+      let XMLgetParam partstr "id" -> id in
+      let XMLgetParam partstr "name" -> partname in
+      let XMLgetParam partstr "template" -> parttpl in
+      let atof XMLgetParam partstr "speed" -> partspeed in
+      let if partspeed == nil then 1.0 else partspeed -> partspeed in
+      let atof (XMLgetParam partstr "renderingDistance") -> partrenderdistance in
+      let if partrenderdistance == nil then 0.0 else partrenderdistance -> partrenderdistance in
+      let XMLgetBoolParam partstr "enable" -> partenable in
+      
+      let XMLgetMarkByValueFromMarkSons partstr "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let XMLgetMarkByValueFromMarkSons partstr "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "qx" -> xang in
+      let atof XMLgetParam noderotstr "qy" -> yang in
+      let atof XMLgetParam noderotstr "qz" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+
+      // manage the case the xos has bad scale parameter on particle
+      let XMLgetMarkByValueFromMarkSons partstr "scale" -> nodescalestr in
+      let atof XMLgetParam nodescalestr "x" -> xscale in
+      let if xscale == nil || xscale == 0.0 then 1.0 else xscale -> xscale in
+      let atof XMLgetParam nodescalestr "y" -> yscale in
+      let if yscale == nil || yscale == 0.0 then 1.0 else yscale -> yscale in
+      let atof XMLgetParam nodescalestr "z" -> zscale in
+      let if zscale == nil || zscale == 0.0 then 1.0 else zscale -> zscale in
+
+      let V3DaddParticleSystem sessionstr (getObjectName projstr id partname) parttpl -> partsystem in 
+      (
+        if father == nil then nil else
+          SO3ObjectLink partsystem father;
+        
+        SO3ObjectSetPosition partsystem [xpos ypos zpos];
+        SO3ObjectSetOrientation partsystem [xang yang zang wang];
+        SO3ObjectSetScale partsystem [xscale yscale zscale];
+        
+        SO3ParticleSystemSetSpeedFactor partsystem partspeed;
+        SO3ObjectSetRenderingDistance partsystem partrenderdistance;
+        SO3ParticleSystemSetEnable partsystem partenable;
+        
+        exec projstr.PRJ_cbObjectLoaded with [projstr partstr (getObjectName projstr id partname) iTypeParticle];
+        loadOsGraphPlayer projstr viewstr partstr destgroup partsystem;
+      );
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // CUBEMAP
+    let switchstr lmarks "cubemap" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> cubemapstr in
+      let XMLgetParam cubemapstr "id" -> id in
+      let XMLgetParam cubemapstr "name" -> cubemapname in
+      let XMLgetParam cubemapstr "material" -> matname in
+      let atoi XMLgetParam cubemapstr "technique" -> mattech in
+      let if mattech == nil then 0 else mattech -> mattech in
+      let atoi XMLgetParam cubemapstr "pass" -> matpass in
+      let if matpass == nil then 0 else matpass -> matpass in
+      let atoi XMLgetParam cubemapstr "texunit" -> mattex in
+      let if mattex == nil then 0 else mattex -> mattex in
+      let atoi XMLgetParam cubemapstr "texsize" -> texsize in
+      let if texsize == nil then 256 else texsize -> texsize in
+      let XMLgetBoolParam cubemapstr "enable" -> cubemapenable in
+      let atof XMLgetParam cubemapstr "renderingDistance" -> renderdistance in
+      let XMLgetBoolParam cubemapstr "autoUpdate" -> autoupdate in
+      
+      let XMLgetMarkByValueFromMarkSons cubemapstr "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let XMLgetMarkByValueFromMarkSons cubemapstr "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "qx" -> xang in
+      let atof XMLgetParam noderotstr "qy" -> yang in
+      let atof XMLgetParam noderotstr "qz" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+      let XMLgetMarkByValueFromMarkSons cubemapstr "scale" -> nodescalestr in
+      let atof XMLgetParam nodescalestr "x" -> xscale in
+      let atof XMLgetParam nodescalestr "y" -> yscale in
+      let atof XMLgetParam nodescalestr "z" -> zscale in
+
+      let SO3DynamicCubeMapCreate (V3DgetSession sessionstr) (getObjectName projstr id cubemapname) -> cubemap in 
+      (
+        if father == nil then nil else
+          SO3ObjectLink cubemap father;
+        
+        SO3ObjectSetPosition cubemap [xpos ypos zpos];
+        SO3ObjectSetOrientation cubemap [xang yang zang wang];
+        SO3ObjectSetScale cubemap [xscale yscale zscale];
+                
+        SO3DynamicCubeMapSetAutoUpdate cubemap autoupdate;
+        SO3DynamicCubeMapSetTextureSize cubemap texsize;
+        let SO3SceneGetMaterial (V3DgetSession sessionstr) resgroup matname -> material in
+          SO3DynamicCubeMapSetTargetMaterial cubemap material mattech matpass mattex;
+        SO3DynamicCubeMapSetEnable cubemap cubemapenable;
+        
+        exec projstr.PRJ_cbObjectLoaded with [projstr cubemapstr (getObjectName projstr id cubemapname) iTypeCubeMap];
+        loadOsGraphPlayer projstr viewstr cubemapstr destgroup cubemap;
+      );
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // REFLEXIONMAP
+    let switchstr lmarks "reflectionmap" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> reflectionmapstr in
+      let XMLgetParam reflectionmapstr "id" -> id in
+      let XMLgetParam reflectionmapstr "name" -> reflectionmapname in
+      let XMLgetParam reflectionmapstr "material" -> matname in
+      let atoi XMLgetParam reflectionmapstr "technique" -> mattech in
+      let if mattech == nil then 0 else mattech -> mattech in
+      let atoi XMLgetParam reflectionmapstr "pass" -> matpass in
+      let if matpass == nil then 0 else matpass -> matpass in
+      let atoi XMLgetParam reflectionmapstr "texunit" -> mattex in
+      let if mattex == nil then 0 else mattex -> mattex in
+      let atoi XMLgetParam reflectionmapstr "texsize" -> texsize in
+      let if texsize == nil then 256 else texsize -> texsize in
+      let XMLgetBoolParam reflectionmapstr "enable" -> reflectionmapenable in
+      let atof XMLgetParam reflectionmapstr "renderingDistance" -> renderdistance in
+      let XMLgetBoolParam reflectionmapstr "revertClipPlane" -> revertclip in
+      
+      let XMLgetMarkByValueFromMarkSons reflectionmapstr "position" -> nodeposstr in
+      let atof XMLgetParam nodeposstr "x" -> xpos in
+      let atof XMLgetParam nodeposstr "y" -> ypos in
+      let atof XMLgetParam nodeposstr "z" -> zpos in
+      let XMLgetMarkByValueFromMarkSons reflectionmapstr "rotation" -> noderotstr in
+      let atof XMLgetParam noderotstr "qx" -> xang in
+      let atof XMLgetParam noderotstr "qy" -> yang in
+      let atof XMLgetParam noderotstr "qz" -> zang in
+      let atof XMLgetParam noderotstr "qw" -> wang in
+      let XMLgetMarkByValueFromMarkSons reflectionmapstr "scale" -> nodescalestr in
+      let atof XMLgetParam nodescalestr "x" -> xscale in
+      let atof XMLgetParam nodescalestr "y" -> yscale in
+      let atof XMLgetParam nodescalestr "z" -> zscale in
+
+      let V3DgetDefaultViewport viewstr -> viewport in
+      let SO3DynamicReflectionMapCreate (V3DgetSession sessionstr) viewport.V3D_viewport (getObjectName projstr id reflectionmapname) -> reflectionmap in 
+      (
+        if father == nil then nil else
+          SO3ObjectLink reflectionmap father;
+        
+        SO3ObjectSetPosition reflectionmap [xpos ypos zpos];
+        SO3ObjectSetOrientation reflectionmap [xang yang zang wang];
+        SO3ObjectSetScale reflectionmap [xscale yscale zscale];
+        
+        SO3DynamicReflectionMapSetRevertClipPlane reflectionmap revertclip;
+        SO3DynamicReflectionMapSetTextureSize reflectionmap texsize;
+        
+        let SO3SceneGetMaterial (V3DgetSession sessionstr) resgroup matname -> material in
+          SO3DynamicReflectionMapSetTargetMaterial reflectionmap material mattech matpass mattex;
+        SO3DynamicReflectionMapSetEnable reflectionmap reflectionmapenable;
+        
+        exec projstr.PRJ_cbObjectLoaded with [projstr reflectionmapstr (getObjectName projstr id reflectionmapname) iTypeReflectionMap];
+        loadOsGraphPlayer projstr viewstr reflectionmapstr destgroup reflectionmap;
+      );
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // ANIMS
+    let XMLgetMarkByValueFromMarkSons srcnodemark "animations" -> animsmark in
+    let XMLgetMarksByValueFromMarkSons animsmark "animation" -> lanimmarks in
+    while (lanimmarks != nil) do
+    (
+      let hd lanimmarks -> animmark in
+      let XMLgetParam animmark "id" -> id in
+      let XMLgetParam animmark "name" -> animname in
+      let XMLgetParam animmark "type" -> animtype in
+      let XMLgetBoolParam animmark "enable" -> animstate in
+      let XMLgetBoolParam animmark "loop" -> animloop in
+      let getOgreAnimationInterpolationType (XMLgetParam animmark "interpolationMode") -> animintmode in
+      let getOgreAnimationRotInterpolationType (XMLgetParam animmark "rotationInterpolationMode") -> animintrotmode in
+      let atof XMLgetParam animmark "length" -> animlength in
+      let atof XMLgetParam animmark "speed" -> animspeed in
+      let atof XMLgetParam animmark "weight" -> animweight in
+      let XMLgetBoolParam animmark "skipFrame" -> skipFrame in
+      let if (XMLgetParam animmark "skipFrame") == nil then 1 else skipFrame -> skipFrame in
+      
+      let if (animspeed == nil) then fDefaultAnimationSpeed else animspeed -> animspeed in
+      let (getObjectName projstr id animname) -> curanimname in
+      
+      let if (!strcmp animtype "morph") || (!strcmp animtype "skeleton") then
+          let SO3ObjectGetAnimation father animname -> morphanim in
+            V3DaddMorphAnimation sessionstr morphanim father (atoi id) animname curanimname animspeed animweight animstate animloop
+          else
+            V3DaddAnimation sessionstr father (atoi id) animname curanimname animlength animspeed animweight animstate animloop animintmode animintrotmode
+      -> animstr in
+      (
+        V3DanimationSetDefaultSkipFrame animstr skipFrame;
+        
+        if (!strcmp animtype "morph") || (!strcmp animtype "skeleton") then nil else
+        let XMLgetMarksByValueFromMarkSons animmark "keyframe" -> lkeymarks in
+        while (lkeymarks != nil) do
+        (
+          let hd lkeymarks -> keymark in
+          let atof (XMLgetParam keymark "time") -> keytime in
+          let XMLgetMarkByValueFromMarkSons keymark "translation" -> keytransmark in
+          let atof XMLgetParam keytransmark "x" -> xpos in
+          let atof XMLgetParam keytransmark "y" -> ypos in
+          let atof XMLgetParam keytransmark "z" -> zpos in
+          let XMLgetMarkByValueFromMarkSons keymark "rotation" -> keyrotmark in
+          let atof XMLgetParam keyrotmark "qx" -> xang in
+          let atof XMLgetParam keyrotmark "qy" -> yang in
+          let atof XMLgetParam keyrotmark "qz" -> zang in
+          let atof XMLgetParam keyrotmark "qw" -> wang in
+          let XMLgetMarkByValueFromMarkSons keymark "scale" -> keyscalemark in
+          let atof XMLgetParam keyscalemark "x" -> xscale in
+          let atof XMLgetParam keyscalemark "y" -> yscale in
+          let atof XMLgetParam keyscalemark "z" -> zscale in
+          (
+            V3DaddAnimationKey animstr [xpos ypos zpos] [xang yang zang wang] [xscale yscale zscale] keytime;
+          );
+          
+          set lkeymarks = tl lkeymarks;
+        );
+        
+        exec projstr.PRJ_cbObjectLoaded with [projstr animmark curanimname iTypeAnim];
+        
+        V3DinitializeAnimation animstr 1;
+        0;
+      );
+      
+      set lanimmarks = tl lanimmarks;
+    );    
+  );
+  0;;
+
+
+fun getResourcesPathPlayer(groupstr, groupmark)=
+  let XMLgetMarkByValueFromMarkSons groupmark "resourceLocations" -> resourcesxml in
+  let XMLgetMarksByValueFromMarkSons resourcesxml "resourceLocation" -> lresourcexml in
+  let nil -> lpaths in
+  let nil -> lfiles in
+  (
+    while (lresourcexml != nil) do
+    (
+      let hd lresourcexml -> resourcexml in
+      let XMLgetParam resourcexml "type" -> type in
+      let XMLgetParam resourcexml "name" -> path in
+      let XMLgetBoolParam resourcexml "recursive" -> recursive in
+      if (strcmpi type "FileSystem") || (path == nil) || (!strcmp "" (strtrim path)) then nil else
+      (
+        let if recursive then path::(getDirListFromPath path) else path::nil -> fpath in        
+          set lpaths = lcat lpaths fpath;
+      );
+      
+      set lresourcexml = tl lresourcexml;
+    );
+    
+    while (lpaths != nil) do
+    (
+      let hd lpaths -> path in
+      let _listoffiles path -> files in
+      (
+        while (files != nil) do
+        (
+          let hd files -> file in      
+            set lfiles = lcat lfiles file::nil;
+          
+          set files = tl files;
+        );
+      );
+      set lpaths = tl lpaths;
+    );
+    
+    set groupstr.GRP_lAvailableResourcesFiles = quicksort (lcat groupstr.GRP_lAvailableResourcesFiles lfiles) @suppDoublon;
+  );
+  0;;
+
+
+fun getResourcesScriptFilesPlayer(groupstr)=
+  let groupstr.GRP_lAvailableResourcesFiles -> l in
+  while (l != nil) do
+  (
+    let hd l -> file in
+    let getFileExt file -> ext in
+    if (!strcmpi ext "material") then
+    (
+      set groupstr.GRP_lMaterialResources = addUniqueStri groupstr.GRP_lMaterialResources file; //quicksort (lcat groupstr.GRP_lMaterialResources file::nil) @suppDoublon;
+      /*
+      let OGMATgetResources file -> [isok lres lbad] in
+      (
+        let sizelist lres -> tsize in
+        let 0 -> ti in
+        while ti < tsize do
+        (
+          let nth_list lres ti -> [mode elem] in
+            if mode then
+              set groupstr.GRP_lTextureResources = quicksort (lcat groupstr.GRP_lTextureResources elem::nil) @suppDoublon
+            else
+              set groupstr.GRP_lShaderResources = quicksort (lcat groupstr.GRP_lShaderResources elem::nil) @suppDoublon;
+          
+          set ti = ti + 1;
+        );
+        0;
+      );*/
+      0;
+    )
+    else if (!strcmpi ext "program") then
+    (
+      set groupstr.GRP_lProgramResources = addUniqueStri groupstr.GRP_lProgramResources file; //quicksort (lcat groupstr.GRP_lProgramResources file::nil) @suppDoublon;
+      /*
+      let OGMATgetResources file -> [isok lres lbad] in
+      (
+        let sizelist lres -> tsize in
+        let 0 -> ti in
+        while ti < tsize do
+        (
+          let nth_list lres ti -> [mode elem] in
+            set groupstr.GRP_lShaderResources = quicksort (lcat groupstr.GRP_lShaderResources elem::nil) @suppDoublon;
+          
+          set ti = ti + 1;
+        );
+        0;
+      );*/
+      0;
+    )
+    else if (!strcmpi ext "particle") then
+    (
+      set groupstr.GRP_lParticleResources = addUniqueStri groupstr.GRP_lParticleResources file; //quicksort (lcat groupstr.GRP_lParticleResources file::nil) @suppDoublon;
+      0;
+    )
+    else if (!strcmpi ext "compositor") then
+    (
+      set groupstr.GRP_lCompositorResources = addUniqueStri groupstr.GRP_lCompositorResources file; //quicksort (lcat groupstr.GRP_lCompositorResources file::nil) @suppDoublon;
+      0;
+    )
+    else nil;    
+    set l = tl l;
+  );
+  0;;
+
+
+fun loadGroupResourcesPlayer(groupstr, viewstr)=
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let getGroupName groupstr.GRP_project groupstr.GRP_xmlMark -> resgroup in
+  (
+    let groupstr.GRP_lTextureResources -> l in
+    while (l != nil) do
+    (
+      let hd l -> elem in
+      (
+        V3DaddResource sessionstr elem resgroup SO3_RESOURCE_TEXTURE;
+      );
+      
+      set l = tl l;
+    );
+    
+    let groupstr.GRP_lShaderResources -> l in
+    while (l != nil) do
+    (
+      let hd l -> elem in
+      (
+        V3DaddResource sessionstr elem resgroup SO3_RESOURCE_HIGHLEVELGPUPROGRAM;
+      );
+      
+      set l = tl l;
+    );
+    
+    let groupstr.GRP_lProgramResources -> l in
+    while (l != nil) do
+    (
+      let hd l -> elem in
+      (
+        V3DaddResource sessionstr elem resgroup SO3_RESOURCE_GPUPROGRAM;
+      );
+      
+      set l = tl l;
+    );
+    
+    let groupstr.GRP_lMaterialResources -> l in
+    while (l != nil) do
+    (
+      let hd l -> elem in
+      (
+        V3DaddResource sessionstr elem resgroup SO3_RESOURCE_MATERIAL;
+      );
+      
+      set l = tl l;
+    );
+    
+    let groupstr.GRP_lCompositorResources -> l in
+    while (l != nil) do
+    (
+      let hd l -> elem in
+      (
+        V3DaddResource sessionstr elem resgroup SO3_RESOURCE_COMPOSITOR;
+      );
+      
+      set l = tl l;
+    );
+    
+    let groupstr.GRP_lParticleResources -> l in
+    while (l != nil) do
+    (
+      let hd l -> elem in
+      (
+        V3DaddResource sessionstr elem resgroup SO3_RESOURCE_PARTICLE_SYSTEM;
+      );
+      
+      set l = tl l;
+    );
+
+    let groupstr.GRP_lSkeletonResources -> l in
+    while (l != nil) do
+    (
+      let hd l -> elem in
+      (
+        V3DaddResource sessionstr elem resgroup SO3_RESOURCE_SKELETON;
+      );
+      
+      set l = tl l;
+    );
+    
+    // Meshs are added dynamicaly
+  );
+  0;;
+
+
+fun loadOsGroupPlayer(projstr, viewstr, groupstr, father, env)=
+  getOsGroupResourcesPlayer groupstr;
+  // load ressources script
+  getResourcesScriptFilesPlayer groupstr;  
+  
+  loadGroupResourcesPlayer groupstr viewstr;
+  
+  // no environment for plugIT scene
+  if (!env) then nil else
+    loadEnvironmentPlayer projstr viewstr groupstr.GRP_xmlMark;
+  
+  let XMLgetMarkByValueFromMarkSons groupstr.GRP_xmlMark "graph" -> srcnodesmark in
+    loadOsGraphPlayer projstr viewstr srcnodesmark groupstr.GRP_xmlMark father;      
+  
+  let XMLgetMarksByValueFromMarkSons groupstr.GRP_xmlMark "group" -> lsrcgroups in
+  while (lsrcgroups != nil) do
+  (
+    let hd lsrcgroups -> nextgroupmark in
+    let atoi (XMLgetParam nextgroupmark "id") -> id in
+    let XMLgetParam nextgroupmark "name" -> nodename in
+    let atoi XMLgetParam nextgroupmark "px" -> plx in
+    let atoi XMLgetParam nextgroupmark "py" -> ply in
+    let XMLgetMarkByValueFromMarkSons nextgroupmark "position" -> nodeposstr in
+    let atof XMLgetParam nodeposstr "x" -> xpos in
+    let atof XMLgetParam nodeposstr "y" -> ypos in
+    let atof XMLgetParam nodeposstr "z" -> zpos in
+    let if nodeposstr == nil then [0.0 0.0 0.0] else [xpos ypos zpos] -> pos in
+    let XMLgetMarkByValueFromMarkSons nextgroupmark "rotation" -> noderotstr in
+    let atof XMLgetParam noderotstr "qx" -> xang in
+    let atof XMLgetParam noderotstr "qy" -> yang in
+    let atof XMLgetParam noderotstr "qz" -> zang in
+    let atof XMLgetParam noderotstr "qw" -> wang in
+    let if noderotstr == nil then [0.0 0.0 0.0 1.0] else [xang yang zang wang] -> ang in
+    let XMLgetMarkByValueFromMarkSons nextgroupmark "scale" -> nodescalestr in
+    let atof XMLgetParam nodescalestr "x" -> xscale in
+    let atof XMLgetParam nodescalestr "y" -> yscale in
+    let atof XMLgetParam nodescalestr "z" -> zscale in
+    let if nodescalestr == nil then [1.0 1.0 1.0] else [xscale yscale zscale] -> scale in
+    let newOsSceneGroupPlayer projstr viewstr nextgroupmark nodename id father scale pos ang -> [ngroupstr newgroupshell] in
+      loadOsGroupPlayer projstr viewstr ngroupstr newgroupshell env;
+    
+    set lsrcgroups = tl lsrcgroups;
+  );
+  
+  //load cinematics
+  loadCinematicsPlayer projstr viewstr groupstr.GRP_xmlMark;
+  
+  loadPluginInstances groupstr 1;
+  exec projstr.PRJ_cbGroupLoaded with [projstr groupstr];
+  0;;
+
+
+/*!  \brief Load a project
+  *
+  *  <b>Prototype:</b> fun [Project V3Dview] Project
+  *
+  *  \param Project : the project to load
+  *  \param V3Dview : the 3D view to use
+  *
+  *  \return Project : the same Project
+  **/
+fun loadProject(projstr, viewstr, parent, pos, ang, scale, env)=
+  if (projstr.PRJ_sPath == nil) || (!strcmp (strtrim projstr.PRJ_sPath) "") then nil else
+  (
+    set bPluginsLoaded = 0;
+    
+    if (projstr.PRJ_xmlFile != nil) then nil else
+    let XMLload projstr.PRJ_sPath -> xmlscenestr in
+      set projstr.PRJ_xmlFile = xmlscenestr;
+    
+    let XMLgetMarkByValue projstr.PRJ_xmlFile "project" -> srcprjmark in
+    let XMLgetMarkByValueFromMarkSons srcprjmark "setting" -> srcsettingmark in
+    let XMLgetData (XMLgetMarkByValueFromMarkSons srcsettingmark "projectName") -> projname in
+    let if projname != nil then
+      projname
+    else
+      getFileNameWithoutExt projstr.PRJ_sPath
+    -> name in
+    (
+      set projstr.PRJ_sName = if projstr.PRJ_sName == nil then name else strcatn projstr.PRJ_sName::"."::name::nil;
+    );
+    
+    set projstr.PRJ_bUseEnvironment = env;
+    let V3DgetDefaultSession viewstr -> sessionstr in
+    let XMLgetMarkByValue projstr.PRJ_xmlFile "scene" -> srcgroupmark in
+    let if (projstr.PRJ_bMode != 2) then nil else (V3DaddShell sessionstr "Scene" projstr.PRJ_sName nil pos ang) -> father in
+    let mkGroup [(if (projstr.PRJ_bMode != 2) then "Scene" else strcat projstr.PRJ_sName ".Scene") nil projstr father nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil] -> groupstr in
+    (
+      if (parent == nil) then nil else
+        SO3ObjectLink father parent;
+      
+      SO3GroupCreate (V3DgetSession sessionstr) if (projstr.PRJ_bMode != 2) then "Scene" else strcat projstr.PRJ_sName ".Scene";
+
+      if (scale == nil) then nil else
+        SO3ObjectSetScale father scale;
+      
+      set projstr.PRJ_group = groupstr;
+      
+      set groupstr.GRP_xmlMark = srcgroupmark;
+      loadOsGroupPlayer projstr viewstr groupstr father env;
+  
+      //V3DanimationsEnableScene sessionstr 1 1;
+      //V3DresetAnimations sessionstr;
+      V3DviewSetFocus viewstr;
+      
+      // has env enable ?
+      if (!env) then nil else
+      let XMLgetMarkByValueFromMarkSons srcgroupmark "environment" -> envxml in
+      if envxml == nil then nil else
+      (
+        let XMLgetMarkByValueFromMarkSons envxml "physic" -> physicstr in
+        let XMLgetBoolParam physicstr "enable" -> physicenable in
+          V3DphysEnablePhysic sessionstr physicenable;
+      );
+    );
+
+    set bPluginsLoaded = 1;
+    
+    exec projstr.PRJ_cbSceneLoaded with [projstr];
+  );
+  projstr;;
+
+
+/*!  \brief Create a new project
+  *
+  *  <b>Prototype:</b> fun [S I] Project
+  *
+  *  \param S : project file path (XOS)
+  *  \param S : project name
+  *  \param I : project mode (0 player, 1 editor, 2 plugIT)
+  *
+  *  \return Project : the new Project
+  **/
+fun crProject(file, name, mode)= mkProject [name file nil 0 nil nil nil nil nil nil nil 0 mode];;
+
+
+/*!  \brief Set a project file
+  *
+  *  <b>Prototype:</b> fun [Project S] S
+  *
+  *  \param Project : the project
+  *  \param S : project file path (XOS)
+  *
+  *  \return S : the same file path
+  **/
+fun setProjectFile(projstr, file)=
+  set projstr.PRJ_sPath = file;
+  file;;
+
+
+/*!  \brief Set the callback on scene loaded
+  *
+  *  <b>Prototype:</b> fun [Project fun [Project] I] I
+  *
+  *  \param Project : the project
+  *  \param fun [Project] I : the callback
+  *
+  *  \return Project : the same Project
+  **/
+fun setProjectCbSceneLoaded(projstr, cbfun)=
+  set projstr.PRJ_cbSceneLoaded = cbfun;
+  projstr;;
+  
+  
+/*!  \brief Set the callback on scene destroyed
+  *
+  *  <b>Prototype:</b> fun [Project fun [Project] I] I
+  *
+  *  \param Project : the project
+  *  \param fun [Project] I : the callback
+  *
+  *  \return Project : the same Project
+  **/
+fun setProjectCbSceneDestroyed(projstr, cbfun)=
+  set projstr.PRJ_cbSceneDestroyed = cbfun;
+  projstr;;
+
+
+/*!  \brief Set the callback on group loaded
+  *
+  *  <b>Prototype:</b> fun [Project fun [Project Group] I] I
+  *
+  *  \param Project : the project
+  *  \param fun [Project Group] I : the callback
+  *
+  *  \return Project : the same Project
+  **/
+fun setProjectCbGroupLoaded(projstr, cbfun)=
+  set projstr.PRJ_cbGroupLoaded = cbfun;
+  projstr;;
+  
+
+/*!  \brief Set the callback on object loaded
+  *
+  *  <b>Prototype:</b> fun [Project fun [Project XMLmark SO3_OBJECT S I] I] I
+  *
+  *  \param Project : the project
+  *  \param fun [Project XMLmark SO3_OBJECT S I] I : the callback
+  *
+  *  \return Project : the same Project
+  **/
+fun setProjectCbObjectLoaded(projstr, cbfun)=
+  set projstr.PRJ_cbObjectLoaded = cbfun;
+  projstr;;

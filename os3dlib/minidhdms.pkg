@@ -42,7 +42,7 @@ typeof DMSerror = fun [S] I;;
 
 struct DMIAction = [
   DACT_sName       : S,
-  DACT_funCb       : fun [DMI S S S S] I
+  DACT_funCb       : fun [DMIos S S S S] I
 
 ] mkDMIAction;;
 
@@ -74,7 +74,7 @@ typeof this=DMIos;;
 
 typeof DMSnbDmi=I;;
 
-typeof DMSdmi= [[I DMIos] r1];;
+typeof DMSdmiOS= [[I DMIos] r1];; /* DMSdmi renamed as DMIdmiOS */
 
 
 /* ********************************************************************************************* /
@@ -103,10 +103,10 @@ fun strFindList(l,a)=
   
 / ********************************************************************************************* */
 
-fun _DMSrootModule()= switch DMSdmi 0;;
+fun _DMSrootModule()= switch DMSdmiOS 0;;
 
 
-fun _DMSgetByHandle(h)= switch DMSdmi h;;
+fun _DMSgetByHandle(h)= switch DMSdmiOS h;;
 
 
 fun _DMSremoveEvent(d, name)=
@@ -224,29 +224,29 @@ fun _DMSremoveActionStartedByName(d, name)=
 
 
 fun removeDmiById(id)=
-  let sizelist DMSdmi -> size in
+  let sizelist DMSdmiOS -> size in
   let nil -> ndata in
   let 0 -> i in
   (
     while i < size do
     (
-      let nth_list DMSdmi i -> elem in
+      let nth_list DMSdmiOS i -> elem in
       let elem -> [eid _] in
       if eid == id then nil else
         set ndata = elem::ndata;
       set i = i + 1;
     );
-    set DMSdmi = revertlist ndata;
+    set DMSdmiOS = revertlist ndata;
   );
   0;;
 
 
 fun addDmiById(id, d)=
-  let switch DMSdmi id -> dd in
+  let switch DMSdmiOS id -> dd in
   if dd == nil then nil else
     removeDmiById id;
   
-  set DMSdmi = lcat DMSdmi [id d]::nil;
+  set DMSdmiOS = lcat DMSdmiOS [id d]::nil;
   d;;
 
 
@@ -256,7 +256,7 @@ fun cbDebugConsol(mess)=
 
 
 fun createDMI(id, name)=
-  let switch DMSdmi id -> old in
+  let switch DMSdmiOS id -> old in
   let mkDMI [id name _channel nil nil] -> d in
   (
     addDmiById id d;
@@ -409,11 +409,17 @@ fun _DMSevent(d, ev, param, repl)=
         if DMSdebug == nil then nil else
           exec DMSdebug with [strcatn "Event : "::ev::" with param : "::(if param == nil then "NIL" else param)::nil];
 
+		//if (_showcon == 0) then nil else  /* os3dload.pkh global param */
+			_fooS strcatn "Event : "::ev::" with param : "::(if param == nil then "NIL" else param)::nil; 		
+		
         if DMSdebug == nil then nil else
           exec DMSdebug with [strcatn "Action : "::link.DLINK_action.DACT_sName::" with param : "::(if nparam == nil then "NIL" else nparam)::" and reply param : "::(if repl == nil then "NIL" else repl)::nil];
+		  
+		//if (_showcon == 0) then nil else /* os3dload.pkh global param */
+			_fooS strcatn "Action : "::link.DLINK_action.DACT_sName::" with param : "::(if nparam == nil then "NIL" else nparam)::" and reply param : "::(if repl == nil then "NIL" else repl)::nil;	
         
-		/***DISABLED********************************************************************/
-        //exec link.DLINK_action.DACT_funCb with [d link.DLINK_action.DACT_sName nparam nil repl];
+		/***********************************************************************/
+        exec link.DLINK_action.DACT_funCb with [d link.DLINK_action.DACT_sName nparam nil repl];
 		
         //execch d.DMI_chn link.DLINK_action.DACT_funCb [d link.DLINK_action.DACT_sName nparam nil repl];
         0;
