@@ -1,0 +1,333 @@
+/* c3d3instance - august 2001 - by Macfly */
+/* c3d3 instance interface */
+
+
+struct C3DObMove_data=
+  [
+    C3DOMinterpolating   : I,              /* boolean which indicate if an interpolation have to be processed */ 
+    C3DOMdestVector      : [I I I],        /* destination vector */ 
+    C3DOMvarVector       : [I I I]        	/* variation vector */ 
+  ]mk_C3DObMove;;
+
+fun NEW_ObMove () = mk_C3DObMove [0 nil nil];;
+
+
+struct Ob=
+  [
+    uiOb                  : UserI,
+    idOb                  : I,
+    o3Ob                  : H3d,
+    nameOb                : S,
+    pseudoOb              : S,
+    indexOb               : I,
+    mobileOb              : I,
+    avOb                  : I,
+    anchorOb              : [Anchor r1],
+    linksOb               : [[H3d HMat3d S ObjCursor fun[Ob H3d HMat3d I] I fun[Ob H3d HMat3d I] I  fun[Ob H3d HMat3d] I] r1],
+    notLinksOb            : [I fun[Ob] I],
+    getNameOb             : fun [Ob] S,
+    getValOb              : fun [Ob S] S,
+    setposOb              : fun [Ob [I I I][I I I]] I,
+    animOb                : fun [Ob] I,
+    sendOb                : fun [Ob S S S] I,
+    clickOb               : fun [Ob H3d HMat3d I] I,
+    dclickOb              : fun [Ob H3d HMat3d I] I,
+    moveOb                : fun [Ob H3d HMat3d] I,
+    drawOb                : fun [Ob ObjBitmap I I I] I,
+    controlOb             : fun [Ob [[I I I] [I I I]]] I,
+    controlClickOb        : fun [Ob [H3d HMat3d I]] I,
+    controlDClickOb       : fun [Ob [H3d HMat3d I]] I,
+    controlMoveOb         : fun [Ob [Ob H3d HMat3d]] I,
+    controlKeyDownOb      : fun [Ob [I I]] I,
+    controlKeyUpOb        : fun [Ob I] I,
+    speakOb               : fun [Ob S] I,
+    postRenderOb          : fun [Ob [ObjSurface [I I]]] I,
+    postRenderPriorityOb  : I,
+    receiveLocalOb        : fun [Ob Ob S S S] I,
+    destroyOb             : fun [Ob] I,
+    clickDownOb           : fun [Ob [[H3d HMat3d I I] [I I I]]] I,
+    clickUpOb             : fun [Ob [[H3d HMat3d I I] [I I I]]] I,
+    doubleClickOb         : fun [Ob [[H3d HMat3d I I] [I I I]]] I,
+    mouseMoveOb           : fun [Ob [[H3d HMat3d I I] [I I I]]] I,
+    keyDownOb             : fun [Ob [I I]] I,
+    keyUpOb               : fun [Ob I] I,
+    resizeViewOb          : fun [Ob [I I]] I,
+    destOb                : C3DObMove_data 
+  ]mkOb;;
+
+
+
+typeof C3DobList=[Ob r1];;
+typeof owner=Ob;;
+typeof camob=Ob;;
+
+fun obbyui(o,ui)= o.uiOb==ui;;
+fun obbyid(o,i)= o.idOb==i;;
+fun obbyson(o,h)= (h!=nil) && M3isFather session h o.o3Ob;;
+
+
+/* API Ob */
+
+fun ObSelect0(id)=_DMSevent this "select0" itoa id nil;;
+fun ObSelect1(id)=_DMSevent this "select1" itoa id nil;;
+fun ObSelect2(id)=_DMSevent this "select2" itoa id nil;;
+fun ObSelect3(id)=_DMSevent this "select3" itoa id nil;;
+
+fun ObSendLocal(from,to,action,param,rep)= exec to.receiveLocalOb with [from to action param rep];;
+
+fun ObHear(s)=_DMSevent this "hear" s nil;;
+
+fun ObSetCam(o)=
+ set camob=o;
+ M3link session cam o.o3Ob
+;;
+
+fun ObCbGetName(o,f)=set o.getNameOb=f;;
+fun ObCbGetVal(o,f)=set o.getValOb=f;;
+fun ObCbSetpos(o,f)=set o.setposOb=f;;
+fun ObCbAnim(o,f)=set o.animOb=f;;
+fun ObCbSend(o,f)=set o.sendOb=f;;
+fun ObCbClick(o,f)=set o.clickOb=f;;
+fun ObCbDclick(o,f)=set o.dclickOb=f;;
+fun ObCbMove(o,f)=set o.moveOb=f;;
+fun ObCbDraw(o,f)=set o.drawOb=f;;
+fun ObCbControl(o,f)=set o.controlOb=f;;
+fun ObCbControlClick(o,f)=set o.controlClickOb=f;;
+fun ObCbControlDClick(o,f)=set o.controlDClickOb=f;;
+fun ObCbControlMove(o,f)=set o.controlMoveOb=f;;
+fun ObCbControlKeyDown(o,f)=set o.controlKeyDownOb=f;;
+fun ObCbControlKeyUp(o,f)=set o.controlKeyUpOb=f;;
+fun ObCbSpeak(o,f)=set o.speakOb=f;;
+fun ObCbReceiveLocal(o,f)=set o.receiveLocalOb=f;;
+fun ObCbDestroy(o,f)=set o.destroyOb=f;;
+
+proto ObCbPostRender = fun [Ob fun [Ob [ObjSurface [I I]]] I] fun [Ob [ObjSurface [I I]]] I;;
+
+fun OB_CBclickDown(o,f)=set o.clickDownOb=f;;
+fun OB_CBclickUp(o,f)=set o.clickUpOb=f;;
+fun OB_CBdoubleClick(o,f)=set o.doubleClickOb=f;;
+fun OB_CBmouseMove(o,f)=set o.mouseMoveOb=f;;
+fun OB_CBkeyboardDown(o,f)=set o.keyDownOb=f;;
+fun OB_CBkeyboardUp(o,f)=set o.keyUpOb=f;;
+fun OB_CBresizeView(o,f)=set o.resizeViewOb=f;;
+
+fun ObGetName(o)=o.getNameOb;;
+fun ObGetVal(o)=o.getValOb;;
+fun ObSetpos(o)=o.setposOb;;
+fun ObAnim(o)=o.animOb;;
+fun ObSend(o)=o.sendOb;;
+fun ObClick(o)=o.clickOb;;
+fun ObDclick(o)=o.dclickOb;;
+fun ObMove(o)=o.moveOb;;
+fun ObDraw(o)=o.drawOb;;
+fun ObControl(o)=o.controlOb;;
+fun ObControlClick(o)=o.controlClickOb;;
+fun ObControlDClick(o)=o.controlDClickOb;;
+fun ObControlMove(o)=o.controlMoveOb;;
+fun ObControlKeyDown(o)=o.controlKeyDownOb;;
+fun ObControlKeyUp(o)=o.controlKeyUpOb;;
+fun ObSpeak(o)=o.speakOb;;
+fun ObPostRender(o)=o.postRenderOb;;
+fun ObReceiveLocal(o,f)=o.receiveLocalOb;;
+fun ObDestroy(o)=o.destroyOb;;
+
+fun ObUi(o)=o.uiOb;;
+fun ObName(o)=o.nameOb;;
+fun ObAvatar(o)=o.avOb;;
+fun ObMobile(o)=o.mobileOb;;
+
+fun ObAnchor(o)=o.anchorOb;;
+fun ObSetMain(o,h)=set o.o3Ob=h;;
+fun ObGetMain(o)=o.o3Ob;;
+
+fun ObSetLinks(o,l)=set o.linksOb=l;0;;
+fun ObGetLinks(o)=o.linksOb;;
+
+fun ObSetNotLinks(o,f)=set o.notLinksOb=[0 f];0;;
+fun ObGetNotLinks(o)=let o.notLinksOb -> [_ f] in f;;
+
+
+fun obact(from,action,param,ulist,tag,z)=
+  let z->[o f] in
+    exec f with [o from action param nil]
+;;
+
+fun ObRegisterAction(o,action,f)=
+  /*_DMSdefineActions this [action mkfun6 @obact [o f]]::nil; **********/
+  0
+;;
+
+fun OB_GetFirstAnchorData (instance) = ANCHOR_GetObjMat ANCHOR_GetFirstObjAnchor instance.anchorOb;;
+
+fun resetObCb(o)=
+  set o.getNameOb=nil;
+  set o.getValOb=nil;
+  set o.setposOb=nil;
+  set o.animOb=nil;
+  set o.sendOb=nil;
+  set o.clickOb=nil;
+  set o.dclickOb=nil;
+  set o.moveOb=nil;
+  set o.drawOb=nil;
+  set o.controlOb=nil;
+  set o.controlClickOb=nil;
+  set o.controlDClickOb=nil;
+  set o.controlMoveOb=nil;
+  set o.controlKeyDownOb=nil;
+  set o.controlKeyUpOb=nil;
+  set o.speakOb=nil;
+  ObCbPostRender o nil;
+  set o.receiveLocalOb=nil;
+  set o.destroyOb=nil;
+  set o.clickDownOb=nil;
+  set o.clickUpOb=nil;
+  set o.doubleClickOb=nil;
+  set o.mouseMoveOb=nil;
+  set o.keyDownOb=nil;
+  set o.keyUpOb=nil;
+  set o.resizeViewOb=nil;
+  0
+;;
+ 
+fun ObList()=C3DobList;;
+fun ObBuffer(v3d)= v3d.V3dbuf;;
+fun ObSetBackground(v3d,col)= set v3d.V3dfond=col;;
+
+fun Obgetglobalress(r)= DMSgetress cel.Cel3dress r;;
+
+fun GetInstancePlugin (instance) =
+  let ObUi instance -> uitmp in
+    uitmp.classUI
+;;
+
+fun OB_GetPlugin (instance) = search_in_list plugins @plugbyclass (GetInstancePlugin instance);;
+
+fun OB_CompareClass (eltOb, classname) = !strcmpi (GetInstancePlugin eltOb) classname;;  
+fun OB_CompareName (eltOb, name) = !strcmpi eltOb.nameOb name;;
+
+fun OB_CompareNameClass (eltOb, param) =
+  let param -> [name classname] in
+    (OB_CompareName eltOb name) &&
+    (OB_CompareClass eltOb classname)
+;;
+
+fun OB_CompareClassObjMat (eltOb, param) =
+  let param -> [classname obj mat] in
+    (OB_CompareClass eltOb classname) &&
+    (ANCHOR_CompareWithObjMat (ANCHOR_GetFirstObjAnchor ObAnchor eltOb) obj mat)
+;;
+
+/*_DLGMessageBox _channel nil "Search for instance name" name 0;
+_DLGMessageBox _channel nil "Search for classname" classname 0;*/
+
+fun OB_FindInstanceByNameClass (name, classname, instanceList) =
+  search_in_list instanceList @OB_CompareNameClass [name classname]
+;;
+
+fun OB_FindInstanceByClassObjMat (classname, obj, mat, instanceList) =
+  if classname == nil || obj == nil then
+    nil
+  else
+    search_in_list instanceList @OB_CompareClassObjMat [classname obj mat]
+;;
+
+/* finds an instance, from object and material */
+fun FindOneInstance (o,m,instanceList)=
+  if instanceList == nil then
+    nil
+  else
+    let instanceList -> [currentOb ninstanceList] in
+    let search_in_list plugins @plugbyclass (GetInstancePlugin currentOb) -> plug in
+      if (PLUG_GetType plug) & PLUGIN_OBJECT then
+        match ANCHOR_GetFirstObjAnchor currentOb.anchorOb with
+          (objAnchor [ah _ name _] ->
+            if (ah == o) then currentOb
+            else FindOneInstance o m ninstanceList)
+         |(_ -> FindOneInstance o m ninstanceList)
+      else
+        if (PLUG_GetType plug) & PLUGIN_MATERIAL then
+          match ANCHOR_GetFirstObjAnchor currentOb.anchorOb with
+            (objAnchor [ah am name _] ->
+              if (ah == o)&&(am == m) then currentOb
+              else FindOneInstance o m ninstanceList)
+           |(_ -> FindOneInstance o m ninstanceList)
+        else
+          if (o == nil) && (m == nil) then
+            currentOb
+          else
+            FindOneInstance o m ninstanceList
+;;
+
+fun OB_CompareObjMatDependingOnType (obelt, param)=
+  let param -> [o m] in
+  let search_in_list plugins @plugbyclass (GetInstancePlugin obelt) -> plug in
+    if (PLUG_GetType plug) & PLUGIN_OBJECT then
+      match ANCHOR_GetFirstObjAnchor obelt.anchorOb with
+        (objAnchor [ah _ _ _] -> (ah == o))
+       |(_ -> 0)
+    else
+      if (PLUG_GetType plug) & PLUGIN_MATERIAL then
+        match ANCHOR_GetFirstObjAnchor obelt.anchorOb with
+          (objAnchor [ah am _ _] -> (ah == o)&&(am == m))
+         |(_ -> 0)
+      else
+        (o == nil) && (m == nil)
+;;
+
+fun OB_CompareType (obelt, type) = (PLUG_GetType (OB_GetPlugin obelt)) & type;;  
+
+fun OB_IsGlobalType (obelt, param) =
+  let PLUG_GetType (OB_GetPlugin obelt) -> plugtype in
+    (!(plugtype & PLUGIN_MATERIAL)) && (!(plugtype & PLUGIN_OBJECT));;  
+
+fun OB_IsNotNotReserved (obelt, param)= !((PLUG_GetType (OB_GetPlugin obelt)) & PLUGIN_NOTRESERVED);;
+
+fun OB_CBmaterialInstanceCreation (timer, param) =
+  let param -> [plugin instance] in
+    if ANCHOR_CheckAllMaterialFilled session instance.anchorOb then
+    (
+      _deltimer timer;
+      if instance.anchorOb != nil then
+        exec plugin.cbnewPlug with [instance]
+      else
+        nil
+    )
+    else
+      nil    
+;;
+
+fun OB_CheckMaterialInstanceCreation (plugin, instance) =
+  if ANCHOR_CheckAllMaterialFilled session instance.anchorOb then
+    exec plugin.cbnewPlug with [instance]
+  else
+  (
+    _rfltimer _starttimer _channel 5000 @OB_CBmaterialInstanceCreation [plugin instance];
+    nil
+  )
+;;
+
+fun OB_NewInstance (elt, param) =
+  let elt -> [plug instance] in
+    if (PLUG_GetType plug) & PLUGIN_MATERIAL then
+      OB_CheckMaterialInstanceCreation plug instance
+    else
+      exec plug.cbnewPlug with [instance]
+;;
+
+fun OB_SearchObj3DAvatar (listob, obj3d) =
+  if listob == nil then
+    nil
+  else
+    let listob -> [cur next] in
+      if cur.avOb && (M3isFather session obj3d cur.o3Ob) then
+        cur
+      else
+        OB_SearchObj3DAvatar next obj3d
+;;
+
+fun OB_ForceCurrentPos (instance, cursession) =
+  let M3getFather cursession instance.o3Ob -> f in
+  let M3getObjVec cursession f -> v in
+  let M3getObjAng cursession f -> a in
+    exec instance.setposOb with [instance v a]
+;;

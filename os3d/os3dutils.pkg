@@ -1,0 +1,172 @@
+/* C3D3 utils package
+   Macfly august 2001 */
+
+fun FILE_GetLastSlash (filepath, lastpos) =
+  let strlen filepath -> len in
+    if len == nil || len == 0 || len < lastpos then
+      nil /* ??? */
+    else
+      let strfind "/" filepath lastpos -> newpos in
+        if newpos == nil then
+          lastpos
+        else
+          FILE_GetLastSlash filepath newpos+1
+;;
+
+fun FILE_GetPath (filepath) =
+  let FILE_GetLastSlash filepath 0 -> pos in
+    if pos == nil then
+      "" /* root */
+    else
+      substr filepath 0 pos
+;;
+
+fun FILE_GetFilename (filepath) =
+  let FILE_GetLastSlash filepath 0 -> pos in
+    if pos == nil then
+      filepath /* root path */
+    else
+      let strlen filepath -> len in
+        substr filepath pos len-pos
+;;
+
+
+fun STRING_Compare (elt1, elt2) = !strcmpi elt1 elt2;;
+
+/*
+fun _fooMaterial(l,s)=
+  if l==nil then 0
+  else let l -> [mat n] in
+  (
+    _fooS strcatn s::"----->Material"::(M3materialName session mat)::nil;
+    _fooMaterial n s
+  );;
+
+fun _fooH3d(h,s)=
+  if h==nil then 0
+  else
+  ( 
+    let M3getObjVec session h -> [x y z] in
+    let M3getObjAng session h -> [a b c] in
+    _fooS strcat strcat strcat strcat strcat strcat strcat strcat strcat strcat strcat strcat strcat strcat strcat strcat
+                                     s ">H3d:"  
+                                     let M3getObjType session h -> t in
+                                     (if t==M3_SHELL then "shell"
+                                      else if t==M3_CAM then "camera"
+                                      else if t==M3_MESH then "mesh"
+                                      else if t==M3_COLL then "collision"
+                                      else "unknown")
+                                      " name:" M3objName session h
+                                      " coord:" itoa x " " itoa y " " itoa z " " itoa a " " itoa b " " itoa c;
+    _fooMaterial M3listOfMaterials session h s;                                  
+    _fooH3d M3getFirstSon session h strcat s "--";
+    _fooH3d M3getBrother  session h s; 
+  );;
+
+fun _fooScene()=
+   _fooS "Arborescence des H3d dans la scene: ";
+   let M3listOfBigFathers session -> l in
+   while l!=nil do
+   (
+      _fooH3d hd l "--";
+      set l=tl l;
+   );0;;
+*/
+
+/*
+fun _fooOb1(b,a)=
+ _fooS strcatn b.nameOb::" "::(itoa b.idOb)::" "::b.uiOb.classUI::" "::
+  (itoa b.mobileOb)::" "::(itoa b.avOb)::" "::nil;
+ _fooI b.o3Ob;;
+
+fun _fooOb()=
+ _fooS "list Ob";
+ apply_on_list C3DobList @_fooOb1 0;;
+*/
+
+
+
+/*
+fun _fooMesh(m,s)=
+  if (m!=nil) then
+  (
+    _fooS strcat strcat s ">mesh:" (if m.MeshName==nil then "root" else strcat strcat m.MeshName "/" m.MeshAlias);
+    let m.MeshPos -> [[x y z][a b c]] in
+    _fooS strcatn s::"-------:"::(itoa x)::" "::(itoa y)::" "::(itoa z)::" "::(itoa a)::" "::(itoa b)::" "::(itoa c)::nil;
+    _fooMesh m.MeshSon strcat s "**";
+    _fooMesh m.MeshBro s
+  )
+  else 0;;
+
+fun _fooMaterials(l,s)=
+  if l==nil then 0
+  else let l -> [mat nxt] in
+  (
+    _fooS strcatn s::">material:"::mat.MatName::
+                  " texture:"::(if mat.MatTexture==nil then " " else mat.MatTexture)::
+                  " colorflat:"::(itoa mat.MatFlatColor)::nil; 
+    _fooMaterials nxt s;
+  );;
+
+fun _fooM3d(m,s)=
+  if (m!=nil) then
+  (
+    let m.M3dPos -> [[x y z][a b c]] in
+    _fooS strcatn s::"M3d:"::m.M3dfile::" "::(itoa x)::" "::(itoa y)::" "::(itoa z)::" "::(itoa a)::" "::(itoa b)::" "::(itoa c)::nil;
+    _fooMaterials m.M3dMaterials s;
+    _fooMesh m.M3dMesh s
+  )
+  else 0;;
+
+fun _fooDummy(d,s)=
+  if (d!=nil) then
+    _fooS strcat strcat s "Dummy:" d.DumName
+  else nil;0;;
+
+fun _fooLinkedChilds(l,s)=
+  if l!=nil then
+  ( let hd l -> [ref name] in
+    _fooS strcatn s::">ListChilds:"::ref::" "::name::nil;
+    _fooLinkedChilds tl l s 
+  )
+  else nil;
+  0;;
+  
+fun _fooObj3d(o,s)=
+  if (o==nil) then _fooS strcat s ">nil"
+  else
+  (
+     if o.Obj3dAtom==nil then _fooS strcat strcat s ">Obj3d: root Index:" o.Obj3dIndex
+     else _fooS strcat strcat s ">Obj3d: Index:" o.Obj3dIndex;
+     match o.Obj3dAtom with
+      (m3d m -> _fooM3d m s      
+      ) 
+     |(dummy d -> _fooDummy d s
+      ) 
+     |(_ -> nil
+      );
+    _fooObj3d o.Obj3dSon strcat s "--";
+    _fooObj3d o.Obj3dBro s;
+  );;
+
+fun _fooCel3d(c)=
+  _fooS "***************** Cel3d *****************";
+  _fooS strcat "name:"   c.Cel3dname;
+  _fooS strcat "openspace:" c.Cel3dopenspace; /*<<<<<<<<<<<<<<<<<<<<*****/ 
+  _fooS strcat "back:"   itoa c.Cel3dback;
+  _fooS strcat "clip:"   itoa c.Cel3dclip;
+  _fooS strcat "fog:"    itoa c.Cel3dfog;
+  _fooS strcat "focal:"  ftoa c.Cel3dfocal;
+  _fooS strcat "buffer:" itoa c.Cel3dbuf;
+  _fooS strcat "gravit:" itoa c.Cel3dgrav;
+  _fooS strcat "darkba:" c.Cel3ddarkbase;
+  _fooS "arbre d'objets:";
+  _fooObj3d c.Cel3dobj "-"
+;;
+
+fun _fooCoord (text, coord) =
+  let coord -> [c1 c2 c3] in
+    _fooS strcatn text::" : "::(itoa c1)::" ; "::(itoa c2)::" ; "::(itoa c3)::nil
+;;
+
+*/

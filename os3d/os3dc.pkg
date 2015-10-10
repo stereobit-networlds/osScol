@@ -1,0 +1,2915 @@
+/************************************************************************************************/
+/*                                                                                              */
+/*                   C3d3 Client - DMS - aug 98 - by Sylvain HUET                               */
+/*                    Modified March 2000  by Jocelyn DUMAY                                     */
+/*                    Modified March 2001  by Macfly                                            */
+/*                    Modified January 2003 by PaïKan                                           */
+/*                                                                                              */
+/************************************************************************************************/
+
+/* valeur minimale du ping mesurable, en ms : toute connexion plus rapide sera ralentie à cette valeur */
+var minPing=20;;
+var maxPing=1000;;
+
+
+/*----------*/
+defcom Cregister=register;;
+defcom CregCursor=regCursor S;;
+defcom Cack=ack I I I;;
+
+defcom Sload=_load S;;
+
+typeof MngW3d=View3dManager;;
+typeof w3d=View3d;;
+
+typeof text=ObjText;;
+typeof list=ObjList;;
+
+typeof lastPos=[I I I];;
+typeof lastAng=[I I I];;
+typeof CamPos= [I I I];;
+
+var Ack=1;;
+
+var SendPosToServer=0;;
+
+var NbFrame=1;;
+
+var sendtime=0;;
+
+typeof tickcount=I;;
+
+typeof position=S;;
+
+var start=0;;
+
+var navV=[0 0 0];;
+var navA=[0 0 0];;
+
+var cameraChanged = 0;;
+
+typeof SELECT_CURSOR=ObjCursor;;
+
+typeof tps=NewTimer;;
+
+var n_curs=0;;
+var mode_curs=0;;
+
+typeof ParamCurseurs=[S r1];;
+
+fun posbyn(x,n)=
+  let x->[a _ _] in
+    !strcmp a n
+;;
+
+fun _endE(a,b,r)=_closemachine;;
+
+/************************************************************************************************/
+/*                      Ob functions in the 3d Scene                                            */
+/************************************************************************************************/
+defcom Csetpos=setpos I I I I I I I;;
+defcom Cspeak=speak S;;
+defcom Cselect0=select0 I;;
+defcom Cselect1=select1 I;;
+defcom Cselect2=select2 I;;
+defcom Cselect3=select3 I;;
+
+/* link extract function
+   return object and material from link specific tuple */
+fun LINK_ExtractTwo (elt) =
+  let elt -> [object material _ _ _ _ _] in
+    [object material]
+;;
+
+/* link extract function
+   return object and material from link specific tuple */
+fun LINK_ExtractOne (elt) =
+  let elt -> [object material _ _] in
+    [object material]
+;;
+
+/* return true if object from link tuple (using special extract function)
+   is an ancestry of object in parameter */
+fun LINK_IsAncestry (elt, data) =
+  let data -> [linkextractfunc object] in
+  let exec linkextractfunc with [elt] -> [curobject curmaterial] in
+    (curobject!=nil) && (curmaterial == nil) && (M3isFather session object curobject)
+;;
+
+/* recursive link search function
+   return Link tuple matching link object and material with object and material in parameter */
+fun LINK_SearchByObjectAndMaterial (linklist, linkextractfunc, object, material) =
+  if linklist == nil then
+    nil
+  else
+    let linklist -> [cur next] in
+    let exec linkextractfunc with [cur] -> [curobject curmaterial] in
+      if (curobject == object) then
+        if (curmaterial == material) then
+          cur
+        else
+          if (curmaterial == nil) then
+          /* link on object ; search eventually for specific link on material
+             return current link otherwise */
+            let LINK_SearchByObjectAndMaterial next linkextractfunc object material -> result in
+              if result == nil then
+                cur
+              else
+                result
+          else
+            LINK_SearchByObjectAndMaterial next linkextractfunc object material
+      else
+        LINK_SearchByObjectAndMaterial next linkextractfunc object material
+;;
+
+/* main link search function
+   return Link tuple matching link object and material with object and material in parameter */
+fun LINK_Search (linklist, linkextractfunc, object, material) =
+  if object == nil then
+    nil
+  else
+    let LINK_SearchByObjectAndMaterial linklist linkextractfunc object material -> result in
+      if result == nil then
+        search_in_list linklist @LINK_IsAncestry [linkextractfunc object]
+      else
+        result
+;;
+
+fun sizemobile(l)=
+  if l==nil then
+    0
+  else
+    let l->[o nxt] in
+      o.mobileOb+sizemobile nxt
+;;
+
+fun sizeav(l)=
+ if l==nil then
+  0
+ else
+  let l->[o nxt] in
+    o.avOb+sizeav nxt
+;;
+
+/* next */
+
+fun addlist(o,b)=
+  if o.avOb then
+  let
+    if o==owner then
+      strcat strcat "[ " o.pseudoOb " ]"
+    else
+      o.pseudoOb
+  -> name in
+  (
+    _ADDlist list 1000 name;
+    _DMSevent this "avatarList" name nil
+  )
+  else
+    nil
+;;
+
+fun updatelist()=
+  _DMSevent this "avatarList" nil nil;
+  _RSTlist list;
+  let itoa sizeav C3DobList -> nb in
+  (
+    /*_ADDlist list 1000 strcatn ">> "::nb::" "::(_loc this "PEOPLE" nil)::nil;*****/
+    _DMSevent this "avatarList" strcat ">>" nb nil
+  );
+  apply_on_list C3DobList @addlist 0
+;;
+
+fun targetOb(o0,o1)=
+  let M3calcPosRef session o0.o3Ob shell -> [src _] in
+  let M3calcPosRef session o1.o3Ob shell -> [dst _] in
+  let M3angularTarget src dst -> [an bn _] in
+    exec o0.setposOb with [o0 nil [an bn 0]]
+;;
+
+fun setipos(s)=
+  let search_in_list cel.Cel3dIpos @posbyn s -> [_ v a] in
+    if v==nil then
+      nil
+    else
+      exec owner.setposOb with [owner v a]
+;;
+
+fun pos_in_moblist(l,a,i)=
+  if l==nil then
+    nil
+  else
+    let l->[b n] in
+      if a==b then
+        i
+      else
+        pos_in_moblist n a i+b.mobileOb
+;;
+
+fun nth_moblist(l,i)=
+  if l==nil then
+    nil
+  else
+    let l->[b n] in
+      if b.mobileOb then
+        if i==0 then
+          b
+        else
+          nth_moblist n i-1
+      else
+        nth_moblist n i
+;;
+
+fun lclick(a,b,i,s)=
+  if i==0 then
+    updatelist
+  else
+    let nth_moblist C3DobList i-1 -> o in
+      if o==owner then
+        nil
+      else
+        targetOb owner o
+;;
+
+typeof WaitingInstanceList = [[Plug Ob] r1];;
+
+fun C3D_NewInstance (class, instance) =
+  if w3d == nil then
+  (
+    set WaitingInstanceList = [class instance]::WaitingInstanceList;
+    nil
+  )
+  else
+    OB_NewInstance [class instance] nil
+;;
+
+fun loadOb(o)=
+  let search_in_list plugins @plugbyclass o.uiOb.classUI -> c in
+  let
+    if c==nil && o.avOb then
+      search_in_list plugins @plugbyclass cel.Cel3dDefaultAvat
+    else
+      c
+  -> cl in
+  let
+    if cl==nil && o.avOb then
+      search_in_list plugins @plugbyclass "none"
+    else
+      cl
+  -> cll in
+    C3D_NewInstance cll o
+;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for local client */
+fun C3D_IsPhysicsActivated () = cel.Cel3dphysics;;
+
+/* return true if camera
+   is currently in free mode for local client - maj 28/01/03 -PaiiKan-*/
+fun C3D_IsFreeCamActivated () = cel.CelCamerafree;;
+
+/* return true if physics (gravity and collision)
+   is currently activated for server */
+fun C3D_IsGlobalPhysicsActivated () = cel.Cel3dglobalphysics;;
+
+fun clickStd(o,h,m,i)=
+  if i==1 then
+    ObSelect1 o.idOb
+  else
+    if i==2 then
+      ObSelect2 o.idOb
+    else 0;
+  0
+;;
+
+fun dclickStd(o,h,m,i)=
+  if i==1 then
+    ObSelect0 o.idOb
+  else
+    if i==2 then
+      ObSelect3 o.idOb
+    else 0;
+  0
+;;
+
+fun setposStd(o,v,a)=
+  let M3getFather session o.o3Ob -> f in
+  let v->[xn yn zn] in
+  let a->[an bn cn] in
+  let M3getObjVec session o.o3Ob ->[_ yo _] in
+  (
+    if v==nil then
+      nil
+    else
+      M3setObjVec session f [xn yn-yo zn];
+    M3setObjAng session f [an 0 0];
+    M3setObjAng session o.o3Ob [0 bn cn];
+    if coll==nil || o!=owner then
+      nil
+    else
+      inboxPlacing coll session f;
+    0
+  )
+;;
+
+fun setpos2Std(o,v,a)=
+  if cel.Cel3dinterpolate then
+    C3D_UpdateDest o v
+  else
+  (
+    M3setObjVec session o.o3Ob v;
+    nil
+  );
+  M3setObjAng session o.o3Ob a
+;;
+
+fun movcam2(s,h,f,v,ang)=
+  let M3getObjVec s f -> oldpos in
+  let coll.curboxIB -> oldbox in
+  (
+    if !(C3D_IsPhysicsActivated) then
+    (
+      M3movObj s f v;
+      0
+    )
+    else
+      let v->[x y z] in
+        if coll==nil then
+          let M3getGlobalVec s f v->w in
+          let M3testColl s f shell w 2 -> [_ cl wc nc] in
+            if wc==nil then
+            (
+
+
+              M3movObjExt s f w;
+              0
+            )
+            else
+              if nc==nil then
+                let M3getFather s cl->oldfath in
+                (
+                  M3unLink s cl;
+                  movcam2 s h f v ang;
+                  M3link s cl oldfath;
+                  0
+                )
+              else
+                let w->[wx wy wz] in let nc->[nx ny nz] in
+                let [wx+nx wy+ny wz+nz]-> ww in
+                (
+                  if nil==M3testColl s f shell ww 2 then
+                    M3movObjExt s f ww
+                  else
+                    M3movObjExt s f wc;
+                  0
+                )
+        else
+        (
+          let inboxTesting coll s f v->[newb [npx npy npz]] in
+          let oldpos->[opx opy opz] in
+          let [npx-opx npy-opy npz-opz]->w in
+          let M3testColl s f shell w 2 -> [_ cl wc nc] in
+            if wc==nil then
+            (
+              M3movObjExt s f w;
+              set coll.curboxIB=newb;
+              0
+            )
+            else
+              if nc==nil then
+                let M3getFather s cl->oldfath in
+                (
+                  M3unLink s cl;
+                  movcam2 s h f v ang;
+                  M3link s cl oldfath;
+                  0
+                )
+              else
+                let w->[wx wy wz] in
+                let nc->[nx ny nz] in
+                let [wx+nx wy+ny wz+nz]-> ww in
+                  if nil==M3testColl s f shell ww 2 then
+                  (
+                    M3movObjExt s f ww;
+                    let M3getObjVec s f -> [ox2 oy2 oz2] in
+                    let inboxTesting coll s f [0 0 0] ->[newb2 [npx npy npz]] in
+                      if ox2==npx && oy2==npy && oz2==npz then
+                      (
+                        set coll.curboxIB=newb2;
+                        0
+                      )
+                      else
+                      (
+                        M3setObjVec s f oldpos;
+                        M3movObjExt s f wc;
+                        set coll.curboxIB=newb;
+                        0
+                      )
+                  )
+                  else
+                  (
+                    M3movObjExt s f wc;
+                    set coll.curboxIB=newb;
+                    0
+                  );
+          0
+        );
+
+    if ang==nil then
+      nil
+    else
+      let ang->[an bn cn] in
+      let M3getObjAng s f -> [olda oldb oldc] in
+      let M3getObjAng s h -> [oldah oldbh oldch] in
+      let M3getFather s cam -> father_c in
+      let M3getFather s h   -> father_h in
+      let M3getFather s f   -> father_f in
+      let M3getFirstSon  s cam   -> son_c in
+      let oldb+bn -> angularVarLimitFather in
+      let oldbh+bn -> angularVarLimit in
+      (
+/*
+          // -------------- <Begin of :> Display info routine for dev only-----------------
+          if !((olda == olda-an) && (oldb == oldb-bn) && (oldc == oldc-cn))
+          then
+          (
+              //if (M3isFather s h father_h)==0 then _fooS strcatn "Objet père <"::(M3objName s father_h)::"> detaché de <"::(M3objName s h)::">"::nil else _fooS strcatn "Objet père <"::(M3objName s father_h)::"> attaché à <"::(M3objName s h)::">"::nil;
+              if (M3isFather s cam father_c)==0 then _fooS strcatn "Objet pere <"::(M3objName s father_c)::"> detaché de <"::(M3objName s cam)::">"::nil else _fooS strcatn "Objet père <"::(M3objName s father_c)::"> attaché à <"::(M3objName s cam)::">"::nil;
+              let M3getObjVec s father_h -> [father_hX father_hY father_hZ] in
+              let M3getObjVec s father_f -> [father_fX father_fY father_fZ] in
+              let M3getObjVec s father_c -> [father_cX father_cY father_cZ] in
+              let M3getObjVec s f -> [fX fY fZ] in
+              let M3getObjVec s h -> [hX hY hZ] in
+              let M3getObjVec s cam -> [cX cY cZ] in
+              let M3getObjAng s f -> [fAngX fAngY fAngZ] in
+              let M3getObjAng s h -> [fAngX hAngY hAngZ] in
+              let M3getObjAng s son_c -> [son_cAngX son_cAngY son_cAngZ] in
+              let M3getObjVec s son_c -> [son_cX son_cY son_cZ] in
+              let M3getGlobalVec s h (M3getObjVec s h) -> [father_hX father_hY father_hZ]  in
+              let M3getGlobalVec s f (M3getObjVec s f) -> [father_fX father_fY father_fZ]  in
+
+
+              let M3getObjAng s cam -> [cAngX cAngY cAngZ] in
+              _fooS (strcatn "<ang delta mouse> (1) "::(itoa an)::" "::(itoa bn)::" "::(itoa cn)::"\n"::
+                             //"<pos c father>    (2) "::(itoa father_cX)::" "::(itoa father_cY)::" "::(itoa father_cZ)::"\n"::
+                            // "<ang c>           (3) "::(itoa cAngX)::" "::(itoa cAngY)::" "::(itoa cAngZ)::"\n"::
+                            // "<ang son_c>       (3) "::(itoa son_cAngX)::" "::(itoa son_cAngY)::" "::(itoa son_cAngZ)::"\n"::
+                             "<ang f>           (3) "::(itoa fAngX)::" "::(itoa fAngY)::" "::(itoa fAngZ)::"\n"::
+                             "<ang h>           (3) "::(itoa fAngX)::" "::(itoa hAngY)::" "::(itoa hAngZ)::"\n"::
+                            // "<pos c>           (4) "::(itoa cX)::" "::(itoa cY)::" "::(itoa cZ)::"\n"::
+                            // "<pos son_c>       (4) "::(itoa son_cX)::" "::(itoa son_cY)::" "::(itoa son_cZ)::"\n"::
+                             "<pos f>           (4) "::(itoa fX)::" "::(itoa fY)::" "::(itoa fZ)::"\n"::
+                             "<pos f global>    (2) "::(itoa father_fX)::" "::(itoa father_fY)::" "::(itoa father_fZ)::"\n"::
+                             "<pos h global>    (2) "::(itoa father_hX)::" "::(itoa father_hY)::" "::(itoa father_hZ)::"\n"::
+                             "<pos h>           (4) "::(itoa hX)::" "::(itoa hY)::" "::(itoa hZ)::nil);
+
+            0
+          )
+          else
+            nil;
+          // -------------- <End of :> Display info routine for dev only-----------------
+*/
+        if (!C3D_IsFreeCamActivated) then
+        (
+
+          if cameraChanged
+          then
+          (
+            M3setObjAng s f [ olda 0 0 ];
+            M3setObjAng s h [ 0 0 0 ];
+
+            set cameraChanged = 0
+          )
+          else
+          (
+
+            if (angularVarLimit > 16250)
+            then
+              M3rotateObjExt s h [0 (16250-oldbh) cn]
+            else
+              if (angularVarLimit < -16250)
+              then
+                M3rotateObjExt s h [0 ((-16250)-oldbh) cn]
+              else
+                M3rotateObjExt s h [0  bn cn];
+
+            M3rotateObjExt s f [an 0 0];
+          )
+        )
+        else
+        (
+          if cameraChanged
+          then
+          (
+
+            M3setObjAng s h [ 0 0 0 ];
+            M3setObjAng s f [ olda 0 0 ];
+            set CamPos = M3getGlobalVec s h (M3getObjVec s h);
+            set cameraChanged = 0
+          )
+          else
+          (
+            let CamPos -> [CamPosX CamPosY CamPosZ] in
+            if (angularVarLimitFather > 16250)
+            then
+            (
+              //M3rotateObjExt s h [an 0-(16250-oldbh) cn];
+              M3rotateObjExt s f [an (16250-oldb) cn];
+              //let M3getGlobalVec s h (M3getObjVec s h) -> [ newCamPosX newCamPosY newCamPosZ] in
+              // M3movObjExt s h [(CamPosX-newCamPosX) (CamPosY-newCamPosY) (CamPosZ-newCamPosZ)]
+0
+            )
+            else
+              if (angularVarLimitFather < -16250)
+              then
+              (
+                //M3rotateObjExt s h [an 0-((-16250)-oldbh) cn];
+                M3rotateObjExt s f [an ((-16250)-oldb) cn];
+                //let M3getGlobalVec s h (M3getObjVec s h) -> [ newCamPosX newCamPosY newCamPosZ] in
+                // M3movObjExt s h [(CamPosX-newCamPosX) (CamPosY-newCamPosY) (CamPosZ-newCamPosZ)]
+0
+              )
+              else
+              (
+                //M3rotateObjExt s h [an 0-bn cn];
+                M3rotateObjExt s f [an bn cn];
+                //let M3getGlobalVec s h (M3getObjVec s h) -> [ newCamPosX newCamPosY newCamPosZ] in
+                 //M3movObjExt s h [(CamPosX-newCamPosX) (CamPosY-newCamPosY) (CamPosZ-newCamPosZ)]
+0
+              )
+          );
+        )
+      );
+
+    if !(C3D_IsPhysicsActivated) || nil==M3testInter s f shell then
+      nil
+    else
+    (
+      M3setObjVec s f oldpos;
+      set coll.curboxIB=oldbox
+    );
+    0
+  )
+;;
+
+fun controlStd(o,z)=
+  let z->[v ang] in
+  let o.o3Ob -> h in
+  let session -> s in
+  let M3getFather s h -> f in
+  (
+    movcam2 s h f v ang;
+    if C3D_IsPhysicsActivated && cel.Cel3dgrav != nil then
+      movcam2 s h f [0 (-cel.Cel3dgrav) 0] nil // to do FREE CAM ACTIVATED ERREURS
+    else
+      nil
+  )
+;;
+
+fun speakStd(o,s)= 0;; /*************/ 
+/*_DMSsend this Cspeak [if (strlen s) > 4096 then (substr s 0 4096) else s];;*/
+
+fun controlproceed(o,z)= exec o.controlOb with [o z];;
+
+typeof oldtickcount=I;;
+
+fun movcam(v,ang,z)=
+  let oldtickcount -> oldt in
+  let [navV v]->[[xa ya za] [xv yv zv]] in
+  let [navA ang]->[[aa ba ca] [av bv cv]] in
+  (
+    set oldtickcount=_tickcount;
+    let
+      if oldt==nil then
+        cel.Cel3dspeed
+      else
+        min cel.Cel3dspeed oldtickcount-oldt
+    -> num in
+    apply_on_list C3DobList @controlproceed
+                  [[(xa-xv)*num/cel.Cel3dspeed (ya+yv)*num/cel.Cel3dspeed (za+zv)*num/cel.Cel3dspeed]
+                   [(aa+av)*num/cel.Cel3dspeed (ba+bv)*num/cel.Cel3dspeed (ca+cv)*num/cel.Cel3dspeed]]
+  )
+;;
+
+fun controlspeak(o,s)= exec o.speakOb with [o s];;
+
+fun speak(s)= apply_on_list C3DobList @controlspeak s;;
+
+/* free all reservation (cursor, mouse and keyboard) for instance in parameter */
+fun OB_FreeReservation (instance) =
+  if (w3d.V3dCursorReserved == instance) then
+  (
+    set w3d.V3dReservedCursor = nil;
+    set w3d.V3dCursorReserved = nil
+  )
+  else
+    nil;
+  if (w3d.V3dMouseReserved == instance) then
+    set w3d.V3dMouseReserved = nil
+  else
+    nil;
+  if (w3d.V3dKeyboardReserved == instance) then
+    set w3d.V3dKeyboardReserved = nil
+  else
+    nil
+;;
+
+fun deleteOb(o)=
+  if o==camob then
+    M3link session cam shell
+  else
+    nil;
+  exec o.destroyOb with [o];
+  set C3DobList=remove_from_list C3DobList o;
+  OB_FreeReservation o;
+  resetObCb o;
+  updatelist;
+/*  _fooS strcat "free 3d : " itoa M3freeMemory session;*/
+  0
+;;
+
+fun leaving(ui,o)=
+  deleteOb o;
+/*  _DMSevent this "hear" strcatn "> "::(o.nameOb)::" "::(_loc this "ISLEAVING" nil)::"\n"::nil nil*/
+ 0
+;;
+
+fun leavingOb(ui,o)=
+  deleteOb o;
+  0
+;;
+
+fun chgname(o,name)=
+  if cel.Cel3ddapseudo then
+    _DMSevent this "hear" strcatn "> "::o.nameOb::" -> "::name::"\n"::nil nil
+  else
+    nil;
+  set o.nameOb=name;
+  set o.pseudoOb=name;
+  updatelist
+;;
+
+fun chgpseudo(o,name)=
+  set o.pseudoOb=name;
+  if cel.Cel3ddapseudo then
+    _DMSevent this "hear" strcatn "> "::o.nameOb::" -> "::o.pseudoOb::"\n"::nil nil
+  else
+    nil;
+  updatelist
+;;
+
+fun changed(ui,type,param,o)=
+  if type&USER_changeClass then
+    let M3calcPosRef session o.o3Ob shell ->[v m] in
+    let M3angularFromMatrix m ->a in
+    (
+      if o==camob then
+        M3link session cam shell
+      else
+        nil;
+      exec o.destroyOb with [o];
+      resetObCb o;
+      set o.clickOb=@clickStd;
+      set o.dclickOb=@dclickStd;
+      if o==owner then
+      (
+        set o.controlOb=@controlStd;
+        set o.setposOb=@setposStd;
+        set o.speakOb=@speakStd;
+        nil
+      )
+      else
+        if o.avOb then
+          set o.setposOb=@setpos2Std
+        else
+          nil;
+      loadOb o;
+      if nil==M3getFather session o.o3Ob then
+        M3link session o.o3Ob shellav
+      else
+        nil;
+      exec o.setposOb with [o v a]
+    )
+  else
+    if type&USER_changeParam then
+      if !strcmp param "name" then
+        chgname o hd UgetParam ui "name"
+      else
+        if !strcmp param "pseudo" then
+          chgpseudo o hd UgetParam ui "pseudo"
+        else
+          nil
+    else
+      nil
+;;
+
+fun hearob(ui,action,param,o)= 0;; /**********/
+/*_DMSeventTag this "hear" param nil nil;;*/
+
+fun createAv(ui)=
+  let ui.userUI.idU -> id in
+  let hd UgetParam ui "name" -> name in
+  let mkOb [ui id nil name name atoi hd UgetParam ui "index" 1 1
+            nil nil nil nil nil nil nil nil nil nil nil nil nil nil
+            nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+  -> o in
+  (
+    set o.clickOb=@clickStd;
+    set o.dclickOb=@dclickStd;
+    set C3DobList=o::C3DobList;
+    UcbMessage ui ["hearC3d" mkfun4 @hearob o]::nil;
+    if id==DMSid then
+    (
+      set owner=o;
+      set o.controlOb=@controlStd;
+      set o.setposOb=@setposStd;
+      set o.speakOb=@speakStd;
+      loadOb o;
+      if position==nil then
+        nil
+      else
+      (
+        setipos position;
+        set position=nil
+      );
+      0
+    )
+    else
+    (
+      set o.destOb = NEW_ObMove;
+      if o.indexOb==nil then
+        nil
+      else
+        /*_DMSsend this Cack [nil o.indexOb nil]; *********/
+		0;
+      set o.setposOb=@setpos2Std;
+      loadOb o
+    );
+    updatelist;
+    /* UcbDel this ui mkfun2 @leaving o;
+    UcbChange this ui mkfun4 @changed o *************/
+	0
+  );
+  0
+;;
+
+fun createOb(ui)=
+  let ui.userUI.idU -> id in
+  let hd UgetParam ui "name" -> name in
+  let mkOb [ui id nil name name atoi hd UgetParam ui "index" 0 0
+            nil nil nil nil nil nil nil nil nil nil nil nil nil nil
+            nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+  -> o in
+  (
+    let hd UgetParam ui "anchor" -> anch in
+      set o.anchorOb=
+        if (nth_char anch 0)=='# then
+          let tl hd strextr anch -> [obj [mat _]] in
+            (objAnchor [M3getObj session obj M3getMat session mat nil 0])::nil
+        else
+          let search_in_list cel.Cel3dAnchors @anchbyn anch ->[_ x] in
+            x;
+    set C3DobList=o::C3DobList;
+    loadOb o;
+    /*UcbDel this ui mkfun2 @leavingOb o;
+    UcbChange this ui mkfun4 @changed o;*************/
+    0
+  )
+;;
+
+fun updateob(l,classname)=
+  if l==nil then
+    0
+  else
+    let l->[o nx] in
+    (
+      updateob nx classname;
+      if (!strcmp o.uiOb.classUI classname) ||
+         ((!strcmp classname cel.Cel3dDefaultAvat)&&(nil==search_in_list plugins @plugbyclass o.uiOb.classUI)) then
+        let M3calcPosRef session o.o3Ob shell ->[v m] in
+        let M3angularFromMatrix m ->a in
+        (
+          if o==camob then
+            M3link session cam shell
+          else
+            nil;
+          exec o.destroyOb with [o];
+          loadOb o;
+          if nil==M3getFather session o.o3Ob then
+            M3link session o.o3Ob shellav
+          else
+            nil;
+          exec o.setposOb with [o v a]
+        )
+      else
+        nil
+    )
+;;
+
+fun newInst(ui)=
+  if start then
+  (
+    if ui.userUI.flagU & USER_client then
+    (
+/*      if DMSid==ui.userUI.idU then
+        nil
+      else
+        let hd UgetParam ui "name" -> name in
+          _DMSevent this "hear" strcatn "> "::name::" "::(_loc this "ISTHERE" nil)::"\n"::nil nil;
+*/      createAv ui;
+      0
+    )
+    else
+      createOb ui
+  )
+  else
+    nil;
+  0
+;;
+
+fun newInst2(ui,x)= newInst ui;;
+
+/* gestion des plugins */
+
+fun getfileplug(a,d)= _RSCdownload d a a mkfun2 @getFileErr a 3;;
+
+fun newplug4(ch,a)= _scriptc ch mkscript SIniPlug [a];;
+
+fun newplug3(s,z)=
+  let z->[ch script a] in
+  (
+    _scriptc ch script;
+    newplug4 ch a
+  )
+;;
+
+proto getloadplg=fun[S [[S r1] Chn S]] I;;
+
+fun getloadplg(f,z)=
+  let z->[l ch a] in
+    if l==nil then
+      newplug4 ch a
+  else
+    if f==nil then
+      getFileErr f a
+    else
+    (
+      _scriptc ch mkscript Sload [hd l];
+      let
+        if !strcmp hd tl l "*" then
+          (_storepack "" hd l; tl tl l)
+        else
+          tl l
+      -> ll in
+        /*_RSCdownload this hd ll hd ll mkfun2 @getloadplg [ll ch a] 3;****/
+      nil
+    )
+;;
+
+fun newplug2(a,param)=
+  if a==nil then
+    nil
+  else
+    if nil!=search_in_list plugins @plugbyfile a then
+      nil
+    else
+      let strextr _getpack _checkpack a -> l in
+      let _DMSgetpath a -> path in
+      let conc getConcInfos l "clientNeeded" getConcInfos l "clientNeededF" -> lneed in /*seb ajout clientNeededF*/
+      let getInfo l "clientScript" -> cs in
+      let getConcInfos l "clientLoad" -> cl in
+        if cs==nil && cl==nil then
+          nil
+        else
+          let _openchannel nil preplug _envchannel _channel -> ch in
+          (
+            set plugins=(mkPlug[a ch plugwaiting nil nil param 0 nil 0])::plugins;
+            _scriptc ch "reg";
+            /*apply_on_list _DMSrelativpath path lneed @getfileplug this; *****/
+            /*let _DMSrelativpath path cl -> l in
+              if l==nil then
+                _RSCdownload this nil nil mknode @newplug3 [ch cs a] 1
+              else
+                _RSCdownload this hd l hd l mkfun2 @getloadplg [l ch a] 3;****/
+            0
+          )
+;;
+
+fun newplug(file,param)=
+  /*_RSCdownload this file file mkfun2 @newplug2 param 1; *******/
+  0
+;;
+
+fun newplugExt(from,param)=
+  let strextr param -> l in
+  let hd hd l -> file in
+    if nil!=search_in_list plugins @plugbyfile file then
+      nil
+    else
+      let strextr _getpack _checkpack file -> l in
+      let getInfo l "name" -> name in
+      let getInfo l "clientScript" -> script in
+      let _openchannel nil preplug _envchannel _channel -> ch in
+      (
+        set plugins=(mkPlug[file ch plugwaiting nil nil tl l 0 nil 0])::plugins;
+        /*UsetUserClass this from name; **************/
+        _scriptc ch "reg";
+        _scriptc ch script;
+        _scriptc ch mkscript SIniPlug [file];
+        0
+      )
+;;
+
+fun closeplug(a,b)=
+  let _channel -> c in
+  (
+    _setchannel a.chnPlug;
+    exec a.cbendPlug with [];
+    _setchannel c;
+    deltimerchn a.chnPlug;
+    _killchannel a.chnPlug;
+    0
+  )
+;;
+
+fun delplug()= apply_on_list plugins @closeplug nil;;
+
+fun PlugRegister(class,new,close)=
+  let search_in_list plugins @plugbych _channel -> plug in
+    if plug==nil then
+    (
+      set plugins=conc plugins (mkPlug[nil nil class new close nil 0 nil 0])::nil;
+      updateob C3DobList class
+    )
+    else
+    (
+      set plug.classPlug=class;
+      set plug.cbnewPlug=new;
+      set plug.cbendPlug=close;
+      updateob C3DobList class
+    );
+  0
+;;
+
+/*
+bloque le changement du curseur pour l'instance en paramètre uniquement
+valeur de retour : vrai si la réservation est autorisé, faux
+sinon (le curseur est déjà reservé pour une autre instance)
+*/
+fun OB_TakeCursor (instance) =
+  if w3d.V3dCursorReserved == nil then
+  (
+    set w3d.V3dCursorReserved = instance;
+    1
+  )
+  else
+    0
+;;
+
+/*
+change le curseur de la vue 3D
+valeur de retour : vrai si le changement est autorisé (si et
+seulement si l'instance en paramètre a resérvé le curseur auparavant), faux sinon
+*/
+fun OB_SetCursor (instance, curseur) =
+  if w3d.V3dCursorReserved == instance then
+  (
+    set w3d.V3dReservedCursor = curseur;
+    setCursorView3d w3d curseur;
+    1
+  )
+  else
+    0
+;;
+
+/*
+relache le blocage de changement du curseur pour l'instance en paramètre
+valeur de retour : vrai si la réservation est libérée, faux
+sinon (le curseur est reservé par une autre instance)
+*/
+fun OB_ReleaseCursor (instance) =
+  if w3d.V3dCursorReserved == instance then
+  (
+    set w3d.V3dReservedCursor = nil;
+    set w3d.V3dCursorReserved = nil;
+    resetCursorView3d w3d;
+    1
+  )
+  else
+    0
+;;
+
+/*
+réserve l'envoie des événements souris à l'instance en paramètre uniquement
+valeur de retour : vrai si la réservation est autorisé, faux
+sinon (la souris est déjà reservée pour une autre instance)
+*/
+fun OB_TakeMouse (instance) =
+  if w3d.V3dMouseReserved == nil then
+  (
+    set w3d.V3dMouseReserved = instance;
+    1
+  )
+  else
+    0
+;;
+
+/*
+relache la réservation de l'envoie des événements souris à l'instance en paramètre
+valeur de retour : vrai si la réservation est libérée, faux
+sinon (la souris est reservée par une autre instance)
+*/
+fun OB_ReleaseMouse (instance) =
+  if w3d.V3dMouseReserved == instance then
+  (
+    set w3d.V3dMouseReserved = nil;
+    1
+  )
+  else
+    0
+;;
+
+/*
+réserve l'envoie des événements clavier à l'instance en paramètre uniquement
+valeur de retour : vrai si la réservation est autorisé, faux
+sinon (le clavier est déjà reservée pour une autre instance)
+*/
+fun OB_TakeKeyboard (instance) =
+  if w3d.V3dKeyboardReserved == nil then
+  (
+    set w3d.V3dKeyboardReserved = instance;
+    1
+  )
+  else
+    0
+;;
+
+/*
+relache la réservation de l'envoie des événements clavier à l'instance en paramètre
+valeur de retour : vrai si la réservation est libérée, faux
+sinon (le clavier est reservée par une autre instance)
+*/
+fun OB_ReleaseKeyboard (instance) =
+  if w3d.V3dKeyboardReserved == instance then
+  (
+    set w3d.V3dKeyboardReserved = nil;
+    1
+  )
+  else
+    0
+;;
+
+var Obsubjectiv=1;;
+
+typeof avatar=H3d;;
+
+fun destroyTri(o)=
+  if o==owner then
+   M3delObj session M3getFather session o.o3Ob
+  else
+   M3delObj session o.o3Ob;
+ 0
+;;
+
+fun animTri(o,q)=
+  let q->[x] in
+  let (100+x)&4095 -> x in
+  let M3getFirstSon session o.o3Ob -> h in
+  let if x&2048 then 3072-x else x-1024 -> z in
+  (
+    let M3getObjAng session h -> [a _ c] in
+      M3setObjAng session h [a z c];
+    let M3getObjVec session h -> [a _ c] in
+      M3setObjVec session h [a (z>>6) c];
+    mutate q<-[x];
+    0
+  )
+;;
+
+/* add to be visible and in motion regarding the camera with the camera plugin */
+fun animTri2(o,q)=
+  let q->[x h] in
+  let (100+x)&4095 -> x in
+  let if x&2048 then 3072-x else x-1024 -> z in
+  (
+    let M3getObjAng session h -> [a _ c] in
+      M3setObjAng session h [a z c];
+    let M3getObjVec session h -> [a _ c] in
+      M3setObjVec session h [a (z>>6) c];
+    mutate q<-[x h];
+    0
+  )
+;;
+
+fun newTri(o)=
+  if o==owner then
+    let M3createShell session -> sh in
+    let M3createShell session -> sh0 in
+    let M3createSphere session 50 ->h in
+    let M3createSphere session 50 ->h2 in
+    let M3copyObj session avatar -> hnew in   /* add to be visible and in motion regarding the camera with the camera plugin */
+    (
+      M3link session hnew sh0;                 /* add to be visible and in motion regarding the camera with the camera plugin */
+      set o.animOb=mkfun2 @animTri2 [0 hnew];  /* add to be visible and in motion regarding the camera with the camera plugin */
+      M3setObjVec session sh [0 160 0];
+      //M3setObjVec session shellav [0 160 0];
+
+      M3setObjVec session h [0 160 0]; //60
+      M3link session h sh;
+      M3setObjVec session h2 [0 150 0]; // 150
+      M3link session h2 sh;
+      M3setObjVec session sh0 [0 160 0]; //160
+      M3link session sh0 sh;
+      M3link session sh shellav;
+
+      set o.o3Ob=sh0;
+      set o.destroyOb=@destroyTri;
+      ObSetCam o;
+      0
+    )
+    else
+      let M3createShell session -> sh in
+      let M3copyObj session avatar -> hnew in
+      (
+        M3link session hnew sh;
+        set o.o3Ob=sh;
+        set o.animOb=mkfun2 @animTri [0];
+        set o.destroyOb=@destroyTri;
+        0
+      )
+;;
+
+fun registerTri()=
+  M3load session avfile nil;
+  set avatar=M3getObj session "avatar";
+  if (M3getAnimLength session avatar) == 0 then
+    nil
+  else
+    M3setAnimKey session avatar 0;
+  M3recursFillMatObj session avatar;
+  PlugRegister "default" @newTri nil;
+  0;;
+
+fun destroyNone(o)=
+   if o==owner then
+     M3delObj session M3getFather session o.o3Ob
+   else
+     M3delObj session o.o3Ob;
+   0
+;;
+
+fun newNone(o)=
+  if o==owner then
+    let M3createShell session -> sh in
+    let M3createShell session -> sh0 in
+    (
+      M3setObjVec session sh0 [0 0 0];
+      M3link session sh0 sh;
+      M3link session sh shellav;
+      set o.o3Ob=sh0;
+      set o.destroyOb=@destroyNone;
+      0
+    )
+    else
+      let M3createShell session -> sh in
+      (
+        set o.o3Ob=sh;
+        set o.destroyOb=@destroyNone;
+        0
+      )
+;;
+
+fun registerNone()=
+  PlugRegister "none" @newNone nil;
+  0
+;;
+
+fun clicklink(h,m,i)=
+  let LINK_Search links @LINK_ExtractOne h m -> c in
+    if c==nil then
+      nil
+    else
+      let c->[_ _ n _] in
+      (
+        /*_DMSeventTag this n nil nil nil; ******************/
+        0
+      )
+;;
+
+fun clicklinkob(o,z)=
+  let z->[h m i] in
+  (
+    if o.linksOb==nil then
+      nil
+    else
+      let LINK_Search o.linksOb @LINK_ExtractTwo h m -> [_ _ _ _ f _ _] in
+        if f==nil then
+          nil
+        else
+          exec f with [o h m i];
+    if obbyson o h then
+      exec o.clickOb with [o h m i]
+    else
+      nil;
+    if nil==o.controlClickOb then
+      nil
+    else
+      exec o.controlClickOb with [o [h m i]]
+  )
+;;
+
+fun clickw3d(h,m,i)=
+  if h==nil then
+    nil
+  else
+  (
+    clicklink h m i;
+    apply_on_list C3DobList @clicklinkob [h m i]
+  );
+  0
+;;
+
+fun dclicklinkob(o,z)=
+  let z->[h m i] in
+  (
+    if o.linksOb==nil then
+      nil
+    else
+      let LINK_Search o.linksOb @LINK_ExtractTwo h m -> [_ _ _ _ _ f _] in
+        if f==nil then
+          nil
+        else
+          exec f with [o h m i];
+    if obbyson o h then
+      exec o.dclickOb with [o h m i]
+    else
+      nil;
+    if nil==o.controlDClickOb then
+      nil
+    else
+      exec o.controlDClickOb with [o [h m i]];
+    0
+  )
+;;
+
+fun dclickw3d(h,m,i)=
+  if h==nil then
+    nil
+  else
+    apply_on_list C3DobList @dclicklinkob [h m i];
+  0
+;;
+
+
+fun movlink(v3d,h,m)=
+  let LINK_Search links @LINK_ExtractOne h m -> c in
+  let c->[_ _ n i] in
+    if c==nil || i==0 then
+    (
+      if n!=nil then
+        _DMSevent this "contextHelp" strbuild ("ref"::n::nil)::("userParam"::"0"::nil)::nil nil
+      else
+        nil;
+      0
+    )
+    else
+    (
+      _SETtext text n;
+      setCursorView3d v3d HandCursor;
+      _DMSevent this "contextHelp" strbuild ("ref"::n::nil)::("userParam"::"1"::nil)::nil nil;
+      1
+    )
+;;
+
+fun movlinkob(v3d,l,h,m,r)=
+  if l==nil then
+    r
+  else
+    let l->[o nxt] in
+    (
+      if o.linksOb==nil then
+        nil
+      else
+        let LINK_Search o.linksOb @LINK_ExtractTwo h m -> link in
+          if link==nil then
+            if (o.notLinksOb==nil) then
+              nil
+            else
+              let o.notLinksOb -> [val f] in
+                if val then
+                (
+                  mutate o.notLinksOb <- [0 _];
+                  exec f with [o]
+                )
+                else
+                  nil
+          else
+            let link -> [_ _ name curs _ _ f] in
+            (
+              set r=1;
+              if (o.notLinksOb!=nil) then
+                mutate o.notLinksOb <- [1 _]
+              else
+                nil;
+              _SETtext text name;
+              setCursorView3d v3d curs;
+              if name == nil then
+                nil
+              else
+                _DMSevent this "contextHelp" strbuild ("ref"::name::nil)::("userParam"::"1"::nil)::nil nil;
+              set mode_curs=0;
+              exec f with [o h m]
+            );
+
+      if obbyson o h then
+      (
+        set r=1;
+        exec o.moveOb with [o h m];
+        _SETtext text if o.getNameOb==nil then o.nameOb else exec o.getNameOb with [o];
+        setCursorView3d v3d SELECT_CURSOR;
+        set mode_curs = 1;
+        _DMSevent this "contextHelp" strbuild ("ref"::(o.nameOb)::nil)::("userParam"::"2"::nil)::nil nil;
+        let 1+pos_in_moblist C3DobList o 0-> id in
+        (
+          _SELlist list id;
+          _DMSevent this "avatarList" itoa id nil
+        )
+      )
+      else
+        nil;
+
+      if nil==o.controlMoveOb then
+        nil
+      else
+        exec o.controlMoveOb with [o [o h m]];
+
+      movlinkob v3d nxt h m r
+    )
+;;
+
+fun movw3d(v3d,h,m,x,y)=
+  if v3d.V3dMouseReserved == nil then
+    if (movlink v3d h m)+(movlinkob v3d C3DobList h m 0) then
+      nil
+    else
+    (
+      _SETtext text "";
+      set mode_curs = 0;
+      if w3d.V3dReservedCursor != nil then
+        setCursorView3d v3d w3d.V3dReservedCursor
+      else
+        setCursorView3d v3d StdCursor;
+      _DMSevent this "contextHelp" nil nil;
+      0
+    )
+  else
+    nil
+;;
+
+fun MngObclickDown (o, param) =
+  if o.clickDownOb == nil then
+    nil
+  else
+    if (w3d.V3dMouseReserved == nil) ||
+       (w3d.V3dMouseReserved == o) then
+      exec o.clickDownOb with [o param]
+    else
+      nil
+;;
+
+fun ManageObclickDown (param) =
+  apply_on_list C3DobList @MngObclickDown param;
+  0
+;;
+
+fun MngObclickUp (o, param) =
+  if o.clickUpOb == nil then
+    nil
+  else
+    if (w3d.V3dMouseReserved == nil) ||
+       (w3d.V3dMouseReserved == o) then
+      exec o.clickUpOb with [o param]
+    else
+      nil
+;;
+
+fun ManageObclickUp (param) =
+  apply_on_list C3DobList @MngObclickUp param;
+  0
+;;
+
+fun MngObdoubleClick (o, param) =
+  if o.doubleClickOb == nil then
+    nil
+  else
+    if (w3d.V3dMouseReserved == nil) ||
+       (w3d.V3dMouseReserved == o) then
+      exec o.doubleClickOb with [o param]
+    else
+      nil
+;;
+
+fun ManageObdoubleClick (param) =
+  apply_on_list C3DobList @MngObdoubleClick param;
+  0
+;;
+
+
+fun MngObkeyUp (o, code) =
+  if o.keyUpOb == nil then
+    nil
+  else
+    if (w3d.V3dKeyboardReserved == nil) ||
+       (w3d.V3dKeyboardReserved == o) then
+      exec o.keyUpOb with [o code]
+    else
+      nil
+;;
+
+fun ManageObkeyUp (code) =
+  apply_on_list C3DobList @MngObkeyUp code;
+  0
+;;
+
+fun MngObkeyDown (o, param) =
+  if o.keyDownOb == nil then
+    nil
+  else
+    if (w3d.V3dKeyboardReserved == nil) ||
+       (w3d.V3dKeyboardReserved == o) then
+      exec o.keyDownOb with [o param]
+    else
+      nil
+;;
+
+fun ManageObkeyDown (param) =
+  apply_on_list C3DobList @MngObkeyDown param;
+  0
+;;
+
+fun MngObmouseMove (o, param) =
+  if o.mouseMoveOb == nil then
+    nil
+  else
+    if (w3d.V3dMouseReserved == nil) ||
+       (w3d.V3dMouseReserved == o) then
+      exec o.mouseMoveOb with [o param]
+    else
+      nil
+;;
+
+fun ManageObmouseMove (param) =
+  apply_on_list C3DobList @MngObmouseMove param;
+  0
+;;
+
+fun MngObresizeView (o, param) =
+  if o.resizeViewOb == nil then
+    nil
+  else
+    exec o.resizeViewOb with [o param]
+;;
+
+fun ManageResizeView (w, h) =
+  apply_on_list C3DobList @MngObresizeView [w h];
+  0
+;;
+
+
+/* force cursor in 3d view in the position of the parameter */
+fun C3D_ForceMousePos (param) =
+  let param -> [x y] in
+    _SETcursorPos w3d.V3dwin x y;
+  0
+;;
+
+/* show or hide (depending on parameter value) the cursor in 3d view */
+fun C3D_ShowMouse (val) =
+  _SHOWcursor DMSwin val;
+  0
+;;
+
+/* return current cursor position on 3d view */
+fun C3D_GetCursorPos () = _GETcursorPos w3d.V3dwin;;
+
+fun resizew3d(v3d,w,h)=
+  resizeView3d v3d 0 0 w h;
+  ManageResizeView w h;
+  0
+;;
+
+fun runkeydown(o,z)=exec o.controlKeyDownOb with [o z];;
+
+fun keydown(code,val)=apply_on_list C3DobList @runkeydown [code val];;
+
+fun runkeyup(o,code)=exec o.controlKeyUpOb with [o code];;
+
+fun keyup(code)=apply_on_list C3DobList @runkeyup code;;
+
+fun runanim(o,x)=
+  if cel.Cel3dinterpolate && o.destOb != nil then
+    C3D_InterpolateVec o
+  else
+    nil;
+  exec o.animOb with [o]
+;;
+
+proto SendPosition=fun[] I;;
+
+fun V3D_CBgetNewId (list) =
+  if list == nil then
+    0
+  else
+    let hd list -> [id _] in
+      id+1
+;;
+
+fun V3D_CBremove (list, id) =
+  if list == nil then
+    nil
+  else
+    let hd list -> [idelt _] in
+      if id == idelt then
+        tl list
+      else
+        if idelt < id then
+          list
+        else
+          (hd list)::(V3D_CBremove tl list id)
+;;
+
+/* absolut key up registration callback
+   f : key up callback function
+   return id of registration, which must be used to free registration */
+fun V3D_AddCBkeyUp (f) =
+  let V3D_CBgetNewId w3d.V3dcbKeyboardUp -> newId in
+  (
+    set w3d.V3dcbKeyboardUp = [newId f]::(w3d.V3dcbKeyboardUp);
+    newId
+  )
+;;
+
+/* absolut key down registration callback
+   f : key down callback function
+   return id of registration, which must be used to free registration */
+fun V3D_AddCBkeyDown (f) =
+  let V3D_CBgetNewId w3d.V3dcbKeyboardDown -> newId in
+  (
+    set w3d.V3dcbKeyboardDown = [newId f]::(w3d.V3dcbKeyboardDown);
+    newId
+  )
+;;
+
+/* remove registration on key up callback */
+fun V3D_RemoveCBkeyUp (id) = set w3d.V3dcbKeyboardUp = V3D_CBremove w3d.V3dcbKeyboardUp id; 0;;
+/* remove registration on key down callback */
+fun V3D_RemoveCBkeyDown (id) =  set w3d.V3dcbKeyboardDown = V3D_CBremove w3d.V3dcbKeyboardDown id; 0;;
+
+/* absolut mouse click registration callback
+   f : mouse click callback function
+   return id of registration, which must be used to free registration */
+fun V3D_AddCBmouseClick (f) =
+  let V3D_CBgetNewId w3d.V3dcbMouseClick -> newId in
+  (
+    set w3d.V3dcbMouseClick = [newId f]::(w3d.V3dcbMouseClick);
+    newId
+  )
+;;
+
+/* absolut mouse unclick registration callback
+   f : mouse unclick callback function
+   return id of registration, which must be used to free registration */
+fun V3D_AddCBmouseUnclick (f) =
+  let V3D_CBgetNewId w3d.V3dcbMouseUnclick -> newId in
+  (
+    set w3d.V3dcbMouseUnclick = [newId f]::(w3d.V3dcbMouseUnclick);
+    newId
+  )
+;;
+
+/* absolut mouse double click registration callback
+   f : mouse double click callback function
+   return id of registration, which must be used to free registration */
+fun V3D_AddCBmouseDClick (f) =
+  let V3D_CBgetNewId w3d.V3dcbMouseDClick -> newId in
+  (
+    set w3d.V3dcbMouseDClick = [newId f]::(w3d.V3dcbMouseDClick);
+    newId
+  )
+;;
+
+/* absolut mouse move registration callback
+   f : mouse move callback function
+   return id of registration, which must be used to free registration */
+fun V3D_AddCBmouseMove (f) =
+  let V3D_CBgetNewId w3d.V3dcbMouseMove -> newId in
+  (
+    set w3d.V3dcbMouseMove = [newId f]::(w3d.V3dcbMouseMove);
+    newId
+  )
+;;
+
+/* remove registration on mouse click callback */
+fun V3D_RemoveCBmouseClick (id) = set w3d.V3dcbMouseClick = V3D_CBremove w3d.V3dcbMouseClick id; 0;;
+/* remove registration on mouse unclick callback */
+fun V3D_RemoveCBmouseUnclick (id) = set w3d.V3dcbMouseUnclick = V3D_CBremove w3d.V3dcbMouseUnclick id; 0;;
+/* remove registration on mouse double click callback */
+fun V3D_RemoveCBmouseDClick (id) = set w3d.V3dcbMouseDClick = V3D_CBremove w3d.V3dcbMouseDClick id; 0;;
+/* remove registration on mouse move callback */
+fun V3D_RemoveCBmouseMove (id) = set w3d.V3dcbMouseMove = V3D_CBremove w3d.V3dcbMouseMove id; 0;;
+
+fun timer()=
+ SendPosition;
+ apply_on_list C3DobList @runanim 0;;
+
+fun postrender(b,s)= OB_RunPostRender [b s];;
+
+fun C3D_LaunchWaitingInstance () =
+  apply_on_list WaitingInstanceList @OB_NewInstance nil;
+  set WaitingInstanceList = nil
+;;
+
+/************************************************
+Callback de fin de chargement de la scene 3d
+*************************************************/
+fun loadSceneEnd(a,c)=
+  /* creation de la vue 3d */
+  set w3d=iniView3d MngW3d TEXTURED [0 0] MngW3d.MV3dSize c.Cel3dback;
+  setView3dCameraSession w3d session cam;
+  setView3dcbReflexesObject w3d @clickw3d @dclickw3d mkfun3 @movcam [session cam] @movw3d;
+  setView3dcbTimer w3d @timer;
+  setView3dcbKeyEvent w3d @keydown @keyup;
+  setView3dcbResize w3d @resizew3d;
+  setView3dcbPostRender w3d @postrender;
+
+  startView3dManager MngW3d;
+
+  C3D_LaunchWaitingInstance;
+
+  _DMSevent this "getPlugin" nil "!addPlugin";
+  /*_DMSsend this Cregister [];   ********************************/
+  _DMSevent this "getControl" nil "!control";
+  /*_DMSevent this "getFocus" _DMSgetName this "!speak"; *********/
+  if cel.Cel3ddapseudo then
+    /*_DMSevent this "hear" strcatn ">> "::(_loc this "ENTERING" nil)::" "::(_DMSgetName this)::"\n"::nil nil*/
+	0 /******************************/
+  else
+    nil;
+  registerTri;
+  registerNone;
+  set start=1;
+  /*rev_apply_on_list Ulist this @newInst2 nil; *****************/
+  0
+;;
+
+fun navig(v,a)=
+   set navV=v;
+   set navA=a;
+   0
+;;
+
+
+/************************************************************************************************/
+/*                              Fonctions sur les curseurs                                      */
+/************************************************************************************************/
+fun rflTimerCursor(tmr, param)=
+  if mode_curs == 1 then
+    let param -> [lst nb] in
+    (
+      set n_curs = mod (n_curs + 1) nb;
+      setCursorView3d w3d (nth_list lst n_curs);
+      0
+    )
+  else
+    nil
+;;
+
+fun creation_curseurs(lst)=
+  if lst == nil then
+    nil
+  else
+    let ParamCurseurs -> [_ [Xhot [Yhot [Coul1 [Coul2 _]]]]] in
+      (_CRcursor _channel _LDbitmap _channel _checkpack hd lst atoi Xhot atoi Yhot atoi Coul1 atoi Coul2)::
+      (creation_curseurs tl lst)
+;;
+
+fun AffecteCurseurs()=
+  let nil -> lst_curs in
+  let ParamCurseurs -> [milisec [_ [_ [_ [_ lst]]]]] in
+  (
+    set lst_curs = creation_curseurs lst;
+    let sizelist lst_curs -> taille in
+    if taille > 1 then
+    (
+     set tps = New_rfltimer New_starttimer _channel atoi milisec @rflTimerCursor [lst_curs taille];
+     set mode_curs = 0;
+    )
+    else
+      nil
+  );
+  0
+;;
+
+fun loadCursorEnd(nom)=
+  if nom == nil then
+    nil
+  else
+    if !(set n_curs = n_curs - 1) then
+      AffecteCurseurs
+    else
+      nil
+;;
+
+fun loadCursor(c,b)=
+  if c==nil then
+    nil
+  else
+    /*_RSCdownload this c c @loadCursorEnd 1 **************/
+	0
+;;
+
+fun __DownloadCursor()=
+  let ParamCurseurs -> [_ [Xhot [Yhot [Coul1 [Coul2 lst]]]]] in
+  (
+    let _LDbitmap _channel _checkpack hd lst -> curs in
+    set SELECT_CURSOR=
+      if curs==nil then
+        HandCursor
+      else
+        _CRcursor _channel curs atoi Xhot atoi Yhot atoi Coul1 atoi Coul2;
+    apply_on_list lst @loadCursor nil
+  );
+  0
+;;
+
+
+fun changeCursor(param)=
+  New_deltimer tps;
+  if param == nil then
+  (
+    set SELECT_CURSOR = HandCursor;
+    nil
+  )
+  else
+    let strextr param -> [[animCurs suite] [lst [[xhot [yhot [coul1 [coul2 _]]]] _]]] in
+    let [(if xhot == nil then "0" else xhot)
+         (if yhot == nil then "0" else yhot)
+         (if coul1 == nil then "0" else coul1)
+         (if coul2 == nil then "32767" else coul2)]
+    -> [iXhot iYhot iCoul1 iCoul2] in
+      if atoi animCurs then
+      (
+        let suite -> [milisec _] in
+          set ParamCurseurs = (if milisec == nil then "250" else milisec)::iXhot::iYhot::iCoul1::iCoul2::lst;
+        set n_curs = sizelist lst;
+        /*_DMSsend this CregCursor [linebuild lst] ****************/
+		0
+      )
+      else
+      (
+        set ParamCurseurs = "0"::iXhot::iYhot::iCoul1::iCoul2::(hd lst)::nil;
+        set n_curs = 1;
+        /*_DMSsend this CregCursor [linebuild (hd lst)::nil] *********/
+		0
+      );
+  0
+;;
+
+/************************************************************************************************/
+/*                     Fonctions de requetes et d'ajout d'elements dynamiques                   */
+/************************************************************************************************/
+
+/* requetes d'operations sur le serveur *********************************************************/
+defcom C3Drequest   = request S S I;;
+defcom C3DendAddM3d = C3DendAddM3d S;;
+defcom CC3Dautosave  = autosave I I;;
+
+var OP_SAVE             = "C3DsaveOnDisk";;
+var OP_SET_GRAVITY      = "C3DsetGravity";;
+var OP_SET_PHYSICS      = "C3DsetPhysics";;
+var OP_SET_CAMFREE      = "C3DsetCamfree";;
+var OP_SET_TYPE         = "C3DsetType";;
+var OP_SET_TRANSP       = "C3DsetTransp";;
+var OP_SET_FLAT         = "C3DsetFlat";;
+var OP_SET_FILTER       = "C3dsetFilter";;
+var OP_SET_TEXTURE      = "C3DsetTexture";;
+var OP_SET_OBB          = "C3DsetObb";;
+var OP_SET_BACKCOLOR    = "C3DsetBackColor";;
+var OP_SET_GLBLIGHT     = "C3DsetGlobalLight";;
+
+var OP_ADD_INSTANCE     = "C3DaddInstance";;
+var OP_DEL_INSTANCE     = "C3DdelInstance";;
+
+var OP_SET_OBJPOSANG    = "C3DsetObjPosAng";;
+var OP_SET_OBJPOSANGORIG= "C3DsetObjPosAngOrig";;
+var OP_SET_OBJFATHERPOSANGORIG= "C3DsetObjFatherPosAngOrig";;
+var OP_SET_OBJSCALE     = "C3DsetObjScale";;
+
+var OP_ADD_M3D          = "C3DaddM3d";;
+var OP_DEL_M3D          = "C3DdelM3d";;
+/*var OP_RLD_M3D          = "C3DreloadM3d";;*/
+/*var OP_RESET            = "C3Dreset";;*/
+
+var OP_MOD_REF          = "C3DmodRef";;
+
+var OP_ADD_POS          = "C3DaddPos";;
+var OP_MOV_POS          = "C3DmovPos";;
+var OP_DEL_POS          = "C3DdelPos";;
+/*var OP_RST_POS          = "C3DrstPos";;*/
+/*var OP_REN_POS          = "C3DrenPos";;*/
+
+var OP_SET_BOX          = "C3DsetBox";;
+
+var BROAD_NONE      =1;;
+var BROAD_OTHER     =2;;
+var BROAD_ALL       =4;;
+
+var SAVE_NO         =0;;
+var SAVE_NOW        =1;;
+
+typeof C3DlopSend     =[[S S I] r1];;                 /* liste des requetes en attente d'envoie */
+typeof C3DlopExec     =[[fun [[S r1]] I [S r1]] r1];; /* liste des requetes en reception en
+                                                         attente de traitement */
+/***************** fonctions de gestion des requetes de modifications dynamiques *************/
+fun C3Dappend(l,op)=
+  if l==nil then
+    op::nil
+  else
+    let l -> [f nxt] in
+      f::C3Dappend nxt op
+;;
+
+fun C3Dbroad(s,b)= 0;;/*_DMSsend this C3Drequest s;; ***********/
+
+fun C3Dautosave(auto, delay) = 0;;/*_DMSsend this CC3Dautosave [auto delay];;***/
+
+/********************************************
+Fonction ajoutant op à la liste des requetes
+en attente d'envoi et envoie ces dernieres si
+necessaire
+*********************************************/
+fun C3Dsend(op,i)=
+  set C3DlopSend=C3Dappend C3DlopSend op;
+  if i then
+  (  apply_on_list C3DlopSend @C3Dbroad nil;
+     set C3DlopSend=nil;
+  )
+  else
+    nil;
+  0
+;;
+
+fun C3Dlexec(op,blurp)=
+  let op -> [f l] in
+    exec f with [l]
+;;
+
+/********************************************
+Fonction d'execution des requetes en reception
+en attente de traitement
+*********************************************/
+fun C3Dexec(f,l,i)=
+  set C3DlopExec=C3Dappend C3DlopExec [f l];
+  if i then
+  (
+    apply_on_list C3DlopExec @C3Dlexec nil;
+    set C3DlopExec=nil;
+  )
+  else
+    nil;
+  0
+;;
+
+/*************** Fonctions de traitement des retour des requetes de modifications ******************/
+typeof C3DcbAddM3d     =fun [S S] I;;
+typeof C3DcbDelM3d     =fun []  I;;
+typeof C3DcbMovM3d     =fun [S [I I I][I I I]] I;;
+typeof C3DcbDelInstance=fun [Ob] I;;
+typeof C3DcbAddInstance=fun [Ob] I;;
+typeof C3DcbAddPos     =fun [S [I I I][I I I]] I;;
+typeof C3DcbDelPos     =fun [S] I;;
+typeof C3DcbMovPos     =fun [S [I I I][I I I]] I;;
+typeof C3DcbReset      =fun [] I;;
+
+/*************************************
+Les fonctions d'initialisation des
+callbacks d'ajout et de suppression
+dynamique au niveau du C3D
+*************************************/
+
+/* fonction d'initialisation de la callback d'ajout de m3d */
+fun C3DsetCBaddM3d(f)=
+  set C3DcbAddM3d=f;
+  0
+;;
+
+/* fonction d'initialisation de la callback de déplacement de m3d */
+fun C3DsetCBmovM3d(f)=
+  set C3DcbMovM3d=f;
+  0
+;;
+
+/* fonction d'initialisation de la callback de suppression de m3d */
+fun C3DsetCBdelM3d(f)=
+  set C3DcbDelM3d=f;
+  0
+;;
+
+/* fonction d'initialisation de la
+callback d'ajout d'instance*/
+fun C3DsetCBaddInstance(f)=
+  set C3DcbAddInstance=f;
+  0
+;;
+
+/* fonction d'initialisation de la
+callback de suppression d'instance*/
+fun C3DsetCBdelInstance(f)=
+  set C3DcbDelInstance=f;
+  0
+;;
+
+/* fonction d'initialisation de la
+callback d'ajout de position*/
+fun C3DsetCBaddPos(f)=
+  set C3DcbAddPos=f;
+  0
+;;
+
+/* fonction d'initialisation de la callback de suppression de m3d */
+fun C3DsetCBmovPos(f)=
+  set C3DcbMovPos=f;
+  0
+;;
+
+/* fonction d'initialisation de la callback de reset */
+fun C3DsetCBreset(f)=
+  set C3DcbReset=f;
+  0
+;;
+
+/* fonction d'initialisation de la
+callback de suppression de position*/
+fun C3DsetCBdelPos(f)=
+  set C3DcbDelPos=f;
+  0
+;;
+
+fun C3DexecEndAddM3d(o)=
+  exec C3DcbAddM3d with [exec o.Obj3dGetFile with [] o.Obj3dIndex];
+  0
+;;
+
+fun C3DopSetType(l)= M3dModType [(nth_list l 0) (atoi nth_list l 1)] nil;;
+
+fun C3DopSetTransp(l)= M3dModTransp [(nth_list l 0) (atoi nth_list l 1)] nil;;
+
+fun C3DopSetFlat(l)= M3dModFlat [(nth_list l 0) (htoi nth_list l 1)] nil;;
+
+fun C3DopSetTexture(l)= M3dModTextured [(nth_list l 0) (nth_list l 1)] nil;;
+
+fun C3DopSetFilter(l)= M3dModTextured [(nth_list l 0) (nth_list l 1)] nil;;
+
+fun C3DopSetObb(l)= M3dModObb nth_list l 0 atoi nth_list l 1;;
+
+fun C3DopSetBackColor(l)=
+  set cel.Cel3dback=(set w3d.V3dfond=(htoi hd l));
+  0
+;;
+
+fun C3DopSetGravity(l)=
+  let hd l -> grav in
+    set cel.Cel3dgrav = if (grav == nil) then nil else atoi grav;
+  0
+;;
+fun C3D_SetPhysics (val) =
+  set cel.Cel3dphysics = val
+;;
+
+
+fun C3DopSetPhysics(l)=
+  let hd l -> val in
+    C3D_SetPhysics (set cel.Cel3dglobalphysics = if (val == nil) then 1 else atoi val);
+  0
+;;
+
+fun C3DopSetCamfree(l)=
+  let hd l -> val in
+    set cel.CelCamerafree = if (val == nil) then 0 else atoi val;
+  0
+;;
+
+fun C3DopSetGlobalLight(l)=
+  set cel.Cel3ddarkbase= hd l;
+  let M3getObj session "global_light" -> lighth in
+    if cel.Cel3ddarkbase == nil then
+      if lighth!=nil then
+        M3delObj session lighth
+      else
+        nil
+    else
+      if lighth==nil then
+        let M3createLight session
+                          LIGHT_AMBIENT
+                          (atoi cel.Cel3ddarkbase)-31
+                          nil
+                          nil
+                          nil
+                          nil
+        -> light in
+        (
+          M3renameObj session light "global_light";
+          M3link session light shell
+        )
+      else
+        M3setLight session
+                   lighth
+                   [LIGHT_AMBIENT
+                   (atoi cel.Cel3ddarkbase)-31
+                   nil
+                   nil
+                   nil
+                   nil];
+  0
+;;
+
+
+fun C3DopSetObjPosAng(l)=
+  let hd l -> n in
+  let M3getObj session n -> h in
+  let [(atoi nth_list l 1) (atoi nth_list l 2) (atoi nth_list l 3)] -> v in
+  let [(atoi nth_list l 4) (atoi nth_list l 5) (atoi nth_list l 6)] -> a in
+  (
+    M3setObjVec session h v;
+    M3setObjAng session h a;
+    exec C3DcbMovM3d with  [n v a];
+  );
+  0
+;;
+
+fun C3DopSetObjScale(l)=
+  M3setObjScale session M3getObj session (nth_list l 0) (atoi nth_list l 1);
+  0
+;;
+
+fun enddldesc(fic,ref)=
+  if fic==nil then
+    getErr fic
+  else
+  (
+    /*_DMSsend this C3DendAddM3d [fic]; ***********************/
+    let AnalyseDescC (strextr _getpack _checkpack fic) ref nil -> o in
+    (
+      set o.Obj3dEndLoad=mkfun1 @C3DexecEndAddM3d o;
+      loadObj3d o;
+    );
+    0
+  )
+;;
+
+fun C3DopAddM3d(l)=
+  let nth_list l 1 -> descadd in
+    /*_RSCdownload this
+                 descadd
+                 descadd
+                 mkfun2 @enddldesc nth_list l 2
+                 3; *********************************************/
+  0
+;;
+
+fun C3D_EndDlBox (fic) =
+  if (_checkpack fic) == nil then
+  (
+    /*_DLGMessageBox _channel nil (_loc this "DOWNLOAD_ERROR" nil) (_loc this "EMPTY_FILE" fic::nil) 0;
+	***************************************/
+    nil
+  )
+  else
+  (
+    if cel.Cel3dcol == nil then
+      nil
+    else
+    (
+      inboxClosing coll;
+      set cel.Cel3dcol = nil
+    );
+    set cel.Cel3dcol = [fic 10 0];
+    set coll=mkInBox [fic nil nil 10 0];
+    inboxLoading coll;
+    /*_DLGMessageBox _channel nil (_loc this "BOX_CHANGE_TITLE" nil) (_loc this "BOX_CHANGE_INFO" nil) 0;
+	*******************************************/
+    OB_ForceCurrentPos owner session
+  );
+  0
+;;
+
+fun C3DopSetBox(l) =
+  let hd l -> boxfilename in
+    /*_RSCdownload this boxfilename boxfilename @C3D_EndDlBox 3; ******/
+  0
+;;
+
+
+fun C3DopModRef(l)=
+  let M3getObj session nth_list l 0 -> h in
+  let M3getObj session nth_list l 1 -> hf in
+  let [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4] -> vect in
+  let [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7] -> ang in
+  (
+    M3unLink session h;
+    M3link session h hf;
+    M3setObjVec session h vect;
+    M3setObjAng session h ang;
+  )
+;;
+
+fun C3DopDelM3d(l)=
+  M3delObj session M3getObj session nth_list l 0;
+  exec C3DcbDelM3d with []
+;;
+
+
+fun C3DopAddInstance(l)=
+  let OB_FindInstanceByNameClass nth_list l 1 nth_list l 0 ObList -> instance in
+    if instance == nil then
+      nil
+    else
+      exec C3DcbAddInstance with [instance];
+  0
+;;
+
+fun C3DopDelInstance(l)=
+  let OB_FindInstanceByNameClass nth_list l 1 nth_list l 0 ObList -> instance in
+    if instance == nil then
+      nil
+    else
+	    exec C3DcbDelInstance with [instance];
+  0
+;;
+
+
+fun C3DopAddPos(l)=
+  let nth_list l 0  -> n in
+  let [(atoi nth_list l 1) (atoi nth_list l 2) (atoi nth_list l 3)] -> v in
+  let [(atoi nth_list l 4) (atoi nth_list l 5) (atoi nth_list l 6)] -> a in
+  (
+    set cel.Cel3dIpos=[n v a]::cel.Cel3dIpos;
+    exec C3DcbAddPos with [n v a]
+  )
+;;
+
+fun C3DopDelPos(l)=
+  let nth_list l 0  -> n in
+  let search_in_list cel.Cel3dIpos @posbyn n -> pos in
+    if pos!=nil then
+    (
+      set cel.Cel3dIpos=remove_from_list cel.Cel3dIpos pos;
+      exec C3DcbDelPos with [n]
+    )
+    else
+      nil;
+  0
+;;
+
+
+fun C3DopMovPos(l)=
+  let nth_list l 0 -> n in
+  let [(atoi nth_list l 1) (atoi nth_list l 2) (atoi nth_list l 3)] -> v in
+  let [(atoi nth_list l 4) (atoi nth_list l 5) (atoi nth_list l 6)] -> a in
+  let search_in_list cel.Cel3dIpos @posbyn nth_list l 0 -> pos in
+    if pos!=nil then
+    (
+      mutate pos <- [_ v a];
+      exec C3DcbMovPos with [n v a];
+    )
+    else
+      nil;
+  0
+;;
+
+fun C3DopRenPos(l)=
+  let search_in_list cel.Cel3dIpos @posbyn nth_list l 0 -> pos in
+    if pos!=nil then
+      mutate pos <- [nth_list l 1 _ _]
+    else
+      nil;
+  0
+;;
+
+fun recdelObj(session,o)=
+  if (o==nil) then
+    0
+  else
+  (
+    recdelObj session M3getBrother session o;
+    M3delObj session o;
+  )
+;;
+
+fun C3DopReset(l)=
+  /* destruction de la boite de collision */
+  inboxClosing coll;
+  set coll=nil;
+
+  /* destruction du shell */
+  M3unLink session shellav;
+  recdelObj session M3getFirstSon session shell;
+  M3link session shellav shell;
+
+  /* destruction des liens */
+  set links=nil;
+  exec C3DcbReset with [];
+  0
+;;
+
+/****************************** Les demandes de modifications au niveau du serveur *****************/
+
+fun C3DsaveOnDisk (param1, param2, i) =
+  C3Dsend [OP_SAVE nil i] i
+;;
+
+/********************************************
+Fonction de modification du type d'un
+materiau
+  m   : HMat3d  materiau
+  type: I    nouveau type
+  i   : I    traitement de la modif
+*********************************************/
+fun C3DsetType(m,type,i)=
+  if m==nil then
+    nil
+  else
+    C3Dsend [ OP_SET_TYPE
+              strbuild ((M3materialName session m)::(itoa type)::nil)::nil
+              i
+            ]
+            i
+;;
+
+/********************************************
+Fonction de modification de la couleur de
+transparence d'un materiau
+  m     : HMat3d  materiau
+  transp: I    nouveau coeff de transparence
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DsetTransp(m,transp,i)=
+  if m==nil then
+    nil
+  else
+    C3Dsend  [OP_SET_TRANSP
+              strbuild ((M3materialName session m)::(itoa transp)::nil)::nil
+              i
+             ]
+             i
+;;
+
+/********************************************
+Fonction de modification de la texture
+d'un materiau
+  m       : HMat3d  materiau
+  newtext : S    nouvelle texture
+  i       : I    traitement de la modif
+*********************************************/
+fun C3DsetTexture(m,newtext,i)=
+  if m==nil then
+    nil
+  else
+    C3Dsend  [OP_SET_TEXTURE
+              strbuild ((M3materialName session m)::newtext::nil)::nil
+              i
+             ]
+             i
+;;
+
+
+/********************************************
+Fonction de modification de la couleur de
+flat d'un materiau
+  m     : HMat3d  materiau
+  color : I    nouvelle couleur de flat
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DsetFlat(m,color,i)=
+  if m==nil || color==nil then
+    nil
+  else
+    C3Dsend  [OP_SET_FLAT
+              strbuild ((M3materialName session m)::(itoh color)::nil)::nil
+              i
+             ]
+             i
+;;
+
+/********************************************
+Fonction de modification du filtre d'un
+materiau texturé
+  m     : HMat3d  materiau
+  flter : S       filter
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DsetFilter(m,filter,i)=
+  if m==nil then
+    nil
+  else
+    C3Dsend  [OP_SET_FILTER
+              strbuild ((M3materialName session m)::filter::nil)::nil
+              i
+             ]
+             i
+;;
+
+/********************************************
+Fonction de modification de la boite de
+collision d'un objet 3d
+  o     : H3d  objet
+  obb   : I    boite de collision
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DsetObb(o,obb,i)=
+  if o==nil then
+    nil
+  else
+    C3Dsend  [OP_SET_OBB
+              strbuild ((M3objName session o)::(itoa obb)::nil)::nil
+              i
+             ]
+             i
+;;
+
+/********************************************
+Fonction de modification de la couleur de
+fond de la scene
+  couleur : I  nouvelle couleur de fond
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DsetBackColor(color,i)=
+  if color==nil then nil
+  else
+    C3Dsend  [OP_SET_BACKCOLOR
+              strbuild ((itoh color)::nil)::nil
+              i
+             ]
+             i
+;;
+
+/********************************************
+Fonction de modification de la lumiere globale
+de la scene
+  islight : I  presence d'une lumiere de fond
+  light   : I  coeff de la lumiere
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DsetGlobalLight(light,i)=
+  C3Dsend  [OP_SET_GLBLIGHT
+            strbuild (if light == nil then nil else (itoa light)::nil)::nil
+            i
+           ]
+           i
+;;
+
+/* Set gravity */
+fun C3DsetGravity (grav, i) =
+  C3Dsend [OP_SET_GRAVITY strbuild (if grav == nil then nil else (itoa grav)::nil)::nil i] i
+;;
+
+/* Activate physics (gravity and collision) for all clients */
+fun C3D_ActivatePhysics (i) =
+  C3Dsend [OP_SET_PHYSICS strbuild ("1"::nil)::nil i] i
+;;
+
+/* Deactivate physics (gravity and collision) for all clients */
+fun C3D_DeactivatePhysics (i) =
+  C3Dsend [OP_SET_PHYSICS strbuild ("0"::nil)::nil i] i
+;;
+
+/* Activate CamFree for all clients */
+fun C3D_AllActivateCamfree (i) =
+  C3Dsend [OP_SET_CAMFREE strbuild ("1"::nil)::nil i] i
+;;
+
+/* Deactivate CamFree for all clients */
+fun C3D_AllDeactivateCamfree (i) =
+  C3Dsend [OP_SET_CAMFREE strbuild ("0"::nil)::nil i] i
+;;
+
+/* Activate CamFree */
+fun C3D_ActivateCamfree ()=
+  set cel.CelCamerafree = 1;
+  set cameraChanged = 1;
+  0
+;;
+
+/* Deactivate CamFree */
+fun C3D_DesactivateCamfree ()=
+  set cel.CelCamerafree = 0;
+  set cameraChanged = 1;
+  0
+;;
+
+/* ask server to change inbox
+   inbox filename and site save indicator (0 : no save ; 1 : save) */
+fun C3D_ChangeBox (newboxfile, i) =
+  if newboxfile == nil then
+    nil
+  else
+    C3Dsend [OP_SET_BOX strbuild (newboxfile::nil)::nil i] i
+;;
+
+/* return current inbox filename */
+fun C3D_GetBoxFilename () =
+  INBOX_GetName coll
+;;
+
+/********************************************
+Fonction d'ajout d'une instance dans la scene
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DaddInstance(instanceName,class,param)=
+  let
+    if instanceName == nil then
+      "_"
+    else
+      let OB_FindInstanceByNameClass instanceName class ObList -> instance in
+        if instance == nil then
+          nil
+        else
+          let UgetId UgetUser ObUi instance -> id in
+            if id == nil then
+              nil
+            else
+              itoa id
+  -> idS in
+    if idS == nil then
+      nil /* problem */
+    else
+      C3Dsend  [OP_ADD_INSTANCE
+                strbuild (idS::class::param::nil)::nil
+                1
+               ]
+               1
+;;
+
+
+/********************************************
+Fonction de suppression d'une instance dans
+la scene
+  i     : I    traitement de la modif
+*********************************************/
+fun C3DdelInstance(instanceName, class)=
+  if instanceName == nil then
+    nil
+  else
+    let OB_FindInstanceByNameClass instanceName class ObList -> instance in
+      if instance == nil then
+        nil
+      else
+        let UgetId UgetUser ObUi instance -> id in
+          if id == nil then
+            nil
+          else
+            C3Dsend  [OP_DEL_INSTANCE
+                      strbuild ((itoa id)::class::instanceName::nil)::nil
+                      1
+                     ]
+                     1
+;;
+
+/**************************************
+Fonction demandant la modification de
+la position d'un objet dans le
+referentiel de son pere
+  h:    H3d objet
+  pos:  [[I I I][I I I]] nvle position
+  type: I type de sauvegarde
+  broadsender: I type de retour
+***************************************/
+fun C3DsetObjPosAng(h,pos,type,broadsender)=
+  let M3objName session h -> name in
+    if h==nil || name==nil then
+      nil
+    else
+      let pos -> [[x y z][a b c]] in
+        C3Dsend  [OP_SET_OBJPOSANG
+                  strbuild (name::(itoa x)::(itoa y)::(itoa z)::
+                                  (itoa a)::(itoa b)::(itoa c)::
+                                  (itoa type)::(itoa broadsender)::nil
+                           )::nil
+              1
+             ]
+             1
+;;
+
+/**************************************
+Fonction demandant la réinitialisation de
+la position d'un objet dans le referentiel de son pere
+par rapport à la position définie dans le fichier m3d
+  h:    H3d objet
+  type: I type de sauvegarde
+  broadsender: I type de retour
+***************************************/
+fun C3DsetObjPosAngOrig (h,type,broadsender)=
+  let M3objName session h -> name in
+    if h==nil || name==nil then
+      nil
+    else
+      C3Dsend  [OP_SET_OBJPOSANGORIG
+                strbuild (name::(itoa type)::(itoa broadsender)::nil)::nil
+            1
+           ]
+           1
+;;
+
+/**************************************
+Fonction demandant la réinitialisation au centre
+de la scène de la position du père d'un objet
+  ndx:    index de l'objet
+  type: I type de sauvegarde
+  broadsender: I type de retour
+***************************************/
+fun C3DsetObjFatherPosAngOrig (ndx,type,broadsender)=
+  C3Dsend  [OP_SET_OBJFATHERPOSANGORIG
+            strbuild (ndx::(itoa type)::(itoa broadsender)::nil)::nil
+        1
+       ]
+       1
+;;
+
+/**************************************
+Fonction demandant la modification du
+scale d'un objet
+  h:    H3d objet
+  scale:I nveau scale
+  type: I type de sauvegarde
+  broadsender: I type de retour
+***************************************/
+fun C3DsetObjScale(h,scale,type,broadsender)=
+  let M3objName session h -> name in
+    if h==nil || name==nil then
+      nil
+    else
+      C3Dsend [OP_SET_OBJSCALE
+               strbuild (name::(itoa scale)::
+                         (itoa type)::(itoa broadsender)::nil
+                        )::nil
+               1
+              ]
+              1
+;;
+/**************************************
+Fonction demandant l'ajout d'un objet
+par rapport a un autre objet
+  m3d:  S nouveau m3d
+  pos:  [[I I I][I I I]] nvle position
+  h  :  H3d objet pere
+***************************************/
+fun C3DaddM3d(m3d,pos,h)=
+  let M3objName session h -> name in
+    if m3d==nil || name==nil then
+      nil
+    else
+      let pos -> [[x y z][a b c]] in
+        C3Dsend [OP_ADD_M3D
+                 strbuild (m3d::name::
+                                (itoa x)::(itoa y)::(itoa z)::
+                                (itoa a)::(itoa b)::(itoa c)::nil
+                          )::nil
+                 1
+                ]
+                1
+;;
+/**************************************
+Fonction demandant la suppression d'un
+objet
+  m   :  S nom de l'objet
+  type:  1 destruction recursive
+         0 destruction de l'objet seul
+***************************************/
+fun C3DdelM3d(m,type)=
+  if m==nil then
+    nil
+  else
+    let search_point m -> i in
+      C3Dsend [OP_DEL_M3D
+               strbuild ((substr m 0 i)::(itoa type)::nil)::nil
+               1
+              ]
+              1
+;;
+/**************************************
+Fonction demandant l'ajout ou la modif
+d'une position dans la scene
+  n   :  S nom de la position
+  pos :  position
+Renvoie un entier
+***************************************/
+fun C3DaddPos(n,pos)=
+  if n==nil then
+    nil
+  else
+    if pos!=nil then
+      let pos -> [[x y z][a b c]] in
+        C3Dsend [OP_ADD_POS
+                 strbuild (n::(itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)::nil)::nil
+                 1
+                ]
+                1
+  else
+    nil
+;;
+/**************************************
+Fonction demandant l'ajout ou la modif
+d'une position dans la scene
+  n   :  S nom de la position
+  pos :  position
+  type: I sauvegarde immediate
+  broadsender: I type de retour client
+Renvoie un entier
+***************************************/
+fun C3DmovPos(n,pos,type,broadsender)=
+  if n==nil then
+    nil
+  else
+    if pos!=nil then
+      let pos -> [[x y z][a b c]] in
+        C3Dsend [OP_MOV_POS
+                 strbuild (n::(itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)::
+                           (itoa type)::(itoa broadsender)::nil
+                          )::nil
+                 1
+                ]
+                1
+  else
+    nil
+;;
+/**************************************
+Fonction demandant la suppression
+d'une position dans la scene
+  n   :  S nom de la position
+Renvoie un entier
+***************************************/
+fun C3DdelPos(n)=
+  if n==nil then nil
+  else
+    C3Dsend [OP_DEL_POS
+             strbuild (n::nil)::nil
+             1
+            ]
+            1
+;;
+/**************************************
+Fonction demandant le renommage d'une
+position dans la scene
+  old :  S ancien nom de la position
+  n   :  S nouveau nom de la position
+Renvoie un entier
+***************************************/
+/*fun C3DrenPos(old,new)=
+  if old==nil || new==nil then nil
+  else
+    C3Dsend [OP_REN_POS
+             strbuild (old::new::nil)::nil
+             1
+            ]
+            1
+;;*/
+/**************************************
+Fonction demandant le repositionnement
+de tous les clients a une position
+donnée
+Renvoie un entier
+***************************************/
+/*fun C3DresetAvatarPos(n)=
+  if n==nil  then nil
+  else
+    C3Dsend [OP_RST_POS
+             strbuild (n::nil)::nil
+             1
+            ]
+            1
+;;*/
+/**************************************
+Fonction demandant le reset de la scene
+Renvoie un entier
+***************************************/
+/*fun C3DresetScene()=
+  C3Dsend [OP_RESET
+           nil
+           1
+          ]
+          1
+;;*/
+/**************************************
+Fonction demandant le reload d'un m3d
+Renvoie un entier
+***************************************/
+/*fun C3DreloadM3d(o,m3d)=
+  if o==nil || m3d==nil then nil
+  else
+  C3Dsend [OP_RLD_M3D
+           strbuild ((M3objName session o)::m3d::nil)::nil
+           1
+          ]
+          1
+;;
+*/
+/***************************************
+Fonction traitant les retours de
+requetes de modifications dynamiques
+au serveur
+****************************************/
+fun __answerRequest(op,param,i)=
+  C3Dexec switchstr [OP_SET_TYPE      @C3DopSetType]::
+                    [OP_SET_TRANSP    @C3DopSetTransp]::
+                    [OP_SET_FLAT      @C3DopSetFlat]::
+                    [OP_SET_TEXTURE   @C3DopSetTexture]::
+                    [OP_SET_FILTER    @C3DopSetFilter]::
+                    [OP_SET_OBB       @C3DopSetObb]::
+                    [OP_SET_BACKCOLOR @C3DopSetBackColor]::
+                    [OP_SET_GLBLIGHT  @C3DopSetGlobalLight]::
+                    [OP_SET_GRAVITY   @C3DopSetGravity]::
+                    [OP_SET_PHYSICS   @C3DopSetPhysics]::
+                    [OP_SET_CAMFREE   @C3DopSetCamfree]::
+                    [OP_SET_OBJPOSANG @C3DopSetObjPosAng]::
+                    [OP_SET_OBJSCALE  @C3DopSetObjScale]::
+                    [OP_ADD_M3D       @C3DopAddM3d]::
+                    [OP_DEL_M3D       @C3DopDelM3d]::
+                    [OP_MOD_REF       @C3DopModRef]::
+                    [OP_ADD_INSTANCE  @C3DopAddInstance]::
+                    [OP_DEL_INSTANCE  @C3DopDelInstance]::
+                    [OP_ADD_POS       @C3DopAddPos]::
+                    [OP_MOV_POS       @C3DopMovPos]::
+                    [OP_DEL_POS       @C3DopDelPos]::
+                    /*[OP_REN_POS       @C3DopRenPos]::*/
+                    [OP_SET_BOX       @C3DopSetBox]::
+                    /*[OP_RESET         @C3DopReset]::*/
+                    nil
+                    op
+          hd strextr param
+          i;
+  0
+;;
+/**********************************************************************************************
+                                  Fonctions module
+***********************************************************************************************/
+proto _resize = fun [[ObjWin I I I I] S] I;;
+fun Acontrol(from,action,param,ulist,tag)=
+  let hd strextr param ->[x[y[z[a[b[c _]]]]]] in
+  (
+    set navV=[htoi x htoi y htoi z];
+    set navA=[htoi a htoi b htoi c];
+    0
+  )
+;;
+fun Ahear(from,action,param,ulist,tag)= 0;;/*_DMSeventTag this "hear" param nil nil;;
+******************************/
+fun Aspeak(from,action,param,ulist,tag)= speak param;;
+fun AaddPlugin(from,action,param,ulist,tag)= newplugExt from param;;
+fun AChgCursor(from,action,param,ulist,tag)= changeCursor param;;
+fun AcenterOnPlayer(from,action,param,ulist,tag)= lclick nil nil atoi param nil;;
+fun Ac3dPositionSize(from,action,param,ulist,tag)=
+  let hd strextr param -> [x [y [w [h _]]]] in
+    _resize [nil atoi x atoi y atoi w atoi h] nil;
+  0
+;;
+fun destroyone(o,b)= exec o.destroyOb with [o];;
+fun _beforend()=
+  dsView3dManager MngW3d;
+  apply_on_list C3DobList @destroyone nil;
+  delplug;
+  M3destroy session;
+  0
+;;
+fun _end(b)= 0;;/*_DMSdelete this;;***********************/
+fun _resize(x,s)=
+  let x->[win x y w h] in
+    resizeView3dManager MngW3d x y w h;
+  0
+;;
+fun _resizeI(x,s)=
+  let x->[win x y w h] in
+    _SIZEtext text w h x y;
+  0
+;;
+fun _resizeL(x,s)=
+  let x->[win x y w h] in
+    _SIZElist list w h x y;
+  0
+;;
+fun _endx()= 0;; /*_DMSdelete this;; ******************/
+fun getplug(a,b)=let a->[file [param _]] in newplug file strextr param;;
+fun __setplugs(s)= apply_on_list strextr s @getplug 0;;
+fun __c3dress(s)= set cel.Cel3dress=strextr s;;
+fun __hear(s)= _DMSevent this "hear" s nil;;
+fun __ipos(s)=setipos s;;
+
+
+fun C3D_ManageV4Compliance () =
+  if (_version >= 1002) then
+  (
+    _load "dms/3d/os3d/os3dEngineExtension.pkg"; 
+    set Engine3DIsV4Compliant = 1;
+    1
+  )
+  else
+    0
+;;
+
+fun IniDMI(param)=
+/* GRAPHICDRESSING_InitDressing;
+ GRAPHICDRESSING_SetTheme nil;*/
+  C3D_ManageV4Compliance;
+  
+  /*start openspace 3d viewer *********************/
+  /*os3dViewSCS nil DMSwin;*/
+
+  /*set preplug=mkscript Sload [strcat _DMSgetpath _DMSgetClass this preplug];
+  *********************************/
+  /*_DMSregister this @_beforend; ****************/
+  /*_DMSdefineActions this  ["!control" @Acontrol]::
+                          ["hear" @Ahear]::
+                          ["!speak" @Aspeak]::
+                          ["!addPlugin" @AaddPlugin]::
+                          ["!ChgCursor" @AChgCursor]::
+                          ["!centerOnPlayer" @AcenterOnPlayer]::
+                          ["!c3dPositionSize" @Ac3dPositionSize]::
+                          nil; *********************/
+  /*UcbCreate this @newInst; **********************/
+  set tickcount=_tickcount;
+  set SELECT_CURSOR = HandCursor;
+  set MngW3d =
+    /* let _DMSgetName this -> name3d in **************/
+    /* let _DMSgetZone this "View" @_end @_resize @_end ->[win x y w h] in ***/
+    (
+      /*_DMSevent this "sendingPositionSize"
+                strbuild ("x"::(itoa x)::nil)::("y"::(itoa y)::nil)::("w"::(itoa w)::nil)::("h"::(itoa h)::nil)::nil
+                nil;***************************/
+      //if win==nil then
+         iniView3dManager _channel DMSwin [nil nil] [500 300] 7 "name3d" @_endx
+      //else
+         //iniView3dManager _channel win [x y] [w h] 14 name3d @_endx
+    );
+	/* viewOS zone loads SO3engine win (test)******************************/
+	//let _DMSgetName this -> name3dOS in
+    //let _DMSgetZone this "ViewOS" @_end @_resize @_end ->[win x y w h] in
+    (
+      /*_DMSevent this "sendingPositionSize"
+                strbuild ("x"::(itoa x)::nil)::("y"::(itoa y)::nil)::("w"::(itoa w)::nil)::("h"::(itoa h)::nil)::nil
+                nil;*/
+      //if win==nil then
+         //os3dViewSCS nil DMSwin
+      //else
+         //os3dViewSCS nil win
+	  0	 
+    );	
+  /*let _DMSgetZone this "Info" @_end @_resizeI @_end ->[win x y w h] in
+    if win==nil then
+      nil
+    else
+      set text=_CRtext _channel win x y w h ET_ALIGN_CENTER "";
+  let _DMSgetZone this "List" @_end @_resizeL @_end ->[win x y w h] in
+    if win==nil then
+      nil
+    else
+    (
+      set list=_CRlist _channel win x y w h LB_DOWN+LB_VSCROLL;
+      _CBlistClick list @lclick 0
+    );**********/
+  /*let hd strextr param -> l in
+  (
+    set position=hd tl l;
+    preloadScene3d;
+    _RSCdownload this hd l hd l mkfun2 @loadScene3d [hd l @loadSceneEnd] 3
+  )*/0
+;;
+
+/* Gestion de l'échange de positions */
+fun __ForceClientSendPos(i)=set SendPosToServer=i;;
+
+fun SendPosition()=
+ if /*SendPosToServer &&*/ Ack && (tickcount<=_tickcount) && owner.indexOb!=nil then
+  let M3calcPosRef session owner.o3Ob shell ->[[x y z] m] in
+  let M3angularFromMatrix m ->[a b c] in
+  let lastPos -> [lx ly lz] in let lastAng -> [la lb lc] in
+  if lx!=x || ly!=y || lz!=z || la!=a || lb!=b || lc!=c then
+  (set sendtime=_tickcount;
+   /*_DMSsend this Csetpos [owner.indexOb x y z a b c]; ***********/
+   set Ack=0;
+   set lastPos=[x y z];
+   set lastAng=[a b c])
+   else nil
+ else nil;
+ 0;;
+
+fun __ack(delay)=
+ set tickcount=_tickcount+delay*(max minPing min maxPing _tickcount-sendtime);
+ set Ack=1;;
+
+fun __setpos(n,x,y,z,a,b,c,t)=
+ let search_in_list C3DobList @obbyid n -> p in
+ if p==owner || p==nil then nil
+ else if x==nil then 0/*_DMSsend this Cack [owner.indexOb p.indexOb t] ****/
+ else let p.o3Ob -> sh in
+ (if nil==M3getFather session sh then M3link session sh shellav else nil;
+  exec p.setposOb with [p [x y z] [a b c]];
+  /*_DMSsend this Cack [owner.indexOb p.indexOb t]*****/0);;

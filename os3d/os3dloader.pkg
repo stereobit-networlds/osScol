@@ -1,0 +1,1166 @@
+/*************************************************************************************************/
+/* Desc:Dat And Scene Loader                                                                     */
+/* Written: J.Dumay                                                                              */
+/* Date   : 01-03-2000                                                                           */
+/* Version: 1.0                                                                                  */
+/*************************************************************************************************/
+
+var DEF_CLASSAV   = "Avatar";;
+var DEF_RIGHTS    = "rights";;
+var DEF_DEFAULTAV = "default";;
+var DEF_FORCEDAV  = 0;;
+
+var DEFAULT_LIGHT_BASE = 31;;
+var SIZE_HASH_OBJ = 10;;
+
+var CLIENT_DAT    = "tmp/dat/client.dat";;
+var camfile       = "Dms/3d/cam1.m3d";;
+var avfile        = "Dms/3d/av.m3d";;
+
+/* Definition de l'Obj3d qui est le noeud de l'arbre des objets *********************************/
+struct Obj3d=[
+  Obj3dFather           : Obj3d,                             /* pere */
+  Obj3dSon              : Obj3d,                             /* premier fils */
+  Obj3dBro              : Obj3d,                             /* frere suivant */
+  Obj3dIndex            : S,                                 /* index de l'objet */
+  Obj3dRef              : S,                                 /* referentiel */
+  Obj3dLinks            : [[S S S I Anchor] r1],             /* links */
+  Obj3dLoad             : fun [S S] I,                       /* methode de chargement d'un obj3d */
+  Obj3dEndLoad          : fun [] I,                          /* fin de chargement d'un objet */
+  Obj3dRead             : fun [[S r1] S] I,                  /* methode de lecture */
+  Obj3dGetFile          : fun [] S                           /* methode de recuperation du nom de fichier */
+]mkObj3d;;
+
+
+/* Definition de la structure pour les m3d  *******************************************************/
+struct StructM3d=[
+  M3dfile               : S,                                 /* nom du fichier */
+  M3dPos                : [[I I I] [I I I]],                 /* position du fichier */
+  M3dOpType             : [[S I] r1],                        /* op de modif de type */
+  M3dOpRenObj           : [[S S] r1],                        /* op de renommage des meshs */
+  M3dOpPos              : [[S [[I I I][I I I]]]r1],          /* op de modif de position de mesh */
+  M3dOpScale            : [[S I] r1],                        /* op de modif de la taille d'un mesh */
+  M3dOpObb              : [S r1],                            /* op de modif de la box d'un objet */
+  M3dOpFlat             : [[S I] r1],                        /* op de passage en flat */
+  M3dOpTextured         : [[S S] r1],                        /* op de changement de texture */
+  M3dOpTransp           : [[S I] r1],                        /* op de transparence */
+  M3dOpAlias            : [[S S] r1],                        /* op d'alias */
+  M3dOpDel              : [S r1]                             /* op de suppression de meshs */
+]mkStructM3d;;
+
+/* Definition de la structure pour les dummy ****************************************************/
+struct StructDummy=[
+  DumName               : S,                                 /* mesh */
+  DumPos                : [[I I I] [I I I]],                 /* position du dummy */
+  DumAlias              : S                                  /* alias du mesh */
+]mkStructDummy;;
+
+/* Definition de la structure contenant les information de la scene 3d***************************/
+struct Cel3d=[
+  Cel3dname             : S,                                 /* nom de la cellule */
+  Cel3dopenspace        : S,                                 /* openspace file ***********/
+  Cel3dspeed            : I,                                 /* vitesse */
+  Cel3dback             : I,                                 /* backclipping */
+  Cel3dclip             : I,                                 /* clip */
+  Cel3dfog              : I,                                 /* fog */
+  Cel3dfocal            : F,                                 /* focale de la camera */
+  Cel3dbuf              : I,                                 /* taille du buffer */
+  Cel3dcol              : [S I I],                           /* boite de collision de la scene */
+  Cel3dgrav             : I,                                 /* gravite */
+  Cel3dphysics          : I,                                 /* local physics activated ? (gravity and collision) */
+  CelCamerafree         : I,                                 /* local camera free mode activated ? -maj 28/01/03 -PaiiKan-*/
+  Cel3dglobalphysics    : I,                                 /* global physics activated ? (gravity and collision) */
+  Cel3ddarkbase         : S,                                 /* darkbase */
+  Cel3dinterpolate      : I,                                 /* activate avatar interpolation */
+  Cel3ddapseudo         : I,                                 /* activate avatar pseudo change message */
+
+  Cel3dobj              : Obj3d,                             /* arbre des objets */
+  Cel3dcur              : Obj3d,                             /* objet courant */
+
+  Cel3dLight            : [S [I I I] [I I I]],               /* lumiere */
+  Cel3dIpos             : [[S [I I I] [I I I]]r1],           /* positions */
+
+  Cel3dDefAnchors       : [[S [S r1]]r1],                    /* liste de definition des ancres */
+  Cel3dAnchors          : [[S [Anchor r1]] r1],              /* liste des ancres */
+  Cel3dDefaultAvat      : S,                                 /* avatar par defaut */
+  Cel3dress             : [[S r1]r1],                        /* ress */
+  Cel3dendLoad          : fun [S] I                          /* fonction de fin de chargement de la scene*/
+]mkCel3d;;
+
+/* variable de chargement de la scene 3d a partir du dat */
+typeof cel=Cel3d;;
+var    Cel3dnbObj3d=0;;
+
+/* variables globales pour la scene 3d */
+typeof session=S3d;;
+typeof shell=H3d;;
+typeof shellav=H3d;;
+typeof coll=InBox;;
+typeof cam=H3d;;
+typeof links=[[H3d HMat3d S I] r1];;
+typeof aliasndx=[[I S S] r1];;
+typeof aliasname=tab [[S H3d] r1];;
+
+proto loadObj3d=fun [Obj3d] I;;
+proto endloadObj3d=fun [Obj3d] I;;
+
+/*****************************************
+Fonction sur un arbre qui execute une fonction
+sur chaque noeud de l'arbre
+******************************************/
+fun apply_on_tree(o,func,param)=
+  if o==nil then o
+  else
+  (
+    exec func with [o param];
+    apply_on_tree o.Obj3dSon func param;
+    apply_on_tree o.Obj3dBro func param;
+  );;
+
+/* parsing routines */
+fun search_slash(s)=
+  let strlen s -> l in
+  let 0 -> i in
+  (while i<l && (nth_char s i)!='/ do set i=i+1;
+   i);;
+
+/*****************************************
+Fonction qui renvoie l'indice du 1er .
+dans la chaine s
+*****************************************/
+fun search_point(s)=
+ let strlen s->l in
+ let 0-> i in
+  (while i<l && (nth_char s i)!='. do set i=i+1;
+   i);;
+
+fun getErr(f)=
+ _DLGrflmessage _DLGMessageBox _channel DMSwin (_loc this "FATALERROR" nil)
+    strcatn f::" : "::(_loc this "FILENOTAVA" nil)::nil 0 @_endE 0;
+ 0;;
+
+fun fatalErr(s)=
+ _DLGrflmessage _DLGMessageBox _channel DMSwin (_loc this "FATALERROR" nil) s 0 @_endE 0;
+ 0;;
+
+fun removef_from_list(l, f, x)=
+ if l==nil then nil
+ else
+  let l -> [a next] in
+    if exec f with [a x]
+    then
+      next
+    else
+      a::removef_from_list next f x;;
+
+/*****************************************
+Fonction qui ajoute un alias à la liste
+des alias
+******************************************/
+fun addAliasNdx(l,ndx,obj,ias)=
+  if l==nil then [ndx obj ias]::nil
+  else
+    let l -> [al nxt] in
+    let al -> [ndx1 _ _] in
+    if ndx1<=ndx then
+      al::addAliasNdx nxt ndx obj ias
+    else
+      [ndx obj ias]::l;;
+
+/*****************************************
+Fonction qui supprime les alias de l'objet
+d'index ndx de la liste l
+******************************************/
+fun delAliasNdx(l,ndx)=
+  if l==nil then nil
+  else
+    let l -> [al nxt] in
+    let al -> [ndx1 _ _] in
+    if ndx1<ndx then al::delAliasNdx nxt ndx
+    else if ndx1==ndx then delAliasNdx nxt ndx
+    else l;;
+
+
+/*****************************************
+Fonction recherchant un alias en fontion
+de l'index de l'objet et de son nom reel
+******************************************/
+fun searchObjInAliasNdx(l,ndx,obj)=
+  if l==nil then nil
+  else
+    let l -> [[i real alias] nxt] in
+    if i<ndx then searchObjInAliasNdx nxt ndx obj
+    else if i>ndx then nil
+    else if i==ndx && !strcmp obj real then alias
+    else searchObjInAliasNdx nxt ndx obj;;
+
+
+/*****************************************
+Fonction d'evaluation de l'index dans la
+table de hachage
+******************************************/
+fun evalHashNdx(s)=
+  let ((nth_char s 0)+(nth_char s 1))&255 -> x in if x==nil then 0 else x;;
+
+/*****************************************
+Fonction d'ajout d'un alias dans la table
+de hachage
+******************************************/
+fun addAliasName(alias,h)=
+  let evalHashNdx alias -> ndx in
+  set aliasname.ndx=[alias h]::aliasname.ndx;
+  0;;
+
+/*****************************************
+fonctionctionde comparaison entre un elt
+de la table de hachage et l'alias alias
+******************************************/
+fun compAlias(l,alias)=
+  let l -> [s _] in
+  !strcmp s alias;;
+
+
+
+/*****************************************
+Fonction renvoyant le h3d correspondant à
+l'alias d'un objet
+  alias : S alias
+Renvoie le H3d
+******************************************/
+fun AliasToH3d(alias)=
+  let evalHashNdx alias -> ndx in
+  let search_in_list aliasname.ndx @compAlias alias -> [_ h] in
+  h;;
+
+
+/*****************************************
+Fonction renvoyant l'alias en fonction du
+h3d
+  s : S3d session
+  h : H3d objet
+Renvoie l'alias s'il existe nil sinon
+******************************************/
+fun H3dToAlias(s,h)=
+  if h==nil then nil
+  else
+  let M3objName s h -> n in
+  let htoi substr n 0 search_point n -> ndx in
+  searchObjInAliasNdx aliasndx ndx n;;
+
+/*******************************************
+Fonction par defaut d'un Obj3d de chargement
+********************************************/
+fun defloadObj3d(ndx,ref,o)=
+  endloadObj3d o;
+  0;;
+
+/*****************************************
+Fonction de creation d'un Obj3d dans l'arbre
+en tant que premier fils de p
+    n: Node  m3d ou dummy
+    p: Obj3d pere
+Renvoie l'Obj3d nouvellement crée
+******************************************/
+fun newObj3d(p)=
+  let mkObj3d[p nil nil (if p==nil then "0" else nil) nil nil nil nil nil nil] -> o in
+  (
+    /* les methodes par defaut */
+    set o.Obj3dLoad=mkfun3 @defloadObj3d o;
+    set o.Obj3dEndLoad=mkfun1 @endloadObj3d o;
+    set Cel3dnbObj3d=Cel3dnbObj3d+1;
+    if (p!=nil) then
+    ( set o.Obj3dBro=p.Obj3dSon;
+      set p.Obj3dSon=o;
+    )else o
+  );;
+
+/*****************************************
+Fonction de lecture et d'analyse de
+l'operation de renommage des objets
+******************************************/
+fun M3dread_ren_obj(l,m,ndx)=
+ set m.M3dOpRenObj=[strcatn ndx::"."::(nth_list l 1)::nil
+                    strcatn ndx::"."::(nth_list l 2)::nil
+                   ]::m.M3dOpRenObj;
+ 0;;
+
+/*****************************************
+Fonction de lecture et d'analyse de
+l'operation de l'alias
+******************************************/
+fun M3dread_alias(l,m,ndx)=
+ let strcatn ndx::"."::(nth_list l 1)::nil -> obj in
+ let nth_list l 2 -> alias in
+ (
+    set aliasndx=addAliasNdx aliasndx htoi ndx obj alias;
+    set m.M3dOpAlias=[obj alias]::m.M3dOpAlias;
+    0
+ );;
+
+/*****************************************
+Fonction de lecture et d'analyse d'un objet
+******************************************/
+fun M3dread_obj(l,m,ndx)=
+  let strcatn ndx::"."::(nth_list l 1)::nil -> objname in
+  ( set m.M3dOpPos=[objname
+                     [[atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                      [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]
+                     ]
+                    ]::m.M3dOpPos;
+     if (atoi nth_list l 8)==1 then set m.M3dOpObb=objname::m.M3dOpObb
+     else nil;
+
+     let atoi nth_list l 9 -> s in
+     if (s!=100) then set m.M3dOpScale=[objname s]::m.M3dOpScale
+     else nil;
+     0
+  );;
+
+/*****************************************
+Fonction de lecture et d'analyse des
+materiaux
+******************************************/
+fun M3dread_mat(l,m,ndx)=
+  let strcatn ndx::"."::(nth_list l 1)::nil -> mat in
+  let htoi nth_list l 2 -> type in
+  let htoi nth_list l 3 -> flatcolor in
+  let nth_list l 4 -> transp in
+  (
+    set m.M3dOpType=[mat type]::m.M3dOpType;
+
+    /* operation de renmat */
+    if type&MAT_TEXTURED then
+    (
+      set m.M3dOpTextured=[mat nth_list l 5]::m.M3dOpTextured;
+      nil
+    )
+    else
+      set m.M3dOpFlat=[mat flatcolor]::m.M3dOpFlat;
+
+    /* operation de transparence */
+    if type&MAT_TRANSP && (strcmp transp "-1") then
+      set m.M3dOpTransp=[mat (atoi transp)]::m.M3dOpTransp
+    else nil;
+    0
+  );;
+
+/*****************************************
+Fonction de lecture et d'analyse de la
+suppression de meshs
+******************************************/
+fun M3read_del(l,m,ndx)=
+  set m.M3dOpDel=(strcatn ndx::"."::(nth_list l 1)::nil)::m.M3dOpDel;
+  0;;
+
+/*****************************************
+Fonction de lecture d'un m3d
+******************************************/
+fun M3dread(l,ndx,m3d)=
+  let hd l -> s in
+  let sizelist l -> sz in
+  if (!strcmp s "ren_obj") && sz>=3 then
+    M3dread_ren_obj l m3d ndx
+
+  else if !strcmp s "alias" then
+    M3dread_alias l m3d ndx
+
+  /* les meshs: positionnemnt + Obb + Scale */
+  else if (!strcmp s "obj") && sz>=10 then
+    M3dread_obj l m3d ndx
+
+  /* les materiaux */
+  else if (!strcmp s "material") then
+    M3dread_mat l m3d ndx
+
+  else if (!strcmp s "delobj") then
+    M3read_del l m3d ndx
+
+  else nil;;
+
+/*****************************************
+Fonction de modification du nom d'un mesh
+******************************************/
+fun M3dModName(a,b)=
+ let a->[old new] in
+   M3renameObj session M3getObj session old  new;;
+
+/*****************************************
+Fonction d'ajout d'un alias dans la table
+de hachage des alias
+******************************************/
+fun M3dModAlias(a,b)=
+  let a->[ref alias] in
+  addAliasName alias M3getObj session ref;
+  0;;
+
+/*****************************************
+Fonction de modification de la position d'
+un mesh
+******************************************/
+fun M3dModPos(a,b)=
+ let a -> [n [v w]] in
+ let M3getObj session n   -> h3dobj in
+ (
+  M3setObjVec session h3dobj v;
+  M3setObjAng session h3dobj w;
+  0);;
+
+fun search_obb(session,h,n)=
+  if h==nil then nil
+  else
+    if !strcmp M3objName session h n then h
+    else search_obb session M3getBrother session h n;;
+
+/*****************************************
+Fonction de modification de la boite de
+collision sous un mesh
+******************************************/
+fun M3dModObb(n,obb)=
+ let strcatn "#"::n::"_collision"::nil -> nobb in
+ let M3getObj session n -> h in
+ let search_obb session M3getFirstSon session h nobb -> fh in
+ if obb && fh==nil then
+  let M3calcObb session h ->[v r] in
+  let M3createObb session r -> o in
+  ( M3renameObj session o nobb;
+    M3setObjVec session o v;
+    M3link session o h;
+    0
+  )
+ else if !obb && fh!=nil then
+ (
+   M3delObj session fh;
+   0
+ )
+ else 0;;
+
+/*****************************************
+Fonction de modification du scale d'un mesh
+******************************************/
+fun M3dModScale(a,b)=
+ let a -> [name newscale] in
+ let M3getObj session name -> h in
+ (M3setObjScale session h newscale;
+  0);;
+
+/*****************************************
+Fonction de modification de la suppression
+de mesh
+******************************************/
+fun M3dModDel(a,b)=
+  let M3getObj session a -> h in
+  M3delObj session h;
+  0;;
+
+/******************************************
+Fonctions relatives au chargement d'une
+texture dans le cas d'un materiau texturé
+*******************************************/
+typeof M3ddls=[[S RSC]r1];;
+
+fun compMat(l1,l2)=
+  let l1 -> [m1 _] in
+  let l2 -> [m2 _] in
+  !strcmp m1 m2;;
+
+/* fonction qui ajoute un materiau en download de texture */
+fun M3daddDl(mat,rsc)=
+  set M3ddls=[mat rsc]::M3ddls;
+  0;;
+
+/* fonction qui enleve un materiau en download de texture */
+fun M3dstopDl(mat)=
+  let search_in_list M3ddls @compMat [mat nil]-> dls in
+  if dls!=nil then
+  (
+    set M3ddls=remove_from_list M3ddls dls;
+    let dls -> [mat rsc] in
+    _RSCabort this rsc;
+  )
+  else nil;
+  0;;
+
+fun M3dModMatEndRSC(f,m)=
+ if f==nil then nil
+ else
+ (M3fillTexture session M3textureFromMaterial session m;
+  set M3ddls=removef_from_list M3ddls @compMat [M3materialName session m nil];
+  0);;
+
+fun lastpercent(n,i,l)=
+ if i>=strlen n then l
+ else lastpercent n i+1 if (nth_char n i)=='% then i else l;;
+
+fun cutnamefilter(n)=
+ let lastpercent n 0 nil-> i in
+  if i==nil then [n nil] else [substr n i+1 1000 substr n 1 i-1];;
+
+/*****************************************
+Fonction de modification d'un materiau
+******************************************/
+fun M3dModTextured(a,b)=
+ let a->[mat txt] in
+ let M3getMat session mat-> m in
+ let M3getTexture session txt -> t in
+ (
+/* 	_fooS strcatn "mat:"::mat::" texturre:"::txt::nil;*/
+  if t!=nil then M3chgMaterialTexture session m t
+  else
+  let M3copyMaterialTexture session m -> tx in
+  ( M3renameTexture session tx txt;
+    M3freeTexture session tx
+  );
+  let cutnamefilter txt->[x _] in
+  M3daddDl mat _RSCdownloadP this x x mkfun2 @M3dModMatEndRSC m 3 1
+ );
+ 0;;
+
+/*****************************************
+Fonction de modification du type d'un
+materiau
+******************************************/
+fun M3dModType(a,b)=
+  let a -> [mat type] in
+  let M3getMat session mat -> m in
+  (
+    M3setType session m type;
+    if type&MAT_TEXTURED then nil
+    else M3dstopDl mat
+  );;
+
+/*****************************************
+Fonction de modification de la couleur de
+flat d'un objet
+******************************************/
+fun M3dModTransp(a,blurp)=
+ let a->[mat i] in
+ let M3getMat session mat-> m in
+ M3setMaterialTransparency session m i;;
+
+/*****************************************
+Fonction de modification de la couleur de
+flat d'un objet
+******************************************/
+fun M3dModFlat(a,b)=
+  let a->[mat clr] in
+  let M3getMat session mat-> m in
+  M3setMaterialFlat session m clr;
+  0;;
+
+/*****************************************
+fonction de renommage de tous les meshs
+******************************************/
+fun M3drenameMesh(h,ndx)=
+  if h==nil then 0
+  else
+  (
+    M3renameObj session h strcatn ndx::"."::(M3objName session h)::nil;
+    /*conc M3listOfMaterials session h*/
+    M3drenameMesh M3getFirstSon session h ndx;
+    M3drenameMesh M3getBrother session h ndx
+  );;
+
+/*****************************************
+Fonction de recuperation de la liste de tous
+les materiaux liés à un mesh et à ses fils
+******************************************/
+fun M3dgetTexture(h)=
+  if h==nil then nil
+  else
+  (
+    conc M3listOfMaterials session h
+    conc M3dgetTexture M3getFirstSon session h
+         M3dgetTexture M3getBrother session h
+  );;
+
+fun M3devalTexture(l,ndx)=
+  if l==nil then nil
+  else
+    let l -> [mat nxt] in
+    let strcatn ndx::"."::(M3materialName session mat)::nil -> newname in
+    (
+      M3renameMat session mat newname;
+      let M3textureFromMaterial session mat -> t in
+      if t==nil then M3devalTexture nxt ndx
+      else
+        [newname M3textureName session t]::M3devalTexture nxt ndx
+    );;
+
+/***************************************
+Fonction de merge de la liste des OpRenMat
+avec la liste des materiaux
+Renvoie la liste des textures contenu
+dans le m3d
+****************************************/
+fun M3dmergeOpTextured(lop,lt)=
+  if lop==nil then lt
+  else let lop -> [op nxt] in
+    let search_in_list lt @compMat op -> res in
+    if res==nil then
+      M3dmergeOpTextured nxt op::lt
+    else
+    (
+      let op -> [_ text] in
+      mutate res<- [_ text];
+      M3dmergeOpTextured nxt lt
+    );;
+
+/***************************************
+Fonction qui supprime de la liste des
+OpTextured les materiaux devant passer en
+flat
+Renvoie la liste des textures contenu
+dans le m3d
+****************************************/
+fun M3dremoveOpFlat(lop,lf)=
+  if lop==nil then lf
+  else let lop -> [[mat _] nxt] in
+    let search_in_list lf @compMat [mat nil] -> res in
+    if res==nil then
+      M3dremoveOpFlat nxt lf
+    else
+      M3dremoveOpFlat nxt remove_from_list lf res;;
+
+fun suppDblMat(h1,h2)= !(h1==h2);;
+
+/****************************************
+Fonction de fin de chargement du fichier
+m3d -> chargement de l'objet
+*****************************************/
+fun M3dloadEndRSC(f,p)=
+  let p -> [m ndx ref o] in
+  if f==nil then getErr m.M3dfile
+  else
+     let M3getObj session ref -> fath in
+     let M3createShell session -> sh in
+     let m.M3dPos -> [v w] in
+     (
+
+      M3setObjVec session sh v;
+      M3setObjAng session sh w;
+      M3renameObj session sh ndx;
+
+      M3load session f sh;
+      if (M3getAnimLength session sh) == 0 then
+        nil
+      else
+        M3setAnimKey session sh 0;
+      M3link session sh fath;
+
+      /* renommage de tous les meshs et materiaux suivant l'index */
+
+      /* renommage de tous les meshs */
+      M3drenameMesh M3getFirstSon session sh ndx;
+
+      /* on supprime les meshs flagés en delobj */
+      apply_on_list m.M3dOpDel      @M3dModDel    nil;
+
+      /* renommage de tous les materiaux suivant l'index */
+      /* envoie de la liste des materiaux du m3d et merge avec la */
+      /* liste des M3dOpTextured                                  */
+      let quicksort M3dgetTexture M3getFirstSon session sh @suppDblMat -> lmat in
+      let M3devalTexture lmat ndx-> lrmat in
+      set m.M3dOpTextured=M3dremoveOpFlat
+                            m.M3dOpFlat
+                            M3dmergeOpTextured
+                              m.M3dOpTextured
+                              lrmat;
+
+      /* application de toutes les modifications sur le m3d */
+      apply_on_list m.M3dOpRenObj   @M3dModName   nil;
+      apply_on_list m.M3dOpPos      @M3dModPos    nil;
+      apply_on_list m.M3dOpObb      @M3dModObb    1;
+      apply_on_list m.M3dOpScale    @M3dModScale  nil;
+      apply_on_list m.M3dOpAlias    @M3dModAlias   nil;
+
+      /* application des modifs sur les materiaux */
+      apply_on_list m.M3dOpType     @M3dModType     nil;
+      apply_on_list m.M3dOpTextured @M3dModTextured nil;
+      apply_on_list m.M3dOpFlat     @M3dModFlat     nil;
+      apply_on_list m.M3dOpTransp   @M3dModTransp   nil;
+      exec o.Obj3dEndLoad with [];
+     );;
+
+/*****************************************
+Fonction de chargement du m3d
+******************************************/
+fun M3dload(ndx,ref,o,m)=
+  _RSCdownload this m.M3dfile m.M3dfile mkfun2 @M3dloadEndRSC [m ndx ref o] 3;
+  0;;
+
+/*****************************************
+Methode de recuperation du nom de fichier
+******************************************/
+fun M3dgetFile(m)=
+  m.M3dfile;;
+
+/*****************************************
+Fonction de creation d'un M3d
+    n: S           path du m3d
+    f: Obj3d       noeud pere
+    pos: Position
+Renvoie le noeud m3d cree
+*****************************************/
+fun M3dnew(n,f,pos)=
+  let newObj3d f -> obj3d in
+  let mkStructM3d[n pos nil nil nil nil nil nil nil nil nil nil] -> m3d in
+  (
+    set obj3d.Obj3dRead=mkfun3 @M3dread m3d;
+    set obj3d.Obj3dLoad=mkfun3 (mkfun4 @M3dload m3d) obj3d;
+    set obj3d.Obj3dGetFile=mkfun1 @M3dgetFile m3d;
+    obj3d
+  )
+;;
+
+/****************************************
+Fonction d'anlyse de l'alias d'un dummy
+*****************************************/
+fun Dummyread_alias(l,d,ndx)=
+  let strcatn ndx::"."::(nth_list l 1)::nil -> obj in
+  let nth_list l 2 -> alias in
+  (
+    set d.DumAlias=alias;
+    set aliasndx=addAliasNdx aliasndx htoi ndx obj alias;
+    0
+  )
+;;
+
+/*****************************************
+Fonction de lecture du fichier pour un
+dummy
+  l:      [S r1] ligne
+  ndx:    Index
+  d:      Dummy
+******************************************/
+fun Dummyread(l,ndx,d)=
+  let hd l -> s in
+    if !strcmp s "alias" then
+      Dummyread_alias l d ndx
+    else
+      nil
+;;
+
+/*****************************************
+Fonction de chargement d'un Dummy
+******************************************/
+fun Dummyload(ndx,ref,o,d)=
+  let M3getObj session ref -> fath in
+  let d.DumPos -> [v a] in
+  let M3createShell session -> src in
+  let M3createShell session ->h in
+  let strcatn ndx::"."::d.DumName::nil -> obj in /* ndx.dummy */
+  (
+    /* construction de l'objet dummy */
+    M3link session src fath;
+    M3renameObj session src ndx;
+    M3link session h src;
+    M3renameObj session h obj;
+    M3setObjVec session h v;
+    M3setObjAng session h a;
+    M3link session src fath;
+
+    /* l'alias */
+    addAliasName d.DumAlias h; /* eq to addAliasName d.DumAlias h M3getObj session obj; */
+
+    exec o.Obj3dEndLoad with [];
+  )
+;;
+
+/*****************************************
+Fonction de creation d'un Dummy
+*****************************************/
+fun Dummynew(n,f,pos)=
+  let newObj3d f -> obj3d in
+  let mkStructDummy[n pos nil] -> d in
+  (
+    set obj3d.Obj3dRead=mkfun3 @Dummyread d;
+    set obj3d.Obj3dLoad=mkfun3 mkfun4 @Dummyload d obj3d;
+    obj3d
+  )
+;;
+
+/*****************************************
+Fonction de lecture des proprietes de
+la cellule 3d
+******************************************/
+fun Cel3dread(l,c)=
+  /* propriétés clients de la scene */
+  let hd l -> s in
+  let sizelist l -> sz in
+  if (!strcmp s "name") && sz>=2 then
+  (set c.Cel3dname=nth_list l 1; 0)
+  else if (!strcmp s "background") && sz>=2 then
+  (set c.Cel3dback=htoi nth_list l 1; 0)
+  else if (!strcmp s "backclip") && sz>=2 then
+  (
+    set c.Cel3dclip=atoi nth_list l 1;
+    set c.Cel3dfog=atoi nth_list l 2;
+    0
+  )
+  else if (!strcmp s "openspacefile") && sz>=2 then /*<<<<<<<<<<<<<<<<< load openspace*/
+  (set c.Cel3dopenspace= nth_list l 1; 0) 
+  else if (!strcmp s "focal") && sz>=2 then
+  (set c.Cel3dfocal=atof nth_list l 1; 0)
+  else if (!strcmp s "speed") && sz>=2 then
+  let atoi nth_list l 1 -> denom in
+  (set c.Cel3dspeed= if denom <= 0 || denom == nil then 128 else 128000/denom; 0)
+  else if (!strcmp s "buffersize") && sz>=2 then
+  (set c.Cel3dbuf=atoi nth_list l 1; 0)
+  else if (!strcmp s "inbox") && sz>=4 then
+  (set c.Cel3dcol=[nth_list l 1 atoi nth_list l 2 atoi nth_list l 3]; 0)
+  else if (!strcmp s "gravity") && sz>=2 then
+  let nth_list l 1 -> grav in
+  (set c.Cel3dgrav= if grav == nil then nil else atoi grav; 0)
+  else if (!strcmp s "physics") && sz>=2 then
+  (set c.Cel3dphysics = (set c.Cel3dglobalphysics = atoi (nth_list l 1)); 0)
+  else if (!strcmp s "camfree") && sz>=2 then
+  (set c.CelCamerafree = (set c.CelCamerafree = atoi (nth_list l 1)); 0)
+  else if (!strcmp s "darkbase") then
+  (set c.Cel3ddarkbase=nth_list l 1; 0)
+  else if (!strcmp s "interpolate") then
+  (set c.Cel3dinterpolate=atoi nth_list l 1; 0)
+  else if (!strcmp s "avatarpseudo") then
+  (set c.Cel3ddapseudo=atoi nth_list l 1; 0)
+  else if (!strcmp s "light") && (sizelist l)>=8 then
+  (
+    set c.Cel3dLight= [nth_list l 1
+                        [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                        [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]
+                      ];
+    0
+  )
+
+  /* m3d */
+  else if (!strcmp s "m3d") then
+    let if sz>=8 then [[atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                       [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 ]]
+        else nil
+    -> pos in
+  (set c.Cel3dcur=M3dnew nth_list l 1 c.Cel3dcur pos; 0)
+  /* dummy */
+  else if (!strcmp s "dummy") then
+    let if sz>=8 then [[atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                       [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 ]]
+        else nil
+    -> pos in
+  (set c.Cel3dcur=Dummynew nth_list l 1 c.Cel3dcur pos; 0)
+
+  else if (!strcmp s "}") then
+  (set c.Cel3dcur=c.Cel3dcur.Obj3dFather; 0)
+
+  /* index des objets */
+  else if (!strcmp s "index") then
+  (set c.Cel3dcur.Obj3dIndex=nth_list l 1; 0)
+
+  /* ref */
+  else if (!strcmp s "ref") then
+  (
+    let nth_list l 1 -> ref in
+    set c.Cel3dcur.Obj3dRef=if ref==nil then c.Cel3dcur.Obj3dFather.Obj3dIndex
+                            else strcatn c.Cel3dcur.Obj3dFather.Obj3dIndex::
+                                         "."::
+                                         ref::
+                                         nil;
+    0
+  )
+
+  /* les liens */
+  else if (!strcmp s "link") then
+  let nth_list l 2-> obj in
+  let atoi nth_list l 3 -> k in
+  let search_point obj -> i in
+  let objAnchor [nil nil nth_list l 1 k] -> a in
+  (
+    set c.Cel3dcur.Obj3dLinks=[nth_list l 1
+                               strcatn c.Cel3dcur.Obj3dIndex::"."::(substr obj 0 i)::nil
+                               let substr obj i+1 1000  -> mat in
+                                 if strcmp mat "" then strcatn c.Cel3dcur.Obj3dIndex::"."::mat::nil
+                                 else nil
+                               k
+                               a
+                              ]::c.Cel3dcur.Obj3dLinks;
+    set c.Cel3dAnchors=[nth_list l 1 a::nil]::c.Cel3dAnchors;
+    0
+  )
+
+  /* les positions */
+  else if (!strcmp s "ipos") && sz>=8 then
+  let [nth_list l 1
+       [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+       [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 ]
+      ]->p in
+  (
+    set c.Cel3dIpos=p::c.Cel3dIpos;
+    set c.Cel3dAnchors=[nth_list l 1 (posAnchor p)::nil]::c.Cel3dAnchors;
+    0
+  )
+
+  /* les ancres */
+  else if (!strcmp s "anchor") && sz>=3 then
+  (set c.Cel3dDefAnchors=[nth_list l 1 tl tl l]::c.Cel3dDefAnchors; 0)
+  else if (!strcmp s "defaultAvatar") then
+  (set c.Cel3dDefaultAvat=nth_list l 1; 0)
+  else nil
+;;
+
+/*****************************************
+Fonction de creation d'une cellule 3d
+Renvoie le Cel3d nouvellement crée
+******************************************/
+fun Cel3dnew()= /*<<<<<<<<<<< added a nil = openspace file**********/
+  let newObj3d nil -> o in
+    mkCel3d[nil nil nil nil nil nil nil nil nil 0 1 0 1 nil 0 1 o o
+            nil nil nil nil DEF_DEFAULTAV nil nil]
+;;
+
+/*****************************************
+Fonction recursive d'analyse du .dat
+    l: [S r1] contenu d'une ligne du .dat
+    c: Cel3d cellule 3d
+renvoie I
+******************************************/
+fun AnalyseDatC(l,c)=
+  let hd l -> s in
+    if s==nil || (Cel3dread l c)!=nil then
+      nil
+    else
+      exec c.Cel3dcur.Obj3dRead with [l c.Cel3dcur.Obj3dIndex]
+;;
+
+/*****************************************
+Fonction recursive d'analyse d'un fichier
+descriptif d'objet
+    l  : [[S r1] r1] contenu du descriptif
+    ref: S reference
+    o  : obj3d resultat
+renvoie l'obj3d cree
+******************************************/
+fun AnalyseDescC(l,ref,o)=
+  if l==nil then
+    o
+  else
+    let l -> [line nxt] in
+    let hd line -> s in
+      if s==nil then
+        AnalyseDescC nxt ref o
+      else
+        if !strcmp s "m3d" then
+          AnalyseDescC nxt
+                       ref
+                       M3dnew nth_list line 1
+                              nil
+                              (if (sizelist line)>=8 then
+                                  [[atoi nth_list line 2 atoi nth_list line 3 atoi nth_list line 4]
+                                   [atoi nth_list line 5 atoi nth_list line 6 atoi nth_list line 7]]
+                               else nil)
+        else
+          if !strcmp s "index" then
+          (
+            set o.Obj3dIndex=nth_list line 1;
+            AnalyseDescC nxt ref o
+          )
+          else
+          (
+            set o.Obj3dRef=ref;
+            exec o.Obj3dRead with [line o.Obj3dIndex];
+            AnalyseDescC nxt ref o
+          )
+;;
+
+/************************************************************************************************/
+/*                      Loading functions for the 3d Scene                                      */
+/************************************************************************************************/
+
+/****************************************
+Fonction de chargement de la boite globale
+de collision
+*****************************************/
+fun loadColEndRSC(f,c)=
+  let c.Cel3dcol->[n r g] in
+    if f==nil then
+      getErr n
+    else
+    (
+      set coll=mkInBox [f nil nil r g];
+      inboxLoading coll;
+      nil
+    );
+  0
+;;
+
+fun loadCol(c)=
+  let c.Cel3dcol ->[f _ _] in
+    if f==nil then
+      nil
+    else
+      _RSCdownload this f f mkfun2 @loadColEndRSC c 3
+;;
+
+/***************************************
+Fonction de chargement du lien
+****************************************/
+fun loadLink(a,b)=
+  let a->[n h m i anch] in
+  let M3getObj session h -> hh in
+  let M3getMat session m -> mm in
+    match anch with
+        (objAnchor z -> (mutate z<-[hh mm _ _]; set links=z::links))
+      | (_->nil)
+;;
+
+/***************************************
+Fonction de Fin de chargement d'un Obj3d
+****************************************/
+fun endloadObj3d(o)=
+  apply_on_list o.Obj3dLinks @loadLink nil;
+  let o.Obj3dSon -> bro in
+    while bro!=nil do
+    (
+      loadObj3d bro;
+      set bro=bro.Obj3dBro
+    );
+  if ( set Cel3dnbObj3d=Cel3dnbObj3d-1)==0 then
+    _RSCdownload this nil nil cel.Cel3dendLoad 3
+  else
+    nil;
+  0
+;;
+
+/***************************************
+Fonction de chargement d'un Obj3d
+****************************************/
+fun loadObj3d(o)=
+  exec o.Obj3dLoad with [o.Obj3dIndex o.Obj3dRef];
+  0
+;;
+
+proto SESSION_SetMipMapping = fun [S3d] I;;
+
+/****************************************
+Fonction de chargement de la scene 3d
+*****************************************/
+fun load3dScene(c,fend)=
+  /* creation de la session */
+  set session=MX3create  _channel
+                         1024 1024 4096 2048
+                         (if c.Cel3dbuf!=nil then c.Cel3dbuf else 512)*1024;
+  if session==nil then
+    fatalErr _loc this "OUTMEMORY" nil
+  else
+    nil;
+
+  if Engine3DIsV4Compliant then
+    SESSION_SetMipMapping session
+  else
+    nil;
+
+  M3renameObj session (set shell=M3createShell session) "0";
+
+  /* la camera */
+  M3load session camfile nil;
+  set cam=M3getObj session "camera";
+  set shellav=M3createShell session;
+  M3link session shellav shell;
+ // _showconsole;
+
+/* TEST PAIIKAN 18/02/03
+  M3load session "worlds/exemples/ressources/Copie de AXIS.M3D" nil;
+  let M3getObj session "Dummy01" -> axis in
+    M3link session axis cam;*/
+
+
+  /* creation de la lumiere */
+  if c.Cel3dLight==nil then
+    nil
+  else
+    let M3createShell session ->light in
+    let c.Cel3dLight->[n v a] in
+    (
+      M3renameObj session light n;
+      M3setObjVec session light v;
+      M3setObjAng session light a;
+      M3link session light shell
+    );
+  if c.Cel3ddarkbase!=nil then
+    let M3createLight session LIGHT_AMBIENT (atoi c.Cel3ddarkbase)-31 nil nil nil nil -> light in
+    (
+      M3renameObj session light "global_light";
+      M3link session light shell
+    )
+    else
+      nil;
+
+  /* le clip et le fog */
+  if c.Cel3dclip==nil then
+    nil
+  else
+    let M3getCamera session cam->[dx sx [z0 _ _]] in
+      M3setCamera  session
+                   cam
+                   [dx sx [z0
+                           if c.Cel3dfog==nil then c.Cel3dclip else c.Cel3dfog
+                           c.Cel3dclip
+                          ]
+                   ];
+  /* la focale de la camera */
+  if c.Cel3dfocal==nil then
+    nil
+  else
+    let c.Cel3dfocal/.(atof "57.29") -> d in
+    let M3getCamera session cam->[_ [sx sy] z] in
+    let ftoi (itof sx)/. tan d -> dx in
+      M3setCamera session cam [[dx dx] [sx sy] z];
+
+  /* la boite globale de collision */
+  loadCol c;
+
+  set c.Cel3dendLoad=mkfun2 fend c;
+
+  /* construction des objets */
+  loadObj3d c.Cel3dobj;
+
+  0;;
+
+fun getanchors(l,an)=
+  if l==nil then
+    nil
+  else
+    let l->[s n] in
+    let search_in_list an @anchbyn s -> [_ [a _]] in
+      if a==nil then
+        getanchors n an
+      else
+        a::getanchors n an
+;;
+
+fun addanchor(a,an)=
+  let a->[n l] in
+    set cel.Cel3dAnchors=[n getanchors l an]::cel.Cel3dAnchors
+;;
+
+fun preloadScene3d()=
+  set aliasname=mktab 256 nil;
+  set aliasndx=nil;
+  set cel=Cel3dnew;
+  0
+;;
+
+fun loadScene3d(f,p)=
+  let p -> [a end] in
+    if f==nil then
+      getErr a
+    else
+    (
+      apply_on_list strextr _getpack _checkpack f @AnalyseDatC cel;
+      apply_on_list cel.Cel3dDefAnchors @addanchor cel.Cel3dAnchors;
+      load3dScene cel end;
+      0
+    )
+;;
+
+fun C3D_GetOpenspaceFile()=cel.Cel3dopenspace;; /* func openspace ****/
+
+fun C3D_GetGravity()=cel.Cel3dgrav;;
+fun gravity () = cel.Cel3dgrav != nil;;
+
+fun C3D_GetLight() = if  cel.Cel3ddarkbase == nil then nil else atoi cel.Cel3ddarkbase;;

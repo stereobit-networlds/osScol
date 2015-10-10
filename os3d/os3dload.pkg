@@ -1,0 +1,294 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+var iMinVoyagerVersion = 0xd2ef8155;;
+
+proto initOs3dPlayer = fun [S S S S I ObjWin] I;; /*ObjWin param added *********/
+//proto initOs3dPlayer = fun [S [S S S S I ObjWin]] I;; /*ObjWin param added *********/
+
+//comm to navigator window
+defcomvar Px=;;
+
+//Navigator window
+typeof winAX = ObjWin;;
+
+/**  getVoyagerVersion [] I
+  *  retrive the Scol Voy@ger version
+  *  
+  *  return the Scol Voy@ger version
+  **/
+fun getVoyagerVersion()=
+  let strextr _getpack _checkpack "locked/etc/version.txt" -> lver in
+  let sizelist lver -> size in
+  let nil -> curver in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list lver i -> elem in
+      if strcmpi "version" hd elem then nil else
+        set curver = htoi hd tl elem;
+      
+      set i = i + 1;
+    );
+    curver;
+  );;
+
+
+/**  getVoyagerVersionS [] S
+  *  retrive the Scol Voy@ger version
+  *  
+  *  return the Scol Voy@ger version in string
+  **/
+fun getVoyagerVersionS()=
+  let strextr _getpack _checkpack "locked/etc/version.txt" -> lver in
+  let sizelist lver -> size in
+  let nil -> curver in
+  let 0 -> i in
+  (
+    while (i < size) && (curver == nil) do
+    (
+      let nth_list lver i -> elem in
+      if strcmpi "version" hd elem then nil else
+        set curver = hd tl elem;
+      
+      set i = i + 1;
+    );
+    curver;
+  );;
+
+
+/**  cbVersionError [MessageBox u0 I] I
+  *  quit player
+  *  
+  *  return 0
+  **/
+fun cbVersionError(msgbox, p, rep)=
+  _closemachine;
+  0;;
+  
+fun cbVersionCont(msgbox, p, rep)=
+  //_closemachine;
+  0;;  
+
+
+/**  commandToAx [S S] I
+  *  send a command to navigator window
+  *  
+  *  return 0
+  **/
+fun commandToAx(func, param)=
+  if (winAX == nil) then nil else
+    _onX Px strcatn func::" "::param::nil [];
+  0;;
+
+fun secureLoad(pack)=
+  let _testpak pack -> ret in
+  if (ret == nil) then
+  ( //_DLGrflmessage (_DLGMessageBox _channel nil "Load" strcat "Loading " pack 0) @cbVersionError nil;
+    commandToAx "OS3DPlayerLoading" pack;
+    _load pack;
+    1;
+  )
+  else
+  ( _DLGrflmessage (_DLGMessageBox _channel nil "Error" strcat "Error on " pack 0) @cbVersionError nil;
+    commandToAx "OS3DPlayerError" strcat "Error on " pack;
+   _fooS strcat ">>>>> Compilation error : " ret;
+   0;
+  );; 
+
+/*download file list ****************************************/	
+typeof dnfiles = [S r1];;
+
+fun endDownload(file)=
+  //_DLGrflmessage (_DLGMessageBox _channel nil "Load" strcat file " ok!" 0) @cbVersionError nil;
+  commandToAx "OS3DPlayerLoading" strcat file " ok!";
+  0;;	
+  
+fun downloadfilepack(files)=
+  let 0 -> i in
+  while i < (sizelist files) do
+  (
+     let nth_list files i -> file in
+	 ( //_DLGrflmessage (_DLGMessageBox _channel nil "Download" strcat "Downloading " file 0) @cbVersionError nil;
+	   commandToAx "OS3DPlayerLoading" strcat "Downloading " file;
+	   _RSCdownload this file file @endDownload 1; 
+       set i = i+1;
+	   set dnfiles = file::dnfiles;
+	   0
+	 )
+  );;	  
+  
+fun secureDnLoad(d,b)=
+  let b -> [_ _ pack] in
+  let _testpak pack -> ret in
+  if (ret == nil) then  
+  ( //_DLGrflmessage (_DLGMessageBox _channel nil "Load" strcat "Loading " pack 0) @cbVersionError nil;
+    commandToAx "OS3DPlayerLoading" pack;
+    _load pack;
+    1;
+  )
+  else
+  ( _DLGrflmessage (_DLGMessageBox _channel nil "Error" strcat "Error on " pack 0) @cbVersionError nil;
+    commandToAx "OS3DPlayerError" strcat "Error on " pack;
+   _fooS strcat ">>>>> Compilation error : " ret;
+   0;
+  );;  
+  
+/** << dnload be fore load **/  
+fun dnLoad(pack)= 
+  _RSCdownload this pack pack mknode @secureDnLoad [nil nil pack] 3;
+  /*waiting for dnload*/
+  let _checkpack pack -> d in
+  while (d == nil) do
+  (
+    dnLoad pack
+  );
+  1;; 
+
+fun endLoad(win, u)=
+  _DSwindow win;
+  _SETfocus DMSwin;
+  0;;
+  
+fun startOs3dPlayer(doc,b) =
+  let b -> [file projname pw ph fullscreen winobj] in
+  initOs3dPlayer file projname pw ph fullscreen winobj;
+  0;;	   
+  
+/*******************************************/    
+
+/**  loadOS3D [S] I
+  *  launch Editor
+  *  
+  *  return 0
+  **/
+fun loadOS3D(file, projname, pw, ph, fullscreen, winobj)=
+  /*let "dms/3d/os3dlib/tools.pkg":: ..................moved to .dmc
+    "dms/3d/os3dlib/xmlparser.pkg"::*/
+  let "dms/3d/os3dlib/keyblib.pkg"::
+    "dms/3d/os3dlib/ogrematparser.pkg"::
+    "dms/3d/os3dlib/v3dlib.pkg"::
+    "dms/3d/os3dlib/v3dlib_physics.pkg"::
+    "dms/3d/os3dlib/2dglib.pkg"::
+    "dms/3d/os3dlib/minidhdms.pkg"::
+    "dms/3d/os3dlib/mkapplet.pkg"::
+    "dms/3d/os3dlib/netcomlib.pkg"::
+    "dms/3d/os3dlib/os3dpaths.pkg"::
+    "dms/3d/os3dlib/os3dstruct.pkg"::
+    "dms/3d/os3dlib/os3dtypeconv.pkg"::
+    "dms/3d/os3dlib/os3dplugins.pkg"::
+    "dms/3d/os3dlib/os3dpluginscb.pkg"::
+    "dms/3d/os3dlib/os3dloader.pkg"::
+    "dms/3d/os3d/os3dversion.pkg"::
+    "dms/3d/os3d/os3dlogs.pkg"::
+    "dms/3d/os3d/os3dplayer.pkg"::
+      nil
+  -> lfiles in
+  (
+    //_showconsole; //<<<<<<<<<<<<<<<<<<<<<<<< console
+	
+    /*disable when loaded from .dmc file (local-use error check)*/
+	/********* download files, create list -dnfiles- in reverse order (disabled) */
+    //downloadfilepack lfiles; /*secureDnLoad before secureLoad*/
+	
+	/*let _CRwindow _channel DMSwin 200 150 250 135 WN_MENU "Loading" -> winLoad in
+    (
+      _CRtext _channel winLoad 0 0 250 135 ET_BORDER "...";
+      _CBwinDestroy winLoad @endLoad 0
+    );*/
+ 
+    while (lfiles != nil) && (secureLoad hd lfiles) do
+    (
+      set lfiles = tl lfiles;
+	  //_DLGrflmessage (_DLGMessageBox _channel nil "Load" "a" 0) @cbVersionError nil;    
+    );
+	//set lfiles = nil;
+    
+    if (lfiles == nil) then
+    (  
+      //_DLGrflmessage (_DLGMessageBox _channel nil "Load" "OS3DPlayerLoading" 0) @cbVersionCont nil;    
+      commandToAx "OS3DPlayerLoading" "Done.";
+	  
+      // launch Player
+      initOs3dPlayer file projname pw ph fullscreen winobj;
+      0;
+    )
+    else
+    ( 
+      if (winAX == nil) then
+      (
+        _DLGrflmessage (_DLGMessageBox _channel nil "Error" "This version of OpenSpace3D Player is not compatible with your Scol Voy@ger version, please perform an update or ask the webmaster to update this projects." 0) @cbVersionError nil;
+        0;
+      )
+      else
+      ( _DLGrflmessage (_DLGMessageBox _channel nil "Error" "OS3DPlayerError" 0) @cbVersionError nil;    
+        commandToAx "OS3DPlayerError" "This version of OpenSpace3D Player is not compatible with your Scol Voy@ger version, please perform an update or ask the webmaster to uptade his projects.";
+        0;
+      );
+      0;
+    );
+  );
+  0;;
+  
+/**  main [S S S S I] I
+  *  initialize the application
+  *  
+  *  return 0
+  **/                                       /*winobj param added *********/
+fun main(file, projname, pw ,ph, fullscreen, winobj) =
+  set winAX = _GETactiveXWindow _channel WN_CHILD|WN_NOBORDER "ScolLoader";
+  if (winAX == nil) then nil else
+    _setX _channel;
+  /* full win, replace winobj has not effect *****/	
+  //set winAX = DMSwin;//winobj; 
+  
+  let getVoyagerVersion -> curver in
+  if curver < iMinVoyagerVersion then
+  (
+    if (winAX == nil) then
+    (
+      _DLGrflmessage (_DLGMessageBox _channel nil "Error" "You need a more recent Scol Voy@ger to start OpenSpace3D, you can download the last Scol Voy@ger on www.scolring.org." 0) @cbVersionError nil;
+      0;
+    )
+    else
+    (
+      commandToAx "OS3DPlayerError" "You need a more recent Scol Voy@ger to start OpenSpace3D, you can download the last Scol Voy@ger on www.scolring.org.";
+      0;
+    );
+    0;
+  )
+  else
+  (
+    commandToAx "OS3DPlayerLoading" "Loading ...";
+    loadOS3D file projname pw ph fullscreen winobj;
+    0;
+  ); 
+  /*loadOS3D file projname "640" "480" fullscreen winobj;*/
+  0;;
+  
+/*func to open openspace as 3d viewer when run client*/  
+fun os3dViewSCS(file, winobj, w, h) = 
+  //main file DMSname (itoa w) (itoa h) 0 winobj;;  
+  main file file (itoa w) (itoa h) 0 winobj;;  

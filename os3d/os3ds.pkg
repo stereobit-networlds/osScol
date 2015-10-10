@@ -1,0 +1,3570 @@
+/************************************************************************************************/
+/*                                                                                              */
+/*                 C3d3 Server - DMS - sept 99 - by Sylvain HUET                                */
+/*                    Modified March 2000 by Jocelyn DUMAY                                      */
+/*                    Modified March 2001 by Macfly                                             */
+/*                    Modified January 2003 by PaïKan                                           */
+/*                    Modified March 2015 by stereobit                                                                         */
+/************************************************************************************************/
+
+/*moved to os3dloader2.pkg ***
+var sPLUGINSPATH = "dms/3d/os3dplugins";; /**openspace plugins path**/
+typeof osfiles = [S r1];; ****/
+
+proto registerOS = fun [S] I;;
+proto registerOSPlugins = fun [S] I;;
+
+defcom CinitOSPlayerS = initOSPlayerS S S;;
+
+/************************************************************************/
+
+defcom Cpos=pos S;;
+defcom Cipos=ipos S;;
+defcom Chear=hear S;;
+defcom Cstartpos=startpos;;
+defcom Csetpos=setpos I I I I I I I I;;
+defcom Cack=ack I;;
+defcom Cendpos=endpos;;
+defcom Csetplugs=setplugs S;;
+defcom Cc3dress=c3dress S;;
+defcom CDownloadCursor=DownloadCursor;;
+defcom CForceClientSendPos=ForceClientSendPos I;;
+
+defcom Sload=_load S;;
+
+typeof C3DlauCli = [CLIENT r1];;
+
+/************************************************************************************************/
+/*                                  ARBRE DES OBJETS                                            */
+/************************************************************************************************/
+var SIZE_HASH_OBJ        = 10;;
+var NB_MAX_OB            = 1024;;
+
+var DEF_CLASSAV          = "Avatar";;
+var DEF_RIGHTS           = "rights";;
+var DEF_DEFAULTAV        = "default";;
+var DEF_FORCEDAV         = 0;;
+var TIMER_SAVE_FREQUENCY = 30000;;                          /* frequence du timer de sauvegarde */
+typeof CLIENT_DAT        = S;;                              /* nom du fichier dat cote client */
+var DAT_VERSION          = 1;;
+
+var DEFAULT_GRID_SIZE    = 50000;;
+var DEFAULT_LIGHT_BASE = "31";;
+
+
+/* Definition de la structure Mesh **************************************************************/
+struct Mesh=[
+  MeshFather            :Mesh,                              /* mesh pere                        */
+  MeshSon               :Mesh,                              /* mesh fils                        */
+  MeshBro               :Mesh,                              /* mesh frere                       */
+
+  MeshName              :S,                                 /* nom du mesh                      */
+  MeshAlias             :S,                                 /* alias du mesh                    */
+  MeshM3dPos            :[[I I I] [I I I]],                 /* position d'origine du mesh dans le m3d */
+  MeshPos               :[[I I I] [I I I]],                 /* position du mesh                 */
+  MeshOldPos            :[[I I I] [I I I]],                 /* ancienne position du mesh        */
+  MeshScale             :I,                                 /* taille du mesh                   */
+  MeshOldScale          :I,                                 /* ancienne taille du mesh          */
+  MeshObb               :I,                                 /* boite de collision               */
+  MeshLinks             :[[S S I Anchor] r1],               /* links                            */
+  MeshDel               :I                                  /* mesh + fils detruit              */
+]mkMesh;;
+
+
+/* Definition de la structure Material **********************************************************/
+struct Material=[
+  MatName               :S,                                 /* nom du materiau                  */
+  MatType               :I,                                 /* type du materiau                 */
+  MatIniType            :I,                                 /* type ini du materiau             */
+  MatTexture            :S,                                 /* nom de la texture                */
+  MatIniTexture         :S,                                 /* nom de la texture ini            */
+  MatFlatColor          :I,                                 /* couleur de flat                  */
+  MatIniFlatColor       :I,                                 /* couleur de flat ini              */
+  MatFilter             :S,                                 /* filtre de couleur                */
+  MatTransp             :I,                                 /* transparence                     */
+  MatIniTransp          :I                                  /* transparence ini                 */
+]mkMaterial;;
+
+/* Definition de la structure Atom **************************************************************/
+struct StructM3d=[
+  M3dfile               :S,                                 /* nom du fichier                   */
+  M3dMesh               :Mesh,                              /* arborescence des meshs           */
+  M3dCurrMesh           :Mesh,                              /* mesh courant                     */
+  M3dPos                :[[I I I] [I I I]],                 /* position du fichier              */
+
+  M3dMaterials          :[Material r1],                     /* liste des materiaux presents     */
+  M3dCurrentMaterial    :Material,                          /* material courant                 */
+  M3dHashMesh           :tab [[S Mesh] r1],                 /* table de hachage de recherche de meshs */
+  M3dHashAlias          :tab [[S Mesh] r1]                  /* table de hachage de recherche des alias */
+]mkStructM3d;;
+
+/* Remarque: on utilise des tables de hachages pour la recherche des meshs dans un m3d car le temps */
+/* de recherche d'un mesh dans l'arbre est beaucoup trop long (=30 ms). En effet dans une scene     */
+/* possedant 1000 objets on a un temps de chargement de 2*30*1000=1 minutes!!!                      */
+
+
+/* Definition du manager de texture *************************************************************/
+struct Texture=[
+  TmName                :S,                                 /* nom de la texture                */
+  TmMats                :[Material r1]                      /* m3ds qui reference la texture    */
+]mkTexture;;
+
+struct StructDummy=[
+  DumName               :S,                                 /* mesh                             */
+  DumPos                :[[I I I] [I I I]],                 /* position du dummy                */
+  DumLinks              :[[S S I Anchor] r1],               /* links                            */
+  DumAlias              :S                                  /* alias                            */
+]mkStructDummy;;
+
+typedef Atom= m3d StructM3d | dummy StructDummy;;           /* Atom                             */
+
+
+
+/* Definition de l'Obj3d qui est le noeud de l'arbre des objets *********************************/
+struct Obj3d=[
+  Obj3dFather           :Obj3d,                             /* pere                             */
+  Obj3dSon              :Obj3d,                             /* premier fils                     */
+  Obj3dBro              :Obj3d,                             /* frere suivant                    */
+
+  Obj3dAtom             :Atom,                              /* atome                            */
+  Obj3dIndex            :S,                                 /* index de l'objet dans l'arbre    */
+  Obj3dRef              :S,                                 /* referentiel                      */
+  Obj3dSave             :[[S r1] r1]                        /* chaine de sauvegarde             */
+]mkObj3d;;
+
+
+
+/* Definition de la structure contenant les information de la scene 3d***************************/
+struct Cel3d=[
+  Cel3dfileS            :S,                                 /* nom du fichier dat               */
+  Cel3dopenspace        :S,                                 /* openspace file *******************/    
+  Cel3dversion          :I,                                 /* version du fichier dat           */
+  Cel3dname             :S,                                 /* nom de la cellule                */
+  Cel3dspeed            :I,                                 /* vitesse                          */
+  Cel3dback             :I,                                 /* background                       */
+  Cel3dclip             :I,                                 /* clip                             */
+  Cel3dfog              :I,                                 /* fog                              */
+  Cel3dfocal            :F,                                 /* focale de la camera              */
+  Cel3dbuf              :I,                                 /* taille du buffer                 */
+  Cel3dcol              :[S I I],                           /* boite de collision de la scene   */
+  Cel3dgrav             :I,                                 /* gravite                          */
+  Cel3dphysics          :I,                                 /* activate physics */
+  CelCamerafree         :I,                                 /* activate camera free mode-maj 28/01/03 -PaiiKan-*/
+  Cel3ddarkbase         :S,                                 /* darkbase                         */
+  Cel3dinterpolate      :I,                                 /* activate avatar interpolation    */
+  Cel3dgridsize         :I,                                 /* grid position system size        */
+/* taille de la grille, en cm : les cases font cette taille, on voit uniquement dans les cases adjacentes*/
+  Cel3dapseudo          :I,                                 /* activate avatar pseudo change message */
+
+  Cel3dobj              :Obj3d,                             /* arbre des objets                 */
+  Cel3dcur              :Obj3d,                             /* objet courant                    */
+  Cel3dhashobj          :tab [Obj3d r1],                    /* table de hachage des objets      */
+  Cel3dregisteredtext   :[Texture r1],                      /* textures registered              */
+  Cel3dregisteredM3d    :[[S I] r1],                        /* m3d enregistrer                  */
+  Cel3dtemporaryReg     :[[S I] r1],                        /* fichiers temporaires enregistrés */
+  Cel3dmodified         :I,                                 /* cellule a ete modifiée           */
+  Cel3dsavedtodisk      :I,                                 /* cellule a ete sauvée sur disque  */
+  Cel3dautosave         :I,                                 /* autosave cellule                 */
+  Cel3dautosavedelay    :I,                                 /* autosave cellule delay           */
+  Cel3dmodifiedregister :I,                                 /* modification des registers de fic*/
+  Cel3dverDummy         :I,                                 /* 1 <=> new cad avec {}            */
+                                                            /* 0 <=> old                        */
+  Cel3dencDummy         :I,                                 /* indique si on est  en train de   */
+                                                            /* traiter un dummy                 */
+
+  Cel3dLight            :[S [I I I] [I I I]],               /* lumiere                          */
+  Cel3dIpos             :[[S [I I I] [I I I]]r1],           /* positions                        */
+
+  Cel3dDefAnchors       :[[S [S r1]]r1],                    /* liste des ancres                 */
+  Cel3dClassAvat        :S,                                 /* classe d'avatars                 */
+  Cel3dDefaultAvat      :S,                                 /* avatar par defaut                */
+  Cel3dForcedAvat       :I,                                 /* avatar force                     */
+  Cel3drightsRess       :S,                                 /* ressourde des droits             */
+  Cel3dmaxOb            :I,                                 /* nombr emax d'avatars             */
+  Cel3dressS            :S,                                 /* ressource serveur                */
+  Cel3dress             :[[S r1]r1],                        /* ressource                        */
+
+  Cel3dpluginS          :[S r1],                            /* liste de plugins                 */
+  Cel3dsupppluginS      :[[S r1] r1],                       /* liste des plugins supplementaires*/
+  Cel3dinstanceS        :[[S S S [[S r1]r1]] r1],           /* liste des instances              */
+  Cel3dtimerSave        :Timer                              /* timer de sauvegarde              */
+]mkCel3d;;
+
+
+typeof cel              =Cel3d;;                            /* la cellule 3d                    */
+
+/************** fonctions utils ******************/
+fun compTexture(text,text2)=!strcmpi text.TmName text2;;
+fun compMaterial(elt,mat)=!strcmp elt.MatName mat;;
+fun compMatRef(mat1,mat2)=mat1==mat2;;
+fun compMeshName(n,s)=!strcmp n.MeshName s;;
+fun compMeshAlias(n,s)=if n.MeshAlias==nil then 0 else !strcmp n.MeshAlias s;;
+fun compMeshNdx(t,s)=let t -> [ndx _] in !strcmp ndx s;;
+fun compIndex(o1,ndx)=(htoi o1.Obj3dIndex)==ndx;;
+fun suppDoublon(s1,s2)=strcmpi s1 s2;;
+fun compLink(s1,s2)=!strcmp s1 s2;;
+fun compPos(pos,s)=let pos -> [n _ _] in !strcmp n s;;
+fun compRegM3d(m,s)=let m -> [n _] in !strcmp n s;;
+
+/*****************************************
+Fonction qui renvoie l'indice du 1er .
+dans la chaine s
+*****************************************/
+fun search_point(s)=
+ let strlen s->l in
+ let 0-> i in
+  (while i<l && (nth_char s i)!='. do set i=i+1;
+   i);;
+
+/*****************************************
+Fonction qui renvoie l'indice du dernier /
+dans la chaine s
+*****************************************/
+fun search_slash(s)=
+  let strlen s -> l in
+  let l-1-> i in
+  (while i>=0 && (nth_char s i)!='/ do set i=i-1;
+   i);;
+/*****************************************
+Fonction qui renvoie l'indice du dernier %
+dans la chaine s
+*****************************************/
+fun search_last_percent(s)=
+  let strlen s -> l in
+  let 1 -> i in
+   (while i<l && (nth_char s i)!='% do set i=i+1;
+   i);;
+
+fun test_(s)=if strcmp s "_" then s else nil;;
+
+/*****************************************
+Fonction de creation d'un nouveau materiau
+******************************************/
+fun newMaterial(n)= mkMaterial[n MAT_LIGHT MAT_LIGHT nil nil 0 0 nil 0 0];;
+
+/*****************************************
+Fonction de recherche d'un materiau dans
+un m3d
+******************************************/
+fun searchMaterial(m3d,mat)= search_in_list m3d.M3dMaterials @compMaterial mat;;
+
+/*****************************************
+Fonction qui ajoute une texture à la liste
+  l: liste des textures
+  text: S nom de la texture
+  mat:  Material materiau qui reference la
+        texture
+  register: 1 <-> register de la texture
+            0 <-> pas d'enregistrement
+Renvoie la nouvelle liste des textures
+******************************************/
+fun addTexture(l,text,mat,register)=
+  if text==nil then l
+  else
+    let search_in_list l @compTexture text -> find in
+    if find!=nil then
+    (
+      if (search_in_list find.TmMats @compMatRef mat)==nil then
+        set find.TmMats=mat::find.TmMats
+      else nil;
+      l
+    )
+    else
+    (
+      if register then _RSregister this text RSfile|RScontrol text else nil;
+      (mkTexture[text mat::nil])::l
+    );;
+
+/*****************************************
+Fonction qui supprime une texture de la liste
+  l: liste des textures
+  texture: nom de la texture
+  mat: Material materiau referancant la
+       texture
+Renvoie la nouvelle liste des textures
+******************************************/
+fun removeTexture(l,text,mat)=
+  let search_in_list l @compTexture text -> find in
+  if find!=nil then
+  (
+    set find.TmMats=remove_from_list find.TmMats mat;
+    if find.TmMats==nil then
+    (
+      /* plus besoin de garder la texture */
+      _RSunregister this text;
+      set l=remove_from_list l find;
+    )
+    else l
+  )
+  else l;;
+
+/*******************************************
+Fonction qui reset la liste des textures
+registered
+********************************************/
+fun rstTexture(l)=
+  if l==nil then l
+  else
+    let l-> [t nxt] in
+    (
+      _RSunregister this t.TmName;
+      rstTexture nxt;
+    );;
+
+/*****************************************
+Fonction d'ajout d'un fichier la liste l
+les fichiers en register passés en parametre
+  l:liste des m3d deja referencée
+  f:m3d
+  register:1 <-> enregistrement des textures
+           0 <-> pas d'enregistrement
+Renvoie la nouvelle liste des M3d
+*****************************************/
+fun addRegM3d(f,l,register)=
+  let search_in_list l @compRegM3d f -> res in
+  if res==nil then
+  (
+    if register then
+      _RSregister this f RSfile|RScontrol f
+    else nil;
+    [f 1]::l
+  )
+  else
+  (
+    let res -> [_ i] in
+    mutate res <- [_ i+1];
+    l
+  );;
+
+/*******************************************
+Fonction qui supprime un fichier m3d de la
+liste des fichiers m3d
+Renvoie la nouvelle liste des M3d
+********************************************/
+fun removeRegM3d(l,f)=
+  let search_in_list l @compRegM3d f -> find in
+  let find -> [_ i] in
+  if i==nil then l
+  else if i==1 then
+  (
+    _RSunregister this f;
+    set l=remove_from_list l find;
+  )
+  else
+  (
+    mutate find <- [_ i-1];
+    l
+  );;
+
+
+/*****************************************
+Fonction d'evaluation de l'index d'un mesh
+dans la table de hachage des meshs
+******************************************/
+fun evalHashNdx(s)=
+  let ((nth_char s 0)+(nth_char s 1))&255 -> x in if x==nil then 0 else x;;
+
+/*****************************************
+Fonction qui ajoute un mesh dans la table
+de hachage
+******************************************/
+fun addHash(hash,s,m)=
+  if s==nil || m==nil then nil
+  else
+    let evalHashNdx s -> ndx in
+    set hash.ndx=[s m]::hash.ndx;
+  hash;;
+
+/*****************************************
+Fonction de recherche d'un element dans
+une table de hachage
+Renvoie le mesh trouvé
+******************************************/
+fun searchHashMesh(hash,s,f)=
+  if s==nil then nil
+  else
+    let evalHashNdx s -> ndx in
+    let search_in_list hash.ndx f s -> [_ m] in
+    m;;
+
+
+/*****************************************
+Fonction d'ajout d'un Mesh dans l'arbre
+en tant que premier fils de p
+    n: S    nom du mesh
+    p: Mesh pere
+    i: I    mesh supprime ou pas
+Renvoie l'Obj3d nouvellement crée
+******************************************/
+fun newMesh(n,p,pos,scale,i,hash)=
+  let if scale==nil then 100 else scale -> sc in
+  let mkMesh[p nil nil n nil pos pos nil sc sc 0 nil i] -> m in
+  (
+    addHash hash n m;
+    if (p!=nil) then
+    ( set m.MeshBro=p.MeshSon;
+      set p.MeshSon=m
+    )
+    else m
+  );;
+
+/*****************************************
+Fonction de recherche d'un mesh dans un
+m3d suivant son nom
+Renvoie le Mesh trouvé
+******************************************/
+fun searchMeshName(m,s)=
+  searchHashMesh m.M3dHashMesh s @compMeshNdx;;
+
+/*****************************************
+Fonction de recherche d'un mesh dans un m3d
+suivant son alias
+Renvoie le Mesh trouvé
+******************************************/
+fun searchMeshAlias(m,s)=
+  searchHashMesh m.M3dHashAlias s @compMeshNdx;;
+
+
+
+
+/*****************************************
+Fonction recursive de recherche d'un mesh par
+son nom. Cette recherche est premier fils d'abord
+    n    : Mesh        mesh courant
+    param: S           nom du mesh à trouver
+Renvoie le Mesh trouve ou nil sinon
+*****************************************/
+/*fun searchMesh(n,func,param)=
+  if n==nil || param==nil then nil
+  else if exec func with [n param] then n
+  else let searchMesh n.MeshSon func param -> son in
+       if (son!=nil) then son
+       else let searchMesh n.MeshBro func param -> bro in
+            if bro!=nil then bro
+            else nil;;
+*/
+
+/*****************************************
+Fonction qui change la position  d'un mesh
+    m:  Mesh     mesh
+    pos:         position du mesh
+Renvoie le mesh modifie
+******************************************/
+fun setMeshPos(m,pos)=
+  if m!=nil then
+  (
+    if m.MeshOldPos==nil then
+      set m.MeshOldPos=m.MeshPos
+    else nil;
+    set m.MeshPos=pos;
+    m
+  )else nil;;
+
+/*****************************************
+Fonction qui test si deux positions sont
+differentes
+Renvoie 1 si different 0 sinon
+******************************************/
+fun diffPos(pos1,pos2)=
+  let pos1 -> [[x1 y1 z1][a1 b1 c1]] in
+  let pos2 -> [[x2 y2 z2][a2 b2 c2]] in
+  (x1!=x2)||(y1!=y2)||(z1!=z2)||(a1!=a2)||(b1!=b2)||(c1!=c2);;
+
+/*******************************************
+Fonction qui met à jour l'etat supprime d'un
+mesh et de ses fils et de ses freres
+********************************************/
+fun recursiveMeshDel(m,i)=
+  if m==nil then 0
+  else
+  (
+    set m.MeshDel=i;
+    recursiveMeshDel m.MeshSon i;
+    recursiveMeshDel m.MeshBro i;
+  );;
+
+/*******************************************
+Fonction qui met à jour l'etat supprime d'un
+mesh et de ses fils seulement
+********************************************/
+fun setMeshDel(m,i)=
+  if m==nil then 0
+  else
+  (
+    set m.MeshDel=i;
+    recursiveMeshDel m.MeshSon i;
+  );;
+
+
+fun searchLinkInAnchor(an,ln)=
+  let an -> [_ l] in
+  (search_in_list l @compLink ln)!=nil;;
+
+/*****************************************
+fonction de destruction des liens
+******************************************/
+fun delLinks(l)=
+  if l==nil then 0
+  else
+    let l -> [[ln _ _ _] nxt] in
+    (
+      let search_in_list cel.Cel3dDefAnchors @searchLinkInAnchor ln -> anchor in
+        if anchor!=nil then
+          /* destruction de l'ancre */
+          set cel.Cel3dDefAnchors =remove_from_list cel.Cel3dDefAnchors anchor
+        else nil;
+      delLinks nxt
+    );;
+
+
+fun ANCHOR_ClearAnchorInstance (anchorlist, instanceanchorlist) =
+  if instanceanchorlist == nil then
+    anchorlist
+  else
+    if anchorlist == nil then
+      nil
+    else
+      let hd anchorlist -> [name _] in
+        if !strcmpi "# " (substr name 0 2) then
+          if isf_in_list instanceanchorlist @STRING_Compare name then
+            (hd anchorlist)::(ANCHOR_ClearAnchorInstance (tl anchorlist) instanceanchorlist)
+          else
+            (ANCHOR_ClearAnchorInstance (tl anchorlist) instanceanchorlist)
+        else
+          (hd anchorlist)::(ANCHOR_ClearAnchorInstance (tl anchorlist) instanceanchorlist)
+;;
+
+fun ANCHOR_CompareName (anchorTuple, name) =
+  let anchorTuple -> [nameA _] in
+    !strcmpi nameA name
+;;
+
+fun ANCHOR_AddAnchorInstance (instanceanchorlist, anchorlist) =
+  if instanceanchorlist == nil then
+    anchorlist
+  else
+    let hd instanceanchorlist -> name in
+      if isf_in_list anchorlist @ANCHOR_CompareName name then
+        (ANCHOR_AddAnchorInstance (tl instanceanchorlist) anchorlist)
+      else
+        ([name nil])::(ANCHOR_AddAnchorInstance (tl instanceanchorlist) anchorlist)
+;;
+
+fun INSTANCE_GetDynamicAnchorList (instancelist) =
+  if instancelist == nil then
+    nil
+  else
+    let hd instancelist -> [_ _ anch _] in
+      if (anch == nil) || (strcmpi "# " substr anch 0 2) then
+        (INSTANCE_GetDynamicAnchorList tl instancelist)
+      else
+        anch::(INSTANCE_GetDynamicAnchorList tl instancelist)
+;;
+
+fun ANCHOR_UpdateListFromInstanceList (cel) =
+  let INSTANCE_GetDynamicAnchorList cel.Cel3dinstanceS -> instanceanchorlist in
+    set cel.Cel3dDefAnchors =
+      ANCHOR_AddAnchorInstance
+        instanceanchorlist
+        ANCHOR_ClearAnchorInstance cel.Cel3dDefAnchors instanceanchorlist;
+  0
+;;
+
+proto delAsso = fun [Mesh S] I;;
+
+/******************************************
+Fonction de destruction recursive des liens
+sur les meshs
+*******************************************/
+fun delMeshAsso(m, ndx)=
+  if m==nil then 0
+  else
+  (
+    delAsso m ndx;
+    delMeshAsso m.MeshBro ndx;
+    delMeshAsso m.MeshSon ndx;
+  );;
+
+fun invertRgb(s)=
+  strcatn (substr s 4 2)::(substr s 2 2)::(substr s 0 2)::nil;;
+
+/*****************************************
+Fonction recursive d'analyse d'un fichier
+m3d
+    l: [[S r1] r1]        contenu du fichier
+    m: Mesh               mesh parent
+    i: I                  nbre de debut meshs trouvés
+    sup :I                mesh supprime
+    hash:tab [[S Mesh]r1] table de hachage des meshs
+Renvoie la liste des materiaux presents
+dans le m3d
+*****************************************/
+fun AnalyseM3d(l,m,listmat,i,j,sup,hash)=
+  if l==nil then listmat
+  else let hd l -> line in
+  let hd line -> s in
+  if (!strcmp s "material") then
+    AnalyseM3d tl l m (newMaterial nth_list line 1)::listmat i j sup hash
+  else if (!strcmp s "color") then
+    let hd listmat -> mat in
+    (
+      set mat.MatIniFlatColor=set mat.MatFlatColor=htoi invertRgb nth_list line 1;
+      AnalyseM3d tl l m listmat i j sup hash
+    )
+  else if (!strcmp s "texture") then
+    let hd listmat -> mat in
+    (
+      set mat.MatIniType=set mat.MatType=mat.MatType|MAT_TEXTURED;
+      set mat.MatIniTexture=set mat.MatTexture=nth_list line 1;
+      AnalyseM3d tl l m listmat i j sup hash
+    )
+  else if (!strcmp s "type") then
+    let hd listmat -> mat in
+    let nth_list line 1 -> p in
+    (
+      if !strcmp p "NOLIGHT" then
+        set mat.MatIniType=set mat.MatType=(~MAT_LIGHT)&mat.MatType
+      else if !strcmp p "LIGHT" then
+        set mat.MatIniType=set mat.MatType=MAT_LIGHT|mat.MatType
+      else if !strcmp p "GOURAUD" then
+        set mat.MatIniType=set mat.MatType=MAT_GOURAUD|mat.MatType
+      else if !strcmp p "ENV" then
+        set mat.MatIniType=set mat.MatType=MAT_ENV|mat.MatType
+      else if strfind p "TRANSPARENCY" 0 then
+      (
+        set mat.MatIniTransp=set mat.MatTransp=atoi substr p 12 10000;
+        set mat.MatIniType=set mat.MatType=MAT_TRANSP|mat.MatType
+      )
+      else nil;
+      AnalyseM3d tl l m listmat i j sup hash
+    )
+  else if (!strcmp s "mesh") || (!strcmp s "shell") then
+    let hd tl l -> pos in
+    AnalyseM3d tl l newMesh nth_list line 1
+                            m
+                            [[atoi nth_list pos 0 atoi nth_list pos 1 atoi nth_list pos 2]
+                             [atoi nth_list pos 3 atoi nth_list pos 4 atoi nth_list pos 5]]
+                            atoi nth_list pos 6
+                            sup
+                            hash
+                    listmat
+                    i+1 j sup hash
+  else if (!strcmp s "coll") then
+    AnalyseM3d tl l m listmat i+1 j+1 sup hash
+  else if (!strcmp s "}") && i>0 && j==0 then
+    AnalyseM3d tl l m.MeshFather listmat i-1 j sup hash
+  else if (!strcmp s "}") && j>0 then
+    AnalyseM3d tl l m listmat i-1 j-1 sup hash
+  else
+    AnalyseM3d tl l m listmat i j sup hash;;
+
+/*****************************************
+Fonction de creation d'un atome M3d
+    n: S           path du m3d
+    i: I           info sur la version
+Renvoie le noeud m3d cree
+*****************************************/
+fun newM3d(n,i)=
+  let mkStructM3d[n nil nil nil nil nil mktab 256 nil mktab 256 nil] -> m in
+  ( set m.M3dMaterials=AnalyseM3d strextr _getpack _checkpack n
+                                  (set m.M3dMesh=newMesh nil nil nil nil i m.M3dHashMesh)
+                                  nil
+                                  0
+                                  0
+                                  i
+                                  m.M3dHashMesh;
+    (m3d m)
+  );;
+
+/*****************************************
+Fonction d'ajout des textures presentes
+dans la liste des materiaux d'un m3d
+passés en parametre
+  l:liste des materiaux de obj3d
+  lres:liste des Textures deja referencée
+  register:1 <-> enregistrement des textures
+           0 <-> pas d'enregistrement
+Renvoie la nouvelle liste des Textures
+*****************************************/
+fun addM3dRegisteredText(l,lres,register)=
+  if l==nil then lres
+  else let l -> [mat nxt] in
+    addM3dRegisteredText nxt (addTexture lres mat.MatTexture mat register) register;;
+
+/*****************************************
+Fonction de suppression des textures
+presentes dans la liste des materiaux
+d'un m3d  passés en parametre
+  l:liste des materiaux de obj3d
+  lres:liste des Textures deja referencée
+  register:1 <-> enregistrement des textures
+           0 <-> pas d'enregistrement
+Renvoie la nouvelle liste des Textures
+*****************************************/
+fun remM3dRegisteredText(l,lres)=
+  if l==nil then lres
+  else let l -> [mat nxt] in
+    remM3dRegisteredText nxt (removeTexture lres mat.MatTexture mat);;
+
+
+/*****************************************
+Fonction de creation d'un atome Dummy
+*****************************************/
+fun newDummy(n)=
+  (dummy mkStructDummy[n nil nil nil]);;
+
+
+/*****************************************
+Fonction d'initialisation de la position
+d'un atome
+  a:    Atom              atome
+  pos:  [[I I I][I I I]]  position
+*****************************************/
+fun setAtomPos(a,pos)=
+  match a with
+  (m3d m -> set m.M3dPos=pos)
+  |(dummy d -> set d.DumPos=pos)
+  |(_ -> nil);;
+
+/*****************************************
+Fonction renvoyant la position d'un atome
+  a:    Atom              atome
+*****************************************/
+fun getAtomPos(a)=
+  match a with
+  (m3d m -> m.M3dPos)
+  |(dummy d -> d.DumPos)
+  |(_ -> nil);;
+
+/*****************************************
+Fonction mettant à jour l'alias d'un atome
+  a:    Atom              atome
+******************************************/
+fun setAtomAlias(a,old,new)=
+  match a with
+  (m3d m -> let searchMeshName m old -> mesh in
+            if mesh==nil then 0
+            else
+            (
+              addHash m.M3dHashAlias new mesh;
+              set mesh.MeshAlias=new;
+              0
+            )
+  )
+  |(dummy d -> (set d.DumAlias=new;0))
+  |(_ -> nil);
+  a;;
+
+
+/******************************************
+Fonction d'ajout d'un lien à un atom
+  a:    Atom              atome
+  name: S                 nom de l'objet
+  m:    S                 materiau
+  i:    I                 click
+******************************************/
+fun addAtomLink(name,a,obj,mat,i)=
+
+  match a with
+  (m3d m -> (let searchMeshAlias m obj -> ralias in
+             let if ralias!=nil then ralias
+                 else searchMeshName m obj -> mesh in
+             let [name mat i objAnchor [mesh.MeshName i]]-> link in
+             set mesh.MeshLinks=link::mesh.MeshLinks;
+             nil
+            )
+  )
+  |(dummy d -> (let [name mat i objAnchor [obj i]]-> link in
+                set d.DumLinks=link::d.DumLinks;
+                nil
+               )
+  )
+  |(_ -> 0);;
+
+
+/*****************************************
+Fonction de destruction d'un atome
+******************************************/
+fun delAtom(a, ndx)=
+  match a with
+  (m3d m -> (
+             set cel.Cel3dregisteredM3d=removeRegM3d cel.Cel3dregisteredM3d m.M3dfile;
+             set cel.Cel3dregisteredtext=remM3dRegisteredText m.M3dMaterials cel.Cel3dregisteredtext;
+             set m.M3dHashMesh=mktab 256 nil;
+             set m.M3dHashAlias=mktab 256 nil;
+             delMeshAsso m.M3dMesh ndx;
+            )
+  )
+  |(dummy d -> delLinks d.DumLinks)
+  |(_ -> nil);
+  0;;
+
+
+/*****************************************
+Fonction de creation d'un Obj3d dans l'arbre
+en tant que premier fils de p
+    n: Node  m3d ou dummy
+    p: Obj3d pere
+Renvoie l'Obj3d nouvellement crée
+******************************************/
+fun newObj3d(n,p)=
+  let mkObj3d[p nil nil n nil nil nil] -> o in
+  (set o.Obj3dIndex=if (p!=nil) then
+                    ( set o.Obj3dBro=p.Obj3dSon;
+                      set p.Obj3dSon=o;
+                      nil
+                    )else "0";
+    o
+  );;
+
+
+/*****************************************
+Fonction de destruction recursive
+d'un Obj3d et de ses fils et freres
+    n: Node  m3d ou dummy
+******************************************/
+fun delObj3d(o)=
+  if o==nil then nil
+  else
+  (
+    delObj3d o.Obj3dSon;
+    delObj3d o.Obj3dBro;
+    delAtom o.Obj3dAtom o.Obj3dIndex
+  );;
+
+/*****************************************
+Fonction d'ajout des textures presentes
+dans la liste des materiaux d'un m3d
+passés en parametre
+  o :Obj3d referencant la liste des
+        materiaux
+  lres:liste des Textures deja referencée
+  register:1 <-> enregistrement des textures
+           0 <-> pas d'enregistrement
+Renvoie la nouvelle liste des Textures
+*****************************************/
+fun addObj3dRegisteredText(o,lres,register)=
+  match o.Obj3dAtom with
+  (m3d m -> addM3dRegisteredText m.M3dMaterials lres register)
+  |(_ -> nil);;
+
+fun addObj3dRegisteredFile(o,lres,register)=
+  match o.Obj3dAtom with
+  (m3d m -> addRegM3d m.M3dfile lres register)
+  |(_ -> nil);;
+
+
+/****************************************
+Fonction qui ajoute un Obj3d dans la liste
+triée suivant les indexes
+*****************************************/
+fun addObj3dToListHash(l,o)=
+  if l==nil then o::nil
+  else let hd l -> cur in
+    if (htoi cur.Obj3dIndex) > (htoi o.Obj3dIndex) then o::l
+    else cur::addObj3dToListHash tl l o;;
+
+/****************************************
+Fonction qui evalue l'index libre dans une
+liste d'Obj3d appartenant à la table de
+hachage
+*****************************************/
+fun emptyIndex(l,ndx,i)=
+  if l==nil then i
+  else
+    let hd l -> cur in
+    if (htoi cur.Obj3dIndex)>(ndx+i*SIZE_HASH_OBJ) then i
+    else emptyIndex tl l ndx i+1;;
+
+/****************************************
+Fonction qui evalue l'index libre dans la
+table de hachage des Obj3d et l'insere
+à la bonne place
+*****************************************/
+fun searchAndAddEmptyHash(t,o)=
+  if t==nil || o==nil then nil
+  else
+    let sizelist t.0 -> ndx in
+    let 0 -> find in
+    let 0 -> i in
+    (
+      while i<SIZE_HASH_OBJ && !find do
+      (
+        let emptyIndex t.i i 0 -> tmpndx in
+        if tmpndx<ndx then
+        (set find=1;
+         set ndx=tmpndx
+        )
+        else
+          set i=i+1;
+      );
+      if !find then set i=0 else nil;
+      set o.Obj3dIndex=itoh (i+ndx*SIZE_HASH_OBJ);
+      set t.i=addObj3dToListHash t.i o
+    );;
+
+
+
+/****************************************
+Fonction qui recherche dans la table de
+hachage
+*****************************************/
+fun searchObj3dIndexHash(c,ndxhexa)=
+  let htoi ndxhexa -> ndx in
+  let mod ndx SIZE_HASH_OBJ -> ndxtab in
+  search_in_list c.Cel3dhashobj.ndxtab @compIndex ndx;;
+
+/****************************************
+Fonction qui ajoute un Obj3d dans la table
+de hachage suivant son indexe
+renvoie l'Obj3d
+*****************************************/
+fun checkObj3dIndex(t,o)=
+  if t==nil || o==nil then nil
+  else if o.Obj3dIndex==nil then
+    searchAndAddEmptyHash t o
+  else
+    let mod htoi o.Obj3dIndex SIZE_HASH_OBJ -> ndx in
+    set t.ndx=addObj3dToListHash t.ndx o;
+  o;;
+
+
+/****************************************
+Fonction qui enleve un Obj3d dans la table
+de hachage suivant son index
+*****************************************/
+fun remObj3dInHash(c,o)=
+  if c==nil|| o==nil then nil
+  else
+    let htoi o.Obj3dIndex -> ndx in
+    let mod ndx SIZE_HASH_OBJ -> ndxtab in
+    set c.Cel3dhashobj.ndxtab=removef_from_list c.Cel3dhashobj.ndxtab @compIndex ndx;
+  c;;
+
+/****************************************
+Fonction qui reset la table de hachage
+*****************************************/
+fun rstHash(t,i)=
+  if t==nil || i>=SIZE_HASH_OBJ then t
+  else
+  (
+    set t.i=nil;
+    rstHash t i+1
+  );;
+
+/*****************************************
+Fonction de creation d'une cellule 3d
+Renvoie le Cel3d nouvellement crée
+******************************************/
+fun newCel3d()= /*second nil into mkCel3d added for openspace file */
+  let newObj3d nil nil -> o in
+  let mkCel3d[nil nil 0 nil nil nil nil nil nil nil nil nil 1 0 nil 0 DEFAULT_GRID_SIZE 1
+              o o (mktab SIZE_HASH_OBJ nil) nil nil nil 0 0 0 TIMER_SAVE_FREQUENCY 0 0 0 nil nil nil
+              DEF_CLASSAV DEF_DEFAULTAV DEF_FORCEDAV DEF_RIGHTS NB_MAX_OB nil nil nil nil nil nil]
+  -> c in
+  ( checkObj3dIndex c.Cel3dhashobj o;
+    c
+  );;
+
+/* Fonctions de sauvegarde de l'architecture d'une cellule 3d*********************************************/
+fun conc(p,q)=
+ if p==nil then q
+ else (hd p)::conc (tl p) q;;
+
+
+/********************************************
+Fonction de creation la liste des liens
+  l: liste
+renvoie un [[S r1]r1]
+*********************************************/
+fun CrSaveLinks(n,l)=
+  if l==nil then nil
+  else let hd l -> [name mat i _] in
+    ("link"::name::(if (!strcmp mat "") then n else strcat strcat n "." mat)::(itoa i)::nil)::CrSaveLinks n tl l;;
+
+/**********************************************
+Fonction recursive de creation de la liste
+de sauvegarde des differentes modifications
+d'un m3d
+   m:   Mesh      mesh courant
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveMesh(m)=
+  if m==nil then nil
+  else if m.MeshName==nil then
+    CrSaveMesh m.MeshSon
+  else
+  (
+    /*_fooS strcatn "CrSaveMesh: "::m.MeshName::(itoa m.MeshDel)::" "::(if m.MeshOldPos==nil then "nil" else "nonil")::" "::(itoa m.MeshScale)::" "::
+    (itoa m.MeshOldScale)::" "::(itoa m.MeshObb)::nil;*/
+    conc (if m.MeshAlias!=nil then ("alias"::m.MeshName::m.MeshAlias::nil)::nil else nil)
+    conc (if !m.MeshDel && (m.MeshOldPos!=nil || m.MeshScale!=m.MeshOldScale || m.MeshObb==1) then
+              let m.MeshPos -> [[x y z][a b c]] in
+              ("obj"::m.MeshName::(itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)
+                ::(itoa m.MeshObb)
+                ::(itoa m.MeshScale)
+                ::nil
+              )::nil
+          else nil
+         )
+    conc CrSaveLinks m.MeshName m.MeshLinks
+    conc CrSaveMesh  m.MeshBro
+         CrSaveMesh  m.MeshSon
+  )
+;;
+
+/**********************************************
+Fonction recursive de creation de la liste
+de sauvegarde des differents meshs supprimés
+   m:   Mesh      mesh courant
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveMeshDel(m)=
+  if m==nil then nil
+  else if m.MeshName==nil then
+    CrSaveMeshDel m.MeshSon
+  else if m.MeshDel then
+    ("delobj"::m.MeshName::nil)::CrSaveMeshDel m.MeshBro
+  else
+    CrSaveMeshDel m.MeshBro
+;;
+
+/**********************************************
+Fonction qui renvoie la liste des differents
+materiaux
+  l: [Material r1] liste des materiaux
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveMaterials(l)=
+  if l==nil then nil
+  else let l -> [mat nxt] in
+     conc ( /*if mat.MatIniType==mat.MatType &&
+             (!strcmpi mat.MatIniTexture mat.MatTexture) &&
+             mat.MatIniFlatColor==mat.MatFlatColor &&
+             mat.MatIniTransp==mat.MatTransp
+            then nil
+            else*/
+               ("material"::
+                   mat.MatName::
+                   (itoh mat.MatType)::
+                   (itoh mat.MatFlatColor)::
+                   (if mat.MatTransp==nil then "-1" else itoa mat.MatTransp)::
+                   (if mat.MatType&MAT_TEXTURED then
+                       if mat.MatFilter==nil then mat.MatTexture::nil
+                       else (strcatn "%"::mat.MatFilter::"%"::mat.MatTexture::nil)::nil
+                    else nil
+                   )
+                 )::nil
+          )
+          CrSaveMaterials nxt
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+d'un m3d pour le serveur
+   m:     StructM3d      m3d
+   ndx:   S              index
+renvoie un [[S r1]r1]
+Remarque: le } fermant n'est pas ajouté à la fin
+***********************************************/
+fun CrSaveM3d(m,ndx,ref)=
+  if (m==nil)||(m.M3dfile==nil) then nil
+  else
+    conc ("m3d"::m.M3dfile::(if m.M3dPos!=nil then let m.M3dPos ->[[x y z][a b c]] in
+                              (itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)::"{"::nil
+                             else "{"::nil
+                            ))::
+         ("index"::ndx::nil)::
+         ("ref"::ref::nil)::nil
+    conc CrSaveMesh m.M3dMesh
+    conc CrSaveMeshDel m.M3dMesh
+         CrSaveMaterials m.M3dMaterials
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+d'un dummy sur le serveur
+   m:   StructDummy      dummy
+   s:   S                index de l'Obj3d
+renvoie un [[S r1]r1]
+Remarque: le } fermant n'est pas ajouté à la fin
+***********************************************/
+fun CrSaveDummy(d,ndx,ref)=
+  if (d==nil) then nil
+  else let d.DumPos ->[[x y z][a b c]] in
+     conc ("dummy"::d.DumName::(itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)::"{"::nil)
+          ::("index"::ndx::nil)
+          ::("ref"::ref::nil)
+          ::nil
+     conc (if d.DumAlias!=nil then ("alias"::d.DumName::d.DumAlias::nil)::nil else nil)
+          CrSaveLinks d.DumName d.DumLinks
+;;
+
+/**********************************************
+Fonction qui construit la chaine de caractere à
+sauvegarder pour un objet 3d donné sur le serveur
+   o:   Objet3d      objet
+Renvoie un S
+Remarque: le } fermant n'est pas ajouté à la fin
+***********************************************/
+fun CrSaveObj3d(o)=
+  if (o==nil) || (o.Obj3dAtom==nil) then nil
+  else
+    set o.Obj3dSave=match o.Obj3dAtom with
+                    (m3d m ->CrSaveM3d m o.Obj3dIndex o.Obj3dRef)
+                    |(dummy d ->CrSaveDummy d o.Obj3dIndex o.Obj3dRef)
+                    |(_ -> nil)
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+des positions
+   l:     liste des positions
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveIpos(l)=
+  if l==nil then nil
+  else let hd l -> [n [x y z][a b c]] in
+      ("ipos"::n::(itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)::nil)::CrSaveIpos tl l
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+des ancres
+   l:     liste des ancres
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveAnchor(l)=
+  if l==nil then nil
+  else let hd l -> [n s] in
+      ("anchor"::n::s)::CrSaveAnchor tl l
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+des plugins
+   l:     liste des plugins
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSavePluggins(l)=
+  if l==nil then nil
+  else ("plugin"::(hd l)::nil)::CrSavePluggins tl l
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+des suppplugins
+   l:     liste des suppplugins
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveSupPluggins(l)=
+  if l==nil then nil
+  else ("suppplugin"::hd l)::CrSaveSupPluggins tl l
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+des instances
+   l:     liste des instances
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveInstances(l)=
+  if l==nil then nil
+  else let hd l -> [class name anch param] in
+       ("instance"::
+        name::
+        class::
+        (if anch==nil then "_" else anch)::
+        (if param==nil then "_" else (strbuild param))
+        ::nil
+       )::CrSaveInstances tl l;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+des noms de textures à registrer
+   l:     liste des textures
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveRegisteredTextures(l)=
+  if l==nil then
+    nil
+  else
+    let l -> [text nxt] in
+      text.TmName::CrSaveRegisteredTextures nxt
+;;
+
+/**********************************************
+Fonction de creation de la liste de sauvegarde
+des noms de m3d à registrer
+   l:     liste des m3d
+renvoie un [[S r1]r1]
+***********************************************/
+fun CrSaveRegisteredM3d(l)=
+  if l==nil then
+    nil
+  else
+    let l -> [[f _] nxt] in
+      f::CrSaveRegisteredM3d nxt
+;;
+
+/**********************************************
+Fonction recursive de sauvegarde d'un objet 3d
+   f:   W           fichier de sauvegarde
+   o:   Obj3d       objet 3d
+Renvoie I
+***********************************************/
+fun getSaveObj3d(o)=
+  if (o==nil) then
+    nil
+  else
+    if (o.Obj3dAtom==nil) then
+      getSaveObj3d o.Obj3dSon
+    else
+      conc o.Obj3dSave
+      conc getSaveObj3d o.Obj3dSon
+      conc if (o.Obj3dSave !=nil) then ("}"::nil)::nil else nil
+           getSaveObj3d o.Obj3dBro
+;;
+
+/**********************************************
+Fonction de sauvegarde de la cellule 3d
+   n:   S           path du fichier de sauvegarde
+   c:   Cel3d       cellule 3d à sauvegarder
+***********************************************/
+fun getSaveCel3d(c,func)=
+  if c==nil then nil
+  else
+      /* sauvegarde des proprietes generales de la scene*/
+      conc  ("name"::c.Cel3dname::nil)
+            ::("version"::(itoa c.Cel3dversion)::nil)
+            ::("buffersize"::(itoa c.Cel3dbuf)::nil)
+            ::("speed"::(itoa c.Cel3dspeed)::nil)
+            ::("background"::(itoh c.Cel3dback)::nil)
+            ::("backclip"::(itoa c.Cel3dclip)::(itoa c.Cel3dfog)::nil)
+            ::("focal"::(ftoa c.Cel3dfocal)::nil)
+            ::("openspacefile"::c.Cel3dopenspace::nil)			
+            ::nil
+      conc  (if c.Cel3dcol!=nil then let c.Cel3dcol -> [n i j] in
+                ("inbox"::n::(itoa i)::(itoa j)::nil)::nil
+             else nil
+            )
+      conc  ("gravity"::(if c.Cel3dgrav == nil then nil else (itoa c.Cel3dgrav))::nil)
+            ::("physics"::(itoa c.Cel3dphysics)::nil)
+            ::("camfree"::(itoa c.CelCamerafree)::nil)
+            ::("darkbase"::c.Cel3ddarkbase::nil)
+            ::("interpolate"::(itoa c.Cel3dinterpolate)::nil)
+            ::("avatarRess"::c.Cel3dClassAvat::nil)
+            ::("defaultAvatar"::c.Cel3dDefaultAvat::nil)
+            ::("defaultForced"::(itoa c.Cel3dForcedAvat)::nil)
+            ::("rightsRess"::c.Cel3drightsRess::nil)
+            ::("tablesize"::(itoa c.Cel3dmaxOb)::nil)
+            ::("C3dress"::c.Cel3dressS::nil)
+            ::("gridsize"::(itoa c.Cel3dgridsize)::nil)
+            ::("avatarpseudo"::(itoa c.Cel3dapseudo)::nil)
+            ::nil
+      conc  if c.Cel3dLight!=nil then let c.Cel3dLight -> [n [x y z][a b c]] in
+              ("light"::n::(itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)::nil)::nil
+            else nil
+      conc  CrSaveIpos        c.Cel3dIpos
+      conc  getSaveObj3d      c.Cel3dobj
+      conc  CrSaveAnchor      c.Cel3dDefAnchors
+      conc  CrSaveSupPluggins c.Cel3dsupppluginS
+      conc  CrSavePluggins    c.Cel3dpluginS
+            CrSaveInstances   c.Cel3dinstanceS;;
+
+/**********************************************
+Fonction qui renvoie la liste des textures à
+registrer
+   c:   Cel3d       cellule 3d
+Renvoie une [S r1]
+***********************************************/
+fun getSaveRegisteredTexture(c)=
+  if c==nil then
+    nil
+  else
+    CrSaveRegisteredTextures c.Cel3dregisteredtext
+;;
+
+/**********************************************
+Fonction qui renvoie la liste des m3d à
+registrer
+   c:   Cel3d       cellule 3d
+Renvoie une [S r1]
+***********************************************/
+fun getSaveRegisteredM3d(c)=
+  if c==nil then
+    nil
+  else
+    CrSaveRegisteredM3d c.Cel3dregisteredM3d
+;;
+
+/***********************************************
+Fonction qui renvoie le contenu du nouveau
+fichier dmi en fonction des fichiers à registrer
+************************************************/
+
+fun getSaveDmi(l,c,lf,ln)=
+  if l==nil then nil
+  else
+    let l -> [line nxt] in
+    let hd line -> s in
+    if !strcmp s "registerPlugF" then
+      line::getSaveDmi nxt c tl line ln
+    else if !strcmp s "registerPlug" then
+      line::getSaveDmi nxt c lf tl line
+    else if !strcmp s "registerF" then
+      (conc "registerF"::nil
+            (quicksort conc lf
+                            getSaveRegisteredTexture c
+             @suppDoublon
+            )
+      )::getSaveDmi nxt c nil ln
+    else if !strcmp s "register" then
+      (conc "register"::nil
+            (quicksort  conc ln
+                        conc (getSaveRegisteredM3d c)
+                             (if c.Cel3dcol!=nil then let c.Cel3dcol -> [box _ _] in
+                                box::nil
+                              else nil
+                             )
+                        @suppDoublon
+            )
+      )::getSaveDmi nxt c nil nil
+    else line::getSaveDmi nxt c lf ln
+;;
+
+fun saveall(o,p)=1;;
+
+/**********************************************
+Fonction qui calcule le fichier dat transmis aux clients
+***********************************************/
+
+fun RegisterClientDat()=
+  let strbuild getSaveCel3d cel mkfun2 @saveall nil -> content in
+  (
+    _RSunregister this CLIENT_DAT;
+    set CLIENT_DAT=_getlongname content "dat/3d.dat" "#";
+    _RSregister this CLIENT_DAT RScontrol content
+  )
+;;
+
+/**********************************************
+Fonction qui sauvegarde la cellule au niveau
+du serveur
+   t:   timer (if nil then save on disk !!)
+   c:   Cel3d       cellule 3d
+Renvoie I
+***********************************************/
+
+fun SaveCel3d(t,param)=
+  let param -> [c forceSave] in
+  (
+    if c.Cel3dmodified then
+    (
+      /* maj des données côtés serveur */
+      ANCHOR_UpdateListFromInstanceList cel;
+      _DMSupdateDef this "dat" getSaveCel3d cel nil;
+      /* sauvegarde du fichier client */
+      RegisterClientDat;
+      set c.Cel3dmodified=0;
+      set c.Cel3dsavedtodisk = 0;
+      if c.Cel3dmodifiedregister then
+      (
+        /* sauvegarde des fichiers en register */
+        set c.Cel3dmodifiedregister=0;
+        _DMSupdateDef this "dmi" getSaveDmi _DMSgetDef this "dmi" c nil nil
+      )
+      else nil;
+    )
+    else nil;
+    if forceSave && !(c.Cel3dsavedtodisk) then
+    (
+      set c.Cel3dsavedtodisk = 1;
+      _DEFsave /* sauvegarde du fichier sur disque */
+    )
+    else
+      nil;
+  )
+;;
+
+/**********************************************
+Fonction qui lance le timer de sauvegarde
+***********************************************/
+fun startTimerSave(c)=
+  set c.Cel3dtimerSave=_rfltimer (_starttimer _channel c.Cel3dautosavedelay) @SaveCel3d [c 1]
+;;
+
+/**********************************************
+Fonction qui arrete le timer de sauvegarde
+***********************************************/
+fun stopTimerSave(c)=
+  if c.Cel3dtimerSave==nil then
+    nil
+  else
+  (
+    _deltimer c.Cel3dtimerSave;
+    set c.Cel3dtimerSave=nil
+  )
+;;
+
+fun C3D_UpdateTimerState (c) =
+  stopTimerSave c;
+  if c.Cel3dautosave then
+    startTimerSave c
+  else
+    nil
+;;
+
+proto ObNewInstance = fun [S [[S r1] r1]] Ob;;
+proto newplug = fun [S S] I;;
+proto ipos = fun [u0 User S u1 u2 u3] I;;
+
+/*****************************************
+Fonction recursive d'analyse du .dat
+    l: [[S r1] r1] contenu du .dat
+    c: Cel3d cellule 3d
+renvoie I
+******************************************/
+fun AnalyseDatS(l,c)=
+  let hd l -> s in
+  if s==nil then nil
+  else
+  (
+    /* si en cours de traitement d'un dummy et fin du dummy
+       ainsi que ancienne version du .dat on change le noeud courant
+       (ce dummy ne peut pas avoir de fils!!!!)*/
+    if c.Cel3dencDummy && !c.Cel3dverDummy && (strcmp s "link") then
+    (  checkObj3dIndex          c.Cel3dhashobj c.Cel3dcur;
+       CrSaveObj3d c.Cel3dcur;
+       set c.Cel3dcur=c.Cel3dcur.Obj3dFather;
+       set c.Cel3dencDummy=0
+    )
+    else nil;
+
+    /* propriétés clients de la scene */
+    let sizelist l -> sz in
+    if (!strcmp s "version") then
+    (set c.Cel3dversion=atoi nth_list l 1; 0)
+    else if (!strcmp s "name") && sz>=2 then
+    (set c.Cel3dname=nth_list l 1; 0)
+    else if (!strcmp s "background") && sz>=2 then
+    (set c.Cel3dback=htoi nth_list l 1; 0)
+    else if (!strcmp s "backclip") && sz>=2 then
+    (
+      set c.Cel3dclip=atoi nth_list l 1;
+      set c.Cel3dfog=atoi nth_list l 2;
+      0
+    )
+    else if (!strcmp s "openspacefile") && sz>=2 then /*<<<<<<<<<<<<<<<<< load openspace**/
+    (set c.Cel3dopenspace= nth_list l 1; 0)	
+    else if (!strcmp s "focal") && sz>=2 then
+    (set c.Cel3dfocal=atof nth_list l 1; 0)
+    else if (!strcmp s "speed") && sz>=2 then
+    (set c.Cel3dspeed=atoi nth_list l 1; 0)
+    else if (!strcmp s "buffersize") && sz>=2 then
+    (set c.Cel3dbuf=atoi nth_list l 1; 0)
+    else if (!strcmp s "inbox") && sz>=4 then
+    (set c.Cel3dcol=[nth_list l 1 atoi nth_list l 2 atoi nth_list l 3]; 0)
+    else if (!strcmp s "gravity") && sz>=2 then
+    let nth_list l 1 -> grav in
+    (set c.Cel3dgrav=if grav == nil then nil else atoi grav; 0)
+    else if (!strcmp s "avatarpseudo") then
+    (set c.Cel3dapseudo=atoi nth_list l 1; 0)
+    else if (!strcmp s "darkbase") then
+    (set c.Cel3ddarkbase=nth_list l 1; 0)
+    else if (!strcmp s "physics") then
+    (set c.Cel3dphysics=atoi nth_list l 1; 0)
+    else if (!strcmp s "camfree") then
+    (set c.CelCamerafree=atoi nth_list l 1; 0)
+    else if (!strcmp s "interpolate") then
+    (set c.Cel3dinterpolate=atoi nth_list l 1; 0)
+    else if (!strcmp s "gridsize") then
+    (set c.Cel3dgridsize=atoi nth_list l 1; 0)
+    else if (!strcmp s "light") && (sizelist l)>=8 then
+    (set c.Cel3dLight=[nth_list l 1
+                       [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                       [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]
+                      ];
+     0)
+
+    /* propriétés du m3d */
+    else if (!strcmp s "m3d") then
+    (set c.Cel3dcur=newObj3d newM3d nth_list l 1
+                                    (if c.Cel3dversion==0 then 1 else 0)
+                             c.Cel3dcur;
+     setAtomPos c.Cel3dcur.Obj3dAtom
+              (if sz>=8 then [[atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                              [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 ]]
+               else nil);
+     0)
+    else if (!strcmp s "dummy") then
+    (set c.Cel3dcur=newObj3d newDummy nth_list l 1
+                    c.Cel3dcur;
+     setAtomPos c.Cel3dcur.Obj3dAtom
+              (if sz>=8 then [[atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                              [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 ]]
+               else nil);
+     set c.Cel3dverDummy=(!strcmp (nth_list l 8) "{");
+     set c.Cel3dencDummy=1
+    )
+    else if (!strcmp s "}")||(!strcmp s "endm3d") then
+    (
+     set c.Cel3dregisteredM3d =addObj3dRegisteredFile c.Cel3dcur c.Cel3dregisteredM3d 0;
+     set c.Cel3dregisteredtext=addObj3dRegisteredText c.Cel3dcur c.Cel3dregisteredtext 0;
+     checkObj3dIndex          c.Cel3dhashobj c.Cel3dcur;
+     CrSaveObj3d c.Cel3dcur;
+     set c.Cel3dcur=c.Cel3dcur.Obj3dFather;
+     0)
+    else if (!strcmp s "index") then
+    (set c.Cel3dcur.Obj3dIndex=nth_list l 1; 0)
+    else if (!strcmp s "ref") then
+    (set c.Cel3dcur.Obj3dRef=nth_list l 1; 0)
+    else if (!strcmp s "alias") || (!strcmp s "ren_obj") then
+    ( setAtomAlias c.Cel3dcur.Obj3dAtom nth_list l 1 nth_list l 2; 0)
+    else if (!strcmp s "obj") && sz>=8 then
+     match c.Cel3dcur.Obj3dAtom with
+      (m3d m -> let nth_list l 1 -> obj in
+                let searchMeshAlias m obj -> ralias in
+                let if ralias!=nil then ralias
+                    else searchMeshName m obj -> mesh in
+                (
+                 set m.M3dCurrMesh=
+                 setMeshPos mesh
+                            [[atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                             [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]
+                            ];
+                 if sz>=9 then
+                 (  /* nouvelle version du obj dans le .dat */
+                    set m.M3dCurrMesh.MeshObb=atoi nth_list l 8;
+                    let nth_list l 9 -> scale in
+                    set m.M3dCurrMesh.MeshScale=if scale==nil then 100 else atoi scale;
+                 )
+                 else nil;
+                 setMeshDel m.M3dCurrMesh 0
+                )
+      )
+     |(_ -> 0)
+
+    else if (!strcmp s "delobj") then
+     match c.Cel3dcur.Obj3dAtom with
+     (m3d m -> setMeshDel searchMeshName m nth_list l 1
+                          1
+     )
+     |(_ -> 0)
+    /* ancienne version des boite de collision */
+    else if (!strcmp s "Obb") then
+     match c.Cel3dcur.Obj3dAtom with
+      (m3d m -> set m.M3dCurrMesh.MeshObb=1)
+     |(_ -> 0)
+    /* ancienne version de la taille d'un objet */
+    else if (!strcmp s "Scale") then
+     match c.Cel3dcur.Obj3dAtom with
+      (m3d m -> set m.M3dCurrMesh.MeshScale=atoi nth_list l 1)
+     |(_ -> 0)
+    /* ancienne version du changement de materiau */
+    else if (!strcmp s "ren_mat") && sz>=3 then
+    (match c.Cel3dcur.Obj3dAtom with
+      (m3d m -> ( set m.M3dCurrentMaterial=searchMaterial m nth_list l 1;
+                  set m.M3dCurrentMaterial.MatType=m.M3dCurrentMaterial.MatType|MAT_TEXTURED;
+                  set m.M3dCurrentMaterial.MatFlatColor=htoi nth_list l 3;
+                  let nth_list l 2 -> text in
+                  if (nth_char text 0)=='% then
+                    let search_last_percent text -> i in
+                    ( /* presence d'un filtre */
+                      set m.M3dCurrentMaterial.MatTexture=substr text i+1 1000;
+                      set m.M3dCurrentMaterial.MatFilter=substr text 1 i-1;
+                    )
+                  else
+                  ( /* pas de filtre */
+                    set m.M3dCurrentMaterial.MatTexture=text;
+                    nil
+                  )
+                )
+      )
+     |(_ -> nil);
+     0)
+    /* ancienne version du materiau en flat */
+    else if (!strcmp s "texture") && sz>=3 then
+    (match c.Cel3dcur.Obj3dAtom with
+       (m3d m -> ( set m.M3dCurrentMaterial=searchMaterial m nth_list l 1;
+                   set m.M3dCurrentMaterial.MatType=(~MAT_TEXTURED)&m.M3dCurrentMaterial.MatType;
+                   set m.M3dCurrentMaterial.MatFlatColor=htoi nth_list l 2;
+                 )
+       )
+     |(_ -> nil);
+     0)
+    /* ancienne version du materiau non light */
+    else if (!strcmp s "nolight") && sz>=2 then
+    (match c.Cel3dcur.Obj3dAtom with
+      (m3d m -> set m.M3dCurrentMaterial.MatType=m.M3dCurrentMaterial.MatType&(~MAT_LIGHT))
+     |(_ -> nil);
+     0)
+    /* ancienne version de la transparence d'un materiau*/
+    else if (!strcmp s "transparency") && sz>=3 then
+    (match c.Cel3dcur.Obj3dAtom with
+       (m3d m -> (set m.M3dCurrentMaterial.MatType=MAT_TRANSP|m.M3dCurrentMaterial.MatType;
+                  set m.M3dCurrentMaterial.MatTransp=atoi nth_list l 2
+                 )
+       )
+     |(_ -> nil);
+     0)
+
+    /* nouvelle version du materiau */
+    else if (!strcmp s "material") then
+    (match c.Cel3dcur.Obj3dAtom with
+      (m3d m -> let searchMaterial m nth_list l 1 -> mat in
+                if mat !=nil then
+                (
+                   set m.M3dCurrentMaterial=mat;
+                   set mat.MatType=htoi nth_list l 2;
+                   set mat.MatFlatColor=htoi nth_list l 3;
+                   set mat.MatTransp=let atoi nth_list l 4 -> transp in
+                                     if transp==(-1) then nil else transp;
+
+                   if mat.MatType&MAT_TEXTURED then
+                      let nth_list l 5 -> text in
+                      if (nth_char text 0)=='% then
+                        let search_last_percent text -> i in
+                        ( /* presence d'un filtre */
+                          set mat.MatTexture=substr text i+1 1000;
+                          set mat.MatFilter=substr text 1 i-1;
+                        )
+                      else
+                      ( /* pas de filtre */
+                        set mat.MatTexture=text;
+                        nil
+                      )
+                   else nil
+                )
+                else nil
+      )
+      |(_ -> nil);
+      0)
+
+    /* les liens */
+    else if (!strcmp s "link") then
+    let nth_list l 2-> obj in
+    let atoi nth_list l 3 -> k in
+    let search_slash obj -> i in
+    ( if i<0 then
+          set i=search_point obj
+      else nil;
+      addAtomLink nth_list l 1 c.Cel3dcur.Obj3dAtom substr obj 0 i substr obj i+1 1000 k;
+     0)
+    else if (!strcmp s "ipos") && sz>=8 then
+    (_DMSdefineActions this [nth_list l 1 @ipos]::nil;
+     set c.Cel3dIpos=[nth_list l 1
+                      [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                      [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]
+                     ]::c.Cel3dIpos;
+     0)
+    else if (!strcmp s "anchor") && sz>=3 then
+    (set c.Cel3dDefAnchors=[nth_list l 1 tl tl l]::c.Cel3dDefAnchors; 0)
+
+    /* les instances + pluggins */
+    else if (!strcmp s "instance") then
+    let test_ nth_list l 3 -> tmpanchor in
+    let strextr test_ nth_list l 4 -> tmpdatlist in
+    ( ObNewInstance nth_list l 2 ("name"::(nth_list l 1)::nil)::
+                                 ("anchor"::tmpanchor::nil)::
+                                 tmpdatlist;
+      set c.Cel3dinstanceS =
+        [(nth_list l 2) (nth_list l 1) tmpanchor tmpdatlist]
+        ::c.Cel3dinstanceS;
+     0)
+    else if (!strcmp s "plugin") then
+    ( newplug nth_list l 1 nth_list l 2;
+      set c.Cel3dpluginS=(nth_list l 1)::c.Cel3dpluginS;
+     0)
+    else if (!strcmp s "suppplugin") then
+    (newplug nth_list l 1 nth_list l 2;
+     set c.Cel3dsupppluginS=((nth_list l 1)::(nth_list l 2)::nil)::c.Cel3dsupppluginS;
+     0)
+    else if (!strcmp s "avatarRess") then
+    (let nth_list l 1-> s in if s==nil then nil else set c.Cel3dClassAvat=s; 0)
+    else if (!strcmp s "defaultAvatar") then
+    (set c.Cel3dDefaultAvat=nth_list l 1; 0)
+    else if (!strcmp s "defaultForced") then
+    (set c.Cel3dForcedAvat=atoi nth_list l 1; 0)
+    else if (!strcmp s "rightsRess") then
+    (let nth_list l 1-> s in if s==nil then nil else set c.Cel3drightsRess=s; 0)
+    else if (!strcmp s "C3dress") then
+    (let nth_list l 1-> s in
+     (set c.Cel3dressS=s;
+      set c.Cel3dress=strextr s);
+     0)
+    else if (!strcmp s "tablesize") then
+    (set c.Cel3dmaxOb=atoi nth_list l 1; 0)
+    else nil
+  );;
+
+var forceWaitCoef=2;;
+
+struct Ob=
+  [
+    posOb                 : [I I I],
+    angOb                 : [I I I],
+    uiOb                  : UserI,
+    cliOb                 : CLIENT,
+    idOb                  : I,
+    nameOb                : S,
+    pseudoOb              : S,
+    mobileOb              : I,
+    destroyOb             : fun[Ob] I,
+    clearOb               : fun[Ob] I,
+    indexOb               : I,
+    broadlistOb          	: [[Ob I] r1],
+    tickOb	              : I,
+    xtreeOb	              : I,
+    ytreeOb	              : I,
+    ztreeOb	              : I,
+    rightsOb	            : [S r1],
+    commutOb	            : I,
+    cliDestroyedOb        : fun [Ob CLIENT] I
+  ]mkOb;;
+
+typeof C3DobList=[Ob r1];; /* ob client list */
+
+typeof C3DobTab=tab Ob;; /* ob client tab */
+
+fun pbyu(p,u)= u==UgetUser p.uiOb;;
+fun pbycli(p,d)= p.cliOb==d;;
+fun pbyid(p,i)= p.idOb==i;;
+fun OB_BroadToClient(x,s)=_DMSsend this x.cliOb s;;
+fun OB_CompareName (instance, instancename) = !strcmpi instance.nameOb instancename;;
+
+fun OB_GetIdFromName (instancename) =
+  let search_in_list C3DobList @OB_CompareName instancename -> instance in
+    instance.idOb
+;;
+
+fun getindex2(t,i)=
+  if i <sizetab t then
+    if t.i==nil then
+      i
+    else
+      getindex2 t i+1
+  else
+    nil
+;;
+
+fun getindex()=getindex2 C3DobTab 0;;
+
+fun OBLIST_GetRealClientList(l)=
+  if l==nil then
+    nil
+  else
+    let l->[o nxt] in
+      if o.cliOb==nil then
+        OBLIST_GetRealClientList nxt
+      else
+        o::OBLIST_GetRealClientList nxt
+;;
+
+/* gestion des plugins */
+
+fun plugmkload(l)=
+  if l==nil then
+    nil
+  else
+    (mkscript Sload [hd l])::plugmkload tl l
+;;
+
+fun pluggetScript(path,plg)=
+  let getConcInfos plg "serverLoad" -> l in
+    if l==nil then
+      getInfo plg "serverScript"
+    else
+      strcatn plugmkload _DMSrelativpath path l
+;;
+
+fun newplug(a,params)=
+  if nil!=search_in_list plugins @plugbyfile a then
+    nil
+  else
+    if (_checkpack a)==nil then
+      nil
+    else
+      let strextr _getpack _checkpack a -> l in
+      let _DMSgetpath a -> path in
+      (
+        _RSregisterfiles this _DMSrelativpath path a::conc getConcInfos l "clientNeeded" getConcInfos l "clientLoad" RScontrol;
+        _RSregisterfiles this _DMSrelativpath path getConcInfos l "clientNeededF" RScontrol|RSfile; /*seb ajout clientNeededF*/
+        let pluggetScript path l -> s in
+        if s==nil then
+        (
+          set plugins=(mkPlug[a nil "...waiting" nil nil strextr params nil nil 0])::plugins;
+          nil
+        )
+        else
+          let _openchannel nil preplug _envchannel _channel -> ch in
+          (
+            let strextr _getpack _checkpack strcat substr a 0 (strlen a)-5 ".thm" -> thm in
+            if thm==nil then
+              nil
+            else
+              _DMSaddThm this thm;
+            set plugins=(mkPlug[a ch "...waiting" nil nil strextr params nil nil 0])::plugins;
+            _scriptc ch "reg";
+            _scriptc ch s;
+            _scriptc ch mkscript SIniPlug [a]);
+            0
+          )
+;;
+
+fun newplugExt(from,param)=
+  let strextr param -> l in
+  let hd hd l -> file in
+    if nil!=search_in_list plugins @plugbyfile file then
+      nil
+    else
+      if (_checkpack file)==nil then
+        nil
+      else
+        let strextr _getpack _checkpack file -> lf in
+        let _DMSgetpath file -> path in
+        let getInfo lf "name" -> name in
+        let pluggetScript path lf -> script in
+        let _openchannel nil preplug _envchannel _channel -> ch in
+        let strbuild tl l->params in
+        (
+          set plugins=(mkPlug[file ch "...waiting" nil nil tl l nil nil 0])::plugins;
+          UsetUserClass this from name;
+          _scriptc ch "reg";
+          _scriptc ch script;
+          _scriptc ch mkscript SIniPlug [file];
+          _RSregisterfiles this _DMSrelativpath path file::conc getConcInfos lf "clientNeeded" getConcInfos lf "clientLoad" RScontrol;
+          _RSregisterfiles this _DMSrelativpath path getConcInfos lf "clientNeededF" RScontrol|RSfile; /*seb ajout clientNeededF*/
+          apply_on_list C3DobList @OB_BroadToClient Csetplugs [strbuild (file::params::nil)::nil];
+          0
+        )
+;;
+
+fun closeplug(a,b)=
+  let _channel -> c in
+  (
+    _setchannel a.chnPlug;
+    exec a.cbendPlug with [];
+    _setchannel c;
+    _killchannel a.chnPlug;
+    0
+  )
+;;
+
+fun delplug()= apply_on_list plugins @closeplug nil;;
+
+fun loadOb(o)=
+  let search_in_list plugins @plugbyclass o.uiOb.classUI -> c in
+  let
+    if c==nil && o.cliOb!=nil then
+      search_in_list plugins @plugbyclass cel.Cel3dDefaultAvat
+    else
+      c
+  -> cl in
+      exec cl.cbnewPlug with [o]
+;;
+
+fun updateob(l,n,new)=
+  if l==nil then
+    0
+  else
+    let l->[o nx] in
+    (
+      if (!strcmp o.uiOb.classUI n)
+         ||((!strcmp n cel.Cel3dDefaultAvat)&&(nil==search_in_list plugins @plugbyclass o.uiOb.classUI)&&(o.cliOb!=nil)) then
+      (
+        exec o.destroyOb with [o];
+        exec new with [o]
+      )
+      else
+        nil;
+      updateob nx n new
+    )
+;;
+
+fun PlugRegister(class,new,close)=
+  let search_in_list plugins @plugbych _channel -> plug in
+    if plug==nil then
+      nil
+    else
+    (
+      set plug.classPlug=class;
+      set plug.cbnewPlug=new;
+      set plug.cbendPlug=close;
+      updateob C3DobList class new
+    );
+  0
+;;
+
+fun PlugRegisterPro (class) =
+  let search_in_list plugins @plugbych _channel -> plug in
+    if plug==nil then
+      nil
+    else
+    (
+      set plug.classPlug=class;
+      set plug.isProPlug = 1
+    )
+;;
+typeof cbSpeak=fun[Ob S] I;;
+
+fun speakStd(o,s)=
+  if s==nil || 0==strlen s then
+    nil
+  else
+    let strcatn "<"::(o.cliOb.loginCLI)::"> "::s::nil -> sp in
+    (
+      UsendMessage o.uiOb nil "hearC3d" strcat sp "\n";
+      _DMSeventTag this CtoU DMSsender "log" strcat "speak " sp nil nil
+    )
+;;
+
+/* API Ob */
+
+fun ObCbSpeak(f)=set cbSpeak=f;;
+
+fun ObUi(o)=o.uiOb;;
+fun ObMobile(o)=o.mobileOb;;
+fun ObPos(o)=o.posOb;;
+fun ObAng(o)=o.angOb;;
+fun ObName(o)=o.nameOb;;
+fun ObCbDestroy(o,f)=set o.destroyOb=f;;
+fun ObCbClear(o,f)=set o.clearOb=f;;
+fun OB_CBclientDestroyed(o,f)=set o.cliDestroyedOb=f;;
+
+fun OB_RunCBclientDestroyed (obelt, cli) =
+  if obelt.destroyOb == nil || obelt.cliOb == nil || obelt.cliOb != cli then
+  /*si ob = avatar, donc un client associe, on appelle la cb de destruction de l'ob srv*/
+    nil
+  else
+    exec obelt.destroyOb with [obelt];
+
+  if obelt.cliDestroyedOb == nil then
+    nil
+  else
+    exec obelt.cliDestroyedOb with [obelt cli]
+;;
+
+fun obact(from,u,action,param,ulist,tag,z)=
+  let z->[o f] in
+    exec f with [o from UtoC u action param nil]
+;;
+
+fun ObRegisterAction(o,action,f)=
+  _DMSdefineActions this [action mkfun7 @obact [o f]]::nil;
+  0
+;;
+
+fun ObList()=C3DobList;;
+fun Obgetglobalress(r)= DMSgetress cel.Cel3dress r;;
+
+fun OB_GetHiddenParamRec (params) =
+  if params == nil then
+    nil
+  else
+    let params -> [cur next] in
+    let cur -> [head _] in
+      if (nth_char head 0) == '* then
+        cur::(OB_GetHiddenParamRec next)
+      else
+        OB_GetHiddenParamRec next
+;;
+
+fun OB_GetHiddenParam (instance) =
+  let instance -> [_ _ _ params] in
+    OB_GetHiddenParamRec params
+;;
+
+fun OB_CompareParamKey (param, key) =
+  let param -> [curkey _] in
+    !strcmp curkey key
+;;
+
+fun OB_UpdateMissingParams (params, otherparams) =
+  if otherparams == nil then
+    params
+  else
+    if params == nil then
+      otherparams
+    else
+      let otherparams -> [cur next] in
+      let cur -> [head _] in
+        if isf_in_list params @OB_CompareParamKey head then
+          OB_UpdateMissingParams params next
+        else
+          OB_UpdateMissingParams cur::params next
+;;
+
+/* next */
+
+fun changed(o)=
+  exec o.destroyOb with [o];
+  loadOb o
+;;
+
+typeof uclass=[[User S] r1];;
+
+fun classAvatar(u)=
+  if cel.Cel3dForcedAvat then
+    cel.Cel3dDefaultAvat
+  else
+    let switch uclass u -> uc1 in
+      if uc1==nil then
+        let _DMSgetress UtoC u cel.Cel3dClassAvat -> classAvC in
+          if classAvC == nil then
+            cel.Cel3dDefaultAvat
+          else
+            classAvC
+      else
+        uc1
+;;
+
+fun chgav(from,u,action,param,ulist,tag)=
+  let search_in_list C3DobList @pbyu u -> o in
+    if o==nil then
+      nil
+    else
+    (
+      UchgClass o.uiOb (classAvatar u) o.uiOb.paramUI;
+      changed o;
+      0
+    )
+;;
+
+fun ObSetClass(u,class)=
+  set uclass=remove_from_list uclass getSwitch uclass u;
+  if class==nil then
+    nil
+  else
+    set uclass=[u class]::uclass;
+  chgav nil u nil nil nil nil
+;;
+
+fun ObUpdateClass(u,class)=
+  let search_in_list C3DobList @pbyu u -> o in
+    if o==nil || strcmp UgetClass ObUi o class then
+      nil
+    else
+      chgav nil u nil nil nil nil
+;;
+
+fun cutbydots(s,i)=
+  if i>=strlen s then
+    if i==0 then
+      nil
+    else
+      s::nil
+  else
+    if (nth_char s i)=='. then
+      (substr s 0 i)::cutbydots substr s i+1 1000 0
+    else
+      cutbydots s i+1
+;;
+
+fun calcrights(cli)=
+  if !strcmp cel.Cel3drightsRess "altern" then
+    [(itoa cli.idCLI&1)::nil 1]
+  else
+    let hd strextr _DMSgetress cli cel.Cel3drightsRess -> [a [b _]] in
+      [(cutbydots b 0) if a==nil then 1 else atoi a]
+;;
+
+fun __register()=
+  if nil!=search_in_list C3DobList @pbycli DMSsender then
+    nil
+  else
+    let getindex -> ind in
+      if ind==nil then
+        _DMSdelClientDMI this DMSsender
+      else
+        let calcrights DMSsender ->[rights commut] in
+        let UcreateUI this CtoU DMSsender classAvatar CtoU DMSsender
+                      ("name"::(_DMSgetLogin DMSsender)::nil)::("index"::(itoa ind)::nil)::nil treeNew rights commut
+        -> ui in
+        let mkOb[nil nil ui DMSsender DMSsender.idCLI DMSsender.loginCLI DMSsender.loginCLI 1 nil nil ind
+        	       nil nil nil nil nil rights commut nil]
+        -> s in
+        (
+          let OBLIST_GetRealClientList C3DobList -> l in
+            if (sizelist l)==1 then
+              let hd l -> o in
+                _DMSsend this o.cliOb CForceClientSendPos [1]
+            else
+              nil;
+          set C3DobList=s::C3DobList;
+          set C3DobTab.ind=s;
+          loadOb s;
+          if (sizelist OBLIST_GetRealClientList C3DobList) >1 then
+            _DMSsend this s.cliOb CForceClientSendPos [1]
+          else
+            nil;
+          _DMSeventTag this CtoU DMSsender "in" nil nil nil;
+          _DMSeventTag this CtoU DMSsender "log" strcatn (s.nameOb)::" entering "::(_DMSgetName this)::nil nil nil;
+		  
+          0
+        )
+;;
+
+fun rembroadlist2(l,c)=
+ if l==nil then nil
+ else let l->[a n] in let a->[cc _] in
+  if cc==c then rembroadlist2 n c
+  else a::rembroadlist2 n c;;
+
+
+fun removebroadlist(o,c)=
+ set o.broadlistOb=rembroadlist2 o.broadlistOb c;
+ 0;;
+
+
+proto C3DremRegisteredCli=fun [CLIENT] I;;
+
+fun logout(cli)=
+  apply_on_list C3DobList @OB_RunCBclientDestroyed cli;
+  let search_in_list C3DobList @pbycli cli -> c in
+    if c==nil then
+      nil
+    else
+    (
+      set C3DobList=remove_from_list C3DobList c; /* remove client from ob list */
+      apply_on_list C3DobList @removebroadlist c; /* remove client in other client ob broad list */
+      set C3DobTab.(c.indexOb)=nil; /* remove client from ob tab */
+      let OBLIST_GetRealClientList C3DobList -> l in
+        if (sizelist l)==1 then /* if only one client left then ask him not to send his position */
+          let hd l -> o in  _DMSsend this o.cliOb CForceClientSendPos [0]
+        else
+          nil;
+      Udelete c.uiOb;
+      C3DremRegisteredCli cli;
+      _DMSeventTag this CtoU cli "log" strcatn (c.nameOb)::" leaving "::(_DMSgetName this)::nil nil nil;
+      _DMSeventTag this CtoU cli "out" nil nil nil
+    )
+;;
+
+fun beforeclose()=
+  /* sauvegarde et destruction du timer */
+  stopTimerSave cel;
+  if cel.Cel3dautosave then
+    SaveCel3d nil [cel 1]
+  else
+    nil;
+  0
+;;
+
+fun ObNewInstance(class,lparam)=
+  let getInfo lparam "name" ->name in
+  let getindex -> ind in
+  let search_in_list plugins @plugbyclass class -> classR in
+    if ind==nil || ((classR!= nil) && (classR.isProPlug)) then
+      nil
+    else
+      let UcreateUI this (UcreateUser nil) class ("index"::(itoa ind)::nil)::lparam treeNew nil nil -> ui in
+      let mkOb [nil nil ui nil ui.userUI.idU name name 0 nil nil ind nil nil nil nil nil nil nil nil] -> s in
+      (
+        set C3DobList=s::C3DobList;
+        set C3DobTab.ind=s;
+        loadOb s;
+        s
+      )
+;;
+
+fun ObDelInstance(id, clear)=
+  let search_in_list C3DobList @pbyid id -> o in
+    if o==nil then
+      nil
+    else
+    (
+      exec o.destroyOb with [o];
+      if clear then
+        exec o.clearOb with [o]
+      else
+        nil;
+      set C3DobList=remove_from_list C3DobList o;
+      set C3DobTab.(o.indexOb)=nil;
+      Udelete o.uiOb
+    )
+;;
+
+fun out(from,u,action,param,ulist,tag)=
+  let UtoC u -> cli in
+  (
+    _DMSsend this cli Chear [strcat strcat ">> leaving " _DMSgetName this "\n"];
+    _DMSdelClientDMI this cli;
+    logout cli
+  )
+;;
+
+fun chglogin(from,u,action,param,ulist,tag)=
+  let UtoC u -> cli in
+  let search_in_list C3DobList @pbyu u -> o in
+    if o==nil then
+      nil
+    else
+    (
+      set o.nameOb=_DMSgetLogin cli;
+      UsetParam o.uiOb "name" (o.nameOb)::nil;
+      0
+    )
+;;
+
+fun chgpseudo(from,u,action,param,ulist,tag)=
+  let UtoC u -> cli in
+  let search_in_list C3DobList @pbyu u -> o in
+    if o==nil then
+      nil
+    else
+    (
+      set o.pseudoOb = if param!=nil then param else o.nameOb;
+      UsetParam o.uiOb "pseudo" (o.pseudoOb)::nil;
+      0
+    )
+;;
+
+
+fun broadx(from,u,action,param,ulist,tag)=
+  apply_on_list C3DobList @OB_BroadToClient Chear [strcat param "\n"]
+;;
+
+fun addPluginS(from,u,action,param,ulist,tag)=
+  newplugExt from param
+;;
+
+proto C3DaddM3d=fun [S S [[I I I][I I I]]] I;;
+
+fun ObPlaceAvatar(u,pos)=
+  let UtoC u -> cli in
+  let search_in_list C3DobList @pbyu u -> c in
+    if c==nil then
+    (
+      SaveCel3d nil [cel cel.Cel3dautosave];
+      if _DMScreateClientDMI this cli strbuild (CLIENT_DAT::pos::nil)::nil then
+      (
+        _DMSsend this cli Cc3dress [cel.Cel3dressS];
+        _DMSsend this cli Csetplugs [PLUG_GetStrData];
+        _DMSeventTag this u "entering" nil nil nil;
+      )
+      else nil
+    )
+    else
+      _DMSsend this cli Cipos [pos]
+;;
+
+fun ipos(from,u,action,param,ulist,tag)=
+  ObPlaceAvatar u action
+;;
+
+fun deflistpos(l)=
+  if l==nil then
+    nil
+  else
+    let l->[[n _ _] nxt] in
+      n::deflistpos nxt
+;;
+
+fun SendPositions()=
+  _DMSevent this nil "setpositions" strbuild (deflistpos cel.Cel3dIpos)::nil nil
+;;
+
+/*******************************************************************************
+  receive a file from a client
+    cli -> CLIENT         : client who send the file
+    name -> S             : name of the file
+    data -> S             : data of the file
+*******************************************************************************/
+fun C3D3_cbReceive (cli, name, data) =
+  if findList C3DlauCli cli then
+    if !strcmpi (substr name 0 4) "tmp/" then
+      _storepack data name
+    else
+      nil
+  else
+    nil;
+  0
+;;
+
+fun IniDMI(file)=
+  set preplug=mkscript Sload [strcat _DMSgetpath _DMSgetClass this preplug];
+  set cbSpeak=@speakStd;
+  _DMSregister this nil @logout @beforeclose;
+  _DMSdefineActions this  ["out" @out]::
+                          ["!chglogin" @chglogin]::
+                          ["!chgpseudo" @chgpseudo]::
+                          ["!chgav" @chgav]::
+                          ["broad" @broadx]::
+                          ["!addPluginS" @addPluginS]::
+                          nil;
+  set cel=newCel3d;
+  _DMScbUpload this @C3D3_cbReceive;
+  /* analyse du fichier dat */
+  let _DMSgetDef this "dat" -> dat in
+  (
+    let hd switchstr dat "tablesize" -> size in
+      if size!=nil then
+        set cel.Cel3dmaxOb=atoi size
+      else
+        nil;
+    set C3DobTab=mktab cel.Cel3dmaxOb nil;
+    apply_on_list dat @AnalyseDatS cel
+  );
+  SendPositions;
+  /* verification de la version et resauvegarde si necessaire */
+  if (cel.Cel3dversion) != DAT_VERSION then
+  (
+    set cel.Cel3dversion=DAT_VERSION;
+    set cel.Cel3dmodified=1;
+    SaveCel3d nil [cel 1]
+  )
+  else
+  (
+    RegisterClientDat;
+    nil
+  );
+  0
+;;
+
+/********************************************************************************************************
+********************************************************************************************************/
+
+fun __regCursor(Slst)=
+  let lineextr Slst -> lst in
+    _RSregisterfiles this lst RSfile|RScontrol;
+  _DMSsend this DMSsender CDownloadCursor [];
+  0
+;;
+
+fun __click(name)= _DMSevent this DMSsender name nil nil;;
+
+fun __speak(s)=
+  let search_in_list C3DobList @pbycli DMSsender -> o in
+    if o==nil then
+      nil
+    else
+    (
+      exec cbSpeak with [o s];
+      _DMSevent this DMSsender "spy" s nil
+    )
+;;
+
+
+/********************************************************************************************************/
+/*                         fonctions de requetes de modification dynamique                              */
+/********************************************************************************************************/
+
+defcom C3DanswerRequest=answerRequest S S I;;
+
+var OP_SAVE             = "C3DsaveOnDisk";;
+var OP_SET_GRAVITY      = "C3DsetGravity";;
+var OP_SET_PHYSICS      = "C3DsetPhysics";;
+var OP_SET_CAMFREE      = "C3DsetCamfree";;
+var OP_SET_TYPE         = "C3DsetType";;
+var OP_SET_TRANSP       = "C3DsetTransp";;
+var OP_SET_FLAT         = "C3DsetFlat";;
+var OP_SET_FILTER       = "C3dsetFilter";;
+var OP_SET_TEXTURE      = "C3DsetTexture";;
+var OP_SET_OBB          = "C3DsetObb";;
+var OP_SET_BACKCOLOR    = "C3DsetBackColor";;
+var OP_SET_GLBLIGHT     = "C3DsetGlobalLight";;
+
+var OP_ADD_INSTANCE     = "C3DaddInstance";;
+var OP_DEL_INSTANCE     = "C3DdelInstance";;
+
+var OP_SET_OBJPOSANG    = "C3DsetObjPosAng";;
+var OP_SET_OBJPOSANGORIG= "C3DsetObjPosAngOrig";;
+var OP_SET_OBJFATHERPOSANGORIG= "C3DsetObjFatherPosAngOrig";;
+var OP_SET_OBJSCALE     = "C3DsetObjScale";;
+
+var OP_ADD_M3D          = "C3DaddM3d";;
+var OP_DEL_M3D          = "C3DdelM3d";;
+/*var OP_RLD_M3D          = "C3DreloadM3d";;*/
+/*var OP_RESET            = "C3Dreset";;*/
+
+var OP_MOD_REF          = "C3DmodRef";;
+
+var OP_ADD_POS          = "C3DaddPos";;
+var OP_MOV_POS          = "C3DmovPos";;
+var OP_DEL_POS          = "C3DdelPos";;
+/*var OP_RST_POS          = "C3DrstPos";;*/
+/*var OP_REN_POS          = "C3DrenPos";;*/
+
+var OP_SET_BOX          = "C3DsetBox";;
+
+var BROAD_NONE      =1;;
+var BROAD_OTHER     =2;;
+var BROAD_ALL       =4;;
+
+var SAVE_NO         =0;;
+var SAVE_NOW        =1;;
+
+fun broad_other_client(x,s)=
+  if x.cliOb!=DMSsender then _DMSsend this x.cliOb s
+  else nil;;
+
+/***************** fonctions de gestions de retour des requetes de modifications ****************/
+typeof C3DlopSend=[[fun [Ob Comm] I [S S I]] r1];;
+typeof C3DlastOp =[S S I];;
+
+fun C3Dappend(l,op)=
+  if l==nil then op::nil
+  else let l -> [f nxt] in
+    f::C3Dappend nxt op;;
+
+fun C3Dlsend(op,blurp)=
+  let op -> [func param] in
+  apply_on_list C3DobList func C3DanswerRequest param;
+  0;;
+
+fun C3Dsend(func,op,i)=
+  if op==nil then
+    mutate C3DlastOp<-[_ _ i]
+  else
+  ( set C3DlopSend=C3Dappend C3DlopSend [func op];
+    set C3DlastOp=op
+  );
+  if i then
+  (
+    apply_on_list C3DlopSend @C3Dlsend nil;
+    set C3DlopSend=nil;
+    set C3DlastOp=nil;
+  )
+  else nil;
+  0;;
+
+/* fonction d'ajout d'un client à la
+liste des clients enregistrés */
+fun C3DaddRegisteredCli(cli)=
+  if findList C3DlauCli cli then
+    0
+  else
+  (
+    set C3DlauCli=cli::C3DlauCli;
+    1
+  )
+;;
+
+/* fonction de suppression d'un client
+à la liste des clients enregistrés */
+fun C3DremRegisteredCli(cli)=
+  set C3DlauCli=remove_from_list C3DlauCli cli;
+  0;;
+
+
+/***** fonctions de modifications dynamiques sur le serveur de la structure de la scene *********/
+
+/* force la sauvegarde du site sur le disque */
+fun C3DsaveOnDisk (now) =
+  SaveCel3d 0 [cel 1];
+  0
+;;
+
+/********************************************
+Fonction de modification du type d'un
+materiau
+  m   : S    materiau
+  type: I    nouveau type
+  now : I    traitement de la modif
+*********************************************/
+fun C3DsetType(material,type,now)=
+  let search_point material -> i in
+  let searchObj3dIndexHash cel substr material 0 i -> obj3d in
+  match obj3d.Obj3dAtom with
+  (m3d m -> let searchMaterial m (substr material i+1 1000)-> mat in
+            if type!=mat.MatType then
+            (
+              set mat.MatType=type;
+              set cel.Cel3dregisteredtext=if type&MAT_TEXTURED then
+                                             addTexture cel.Cel3dregisteredtext
+                                                        mat.MatTexture
+                                                        mat
+                                                        1
+                                          else
+                                             removeTexture cel.Cel3dregisteredtext
+                                                           mat.MatTexture
+                                                           mat;
+              C3Dsend @OB_BroadToClient
+                      [ OP_SET_TYPE
+                        strbuild (material::(itoa type)::nil)::nil
+                        now
+                      ]
+                      now;
+              CrSaveObj3d obj3d;
+              set cel.Cel3dmodified=1;
+              set cel.Cel3dmodifiedregister=1
+            )
+            else C3Dsend nil nil now
+  )
+  |(_ -> nil);
+  0;;
+
+
+/********************************************
+Fonction de modification de la couleur de
+transparence d'un materiau
+  m     : S    materiau
+  transp: I    nouveau coeff de transparence
+  now   : I    traitement de la modif
+*********************************************/
+fun C3DsetTransp(material,transp,now)=
+  let search_point material -> i in
+  let searchObj3dIndexHash cel substr material 0 i -> obj3d in
+  match obj3d.Obj3dAtom with
+  (m3d m -> let searchMaterial m (substr material i+1 1000) -> mat in
+            if transp!=mat.MatTransp then
+            (
+                set mat.MatTransp=transp;
+                C3Dsend @OB_BroadToClient
+                        [OP_SET_TRANSP
+                         strbuild (material::(itoa transp)::nil)::nil
+                         now
+                        ]
+                        now;
+                CrSaveObj3d obj3d;
+                set cel.Cel3dmodified=1;
+             )
+             else C3Dsend nil nil now
+  )
+  |(_ -> nil);
+  0;;
+
+
+/********************************************
+Fonction de modification de la couleur de
+flat d'un materiau
+  m     : S    materiau
+  color : I    nouvelle couleur de flat
+  now   : I    traitement de la modif
+*********************************************/
+fun C3DsetFlat(material,color,now)=
+  let search_point material -> i in
+  let searchObj3dIndexHash cel substr material 0 i -> obj3d in
+  match obj3d.Obj3dAtom with
+  (m3d m -> let searchMaterial m (substr material i+1 1000) -> mat in
+            if mat.MatFlatColor!=color then
+            (
+              set mat.MatFlatColor=color;
+              C3Dsend @OB_BroadToClient
+                      [OP_SET_FLAT
+                       strbuild (material::(itoh color)::nil)::nil
+                       now
+                      ]
+                      now;
+              CrSaveObj3d obj3d;
+              set cel.Cel3dmodified=1;
+            )
+            else C3Dsend nil nil now
+  )
+  |(_ -> nil);
+  0;;
+
+/********************************************
+Fonction de modification de la texture d'un
+materiau
+  m       : S    materiau
+  newtext : S    nouvelle texture
+  now     : I    traitement de la modif
+*********************************************/
+fun C3DsetTexture(material,newtext,now)=
+  let search_point material -> i in
+  let searchObj3dIndexHash cel substr material 0 i -> obj3d in
+  match obj3d.Obj3dAtom with
+  (m3d m -> let searchMaterial m (substr material i+1 1000)-> mat in
+            if strcmp mat.MatTexture newtext then
+            (
+              set cel.Cel3dregisteredtext=removeTexture cel.Cel3dregisteredtext mat.MatTexture mat;
+              set cel.Cel3dregisteredtext=addTexture cel.Cel3dregisteredtext newtext mat 1;
+              set mat.MatTexture=newtext;
+              C3Dsend @OB_BroadToClient
+                      [OP_SET_TEXTURE
+                       strbuild (material::newtext::nil)::nil
+                       now
+                      ]
+                      now;
+              CrSaveObj3d obj3d;
+              set cel.Cel3dmodified=1;
+              set cel.Cel3dmodifiedregister=1
+            )
+            else C3Dsend nil nil now
+  )
+  |(_ -> nil);
+  0;;
+
+/********************************************
+Fonction de modification du filtre d'un
+materiau
+  m     : S    materiau
+  filter: S    nouveau filtre
+  now   : I    traitement de la modif
+*********************************************/
+fun C3DsetFilter(material,filter,now)=
+  let search_point material -> i in
+  let searchObj3dIndexHash cel substr material 0 i -> obj3d in
+  match obj3d.Obj3dAtom with
+  (m3d m -> let searchMaterial m (substr material i+1 1000) -> mat in
+            if strcmp filter mat.MatFilter then
+            (
+                set mat.MatFilter=filter;
+                C3Dsend @OB_BroadToClient
+                        [OP_SET_FILTER
+                         strbuild (material::
+                                   (strcatn "%"::filter::"%"::mat.MatTexture::nil)::nil
+                                  )::nil
+                         now
+                        ]
+                        now;
+                CrSaveObj3d obj3d;
+                set cel.Cel3dmodified=1;
+             )
+             else C3Dsend nil nil now
+  )
+  |(_ -> nil);
+  0;;
+
+/********************************************
+Fonction de modification de la boite de
+collision d'un objet 3d
+  mesh  : S    ndx+objet
+  obb   : I    boite de collision
+  now   : I    traitement de la modif
+*********************************************/
+fun C3DsetObb(mesh,obb,now)=
+  let search_point mesh -> i in
+  let searchObj3dIndexHash cel substr mesh 0 i -> obj3d in
+  match obj3d.Obj3dAtom with
+  (m3d m -> let searchMeshName m substr mesh i+1 1000 -> me in
+            if me!=nil && me.MeshObb!=obb then
+            (
+              set me.MeshObb=obb;
+              C3Dsend @OB_BroadToClient
+                      [OP_SET_OBB
+                       strbuild (mesh::(itoa obb)::nil)::nil
+                       now
+                      ]
+                      now;
+              CrSaveObj3d obj3d;
+              set cel.Cel3dmodified=1;
+            )
+            else C3Dsend nil nil now
+  )
+  |(_ -> nil);
+
+  0;;
+
+
+/********************************************
+Fonction de modification de la couleur de
+fond de la scene
+  couleur : I  nouvelle couleur de fond
+  now     : I    traitement de la modif
+*********************************************/
+fun C3DsetBackColor(color,now)=
+  if cel.Cel3dback!=color then
+  (
+    set cel.Cel3dback=color;
+    C3Dsend @OB_BroadToClient
+            [OP_SET_BACKCOLOR
+             strbuild ((itoh color)::nil)::nil
+             now
+            ]
+            now;
+    set cel.Cel3dmodified=1
+  )
+  else C3Dsend nil nil now;
+  0;;
+
+/********************************************
+Fonction de modification de la lumiere globale
+de la scene
+  light   : S  coeff de la lumiere
+  now     : I    traitement de la modif
+*********************************************/
+fun C3DsetGlobalLight(light,now)=
+  if (if cel.Cel3ddarkbase == nil then nil else atoi cel.Cel3ddarkbase) == (if light== nil then nil else atoi light) then
+    nil
+  else
+  (
+    set cel.Cel3ddarkbase=light;
+    C3Dsend @OB_BroadToClient
+            [OP_SET_GLBLIGHT
+             strbuild (light::nil)::nil
+             now
+            ]
+            now;
+    set cel.Cel3dmodified=1
+  );
+  0;;
+
+/* modifie l'inbox englobante de la scène */
+fun C3DsetBox (boxfilename, now) =
+  if (_checkpack boxfilename) == nil then
+    nil
+  else
+  (
+    let cel.Cel3dcol -> [prevboxfilename nil nil] in
+      if prevboxfilename == nil then
+        nil
+      else
+        _RSunregister this prevboxfilename;
+    set cel.Cel3dcol = [boxfilename 10 0];
+    _RSregister this boxfilename RSfile|RScontrol boxfilename;
+    C3Dsend @OB_BroadToClient
+            [OP_SET_BOX
+             strbuild (boxfilename::nil)::nil
+             now
+            ]
+            now;
+    set cel.Cel3dmodified=1;
+    set cel.Cel3dmodifiedregister=1
+  );
+  0
+;;
+
+/* modifie la gravité courrante */
+fun C3DsetGravity (grav, now)=
+  if cel.Cel3dgrav == grav then
+    nil
+  else
+  (
+    set cel.Cel3dgrav = grav;
+    C3Dsend @OB_BroadToClient
+            [OP_SET_GRAVITY
+             strbuild (if grav == nil then nil else (itoa grav)::nil)::nil
+             now
+            ]
+            now;
+    set cel.Cel3dmodified=1
+  );
+  0
+;;
+
+/* active ou désactive la gestion de la gravité et des collisions sur
+   tout les clients */
+fun C3DsetPhysics (val, now)=
+  if cel.Cel3dphysics == val then
+    nil
+  else
+  (
+    set cel.Cel3dphysics = val;
+    C3Dsend @OB_BroadToClient
+            [OP_SET_PHYSICS
+             strbuild ((itoa val)::nil)::nil
+             now
+            ]
+            now;
+    set cel.Cel3dmodified=1
+  );
+  0
+;;
+
+/* active ou désactive le mode Camera free sur tous les clients */
+fun C3DsetCamfree (val, now)=
+  if cel.CelCamerafree == val then
+    nil
+  else
+  (
+    set cel.CelCamerafree = val;
+    C3Dsend @OB_BroadToClient
+            [OP_SET_CAMFREE
+             strbuild ((itoa val)::nil)::nil
+             now
+            ]
+            now;
+    set cel.Cel3dmodified=1
+  );
+  0
+;;
+
+fun RemNameAndAnchorFromParam(l)=
+if l == nil then
+	nil
+else
+	let l -> [c nl] in
+	let hd c -> head in
+		if (!strcmp head "anchor") || (!strcmp head "name") then
+			RemNameAndAnchorFromParam nl
+		else
+			c::(RemNameAndAnchorFromParam nl);;
+
+fun getInstanceFromCel3dinstanceS(class,instancename,l)=
+if l == nil then
+	nil
+else
+	let l -> [currentinstance nl] in
+	let currentinstance -> [currentclass currentname _ _] in
+		if (!strcmp class currentclass) &&
+			 (!strcmp instancename currentname) then
+			currentinstance
+		else
+			getInstanceFromCel3dinstanceS class instancename nl;;
+
+fun RemoveInstanceFromCel3dinstanceS(class,instancename,l)=
+if l == nil then
+	nil
+else
+	let l -> [currentinstance nl] in
+	let currentinstance -> [currentclass currentname _ _] in
+		if (!strcmp class currentclass) &&
+			 (!strcmp instancename currentname) then
+			nl
+		else
+			currentinstance::(RemoveInstanceFromCel3dinstanceS class instancename nl);;
+
+
+/********************************************
+Fonction d'ajout d'une instance dans la scene
+*********************************************/
+fun C3DaddInstance(id,class,param)=
+	let strextr param -> lparam in
+	let getInfo lparam "name" -> instancename in
+	let getInfo lparam "anchor" -> anchorname in
+  let getInstanceFromCel3dinstanceS class instancename cel.Cel3dinstanceS -> instance in
+  let OB_GetHiddenParam instance -> hiddenparams in
+  (
+	  set lparam = OB_UpdateMissingParams lparam hiddenparams;
+  	let RemNameAndAnchorFromParam lparam -> lparam2 in
+  	(
+   		ObDelInstance id 0;
+    	ObNewInstance class lparam;
+    	if instance == nil then
+    		(set cel.Cel3dinstanceS = [class instancename anchorname lparam2]::(cel.Cel3dinstanceS);0)
+    	else
+    		(mutate instance <- [class instancename anchorname lparam2];0);
+    	C3Dsend @OB_BroadToClient
+            [OP_ADD_INSTANCE
+             strbuild ((class)::(instancename)::nil
+                      )::nil
+             1
+            ]
+            1;
+      set cel.Cel3dmodified=1;
+  		0
+  	)
+  )
+;;
+
+/********************************************
+Fonction de suppression d'une instance dans
+la scene
+*********************************************/
+fun C3DdelInstance(id,class,instancename)=
+  let getInstanceFromCel3dinstanceS class instancename cel.Cel3dinstanceS -> instance in
+	(
+  	C3Dsend @OB_BroadToClient
+          [OP_DEL_INSTANCE
+           strbuild ((class)::(instancename)::nil
+                    )::nil
+           1
+          ]
+          1;
+		ObDelInstance id 1;
+		set cel.Cel3dinstanceS = RemoveInstanceFromCel3dinstanceS class instancename cel.Cel3dinstanceS;
+    set cel.Cel3dmodified=1;
+		0
+	)
+;;
+
+fun OB_CompareAnchorTextObj3d (obS, obj3dname) =
+  let obS -> [_ _ anchorS _] in
+    let hd tl hd (strextr anchorS) -> firstObj in
+      !(strcmpi firstObj obj3dname)
+;;
+
+fun OB_Clear (instance, param) =
+  let instance -> [class name _ _] in
+    C3DdelInstance (OB_GetIdFromName name) class name
+;;
+
+/*****************************************
+fonction de destruction des instances associées
+******************************************/
+fun delAsso (m, ndx)=
+  if m.MeshName == nil then
+    nil
+  else
+    let search_all_in_list cel.Cel3dinstanceS @OB_CompareAnchorTextObj3d strcatn ndx::"."::(m.MeshName)::nil -> instlist in
+      apply_on_list instlist @OB_Clear nil;
+  delLinks m.MeshLinks;
+  0
+;;
+
+/********************************************
+Fonction de modification de position et de
+l'angle d'un mesh
+  mesh       : S  mesh
+  xyzabc     : I  position et angle
+  type       : I  sauvegarde de l'objet
+  broadsender: I type de renvoie au clients
+*********************************************/
+fun C3DsetObjPosAng(mesh,x,y,z,a,b,c,type,broadsender)=
+  let [[x y z] [a b c]] -> pos in
+  let search_point mesh -> i in
+  let searchObj3dIndexHash cel substr mesh 0 i -> obj3d in
+  let match obj3d.Obj3dAtom with
+    (m3d m -> ( let searchMeshName m substr mesh i+1 1000 -> me in
+                if me!=nil && (diffPos me.MeshPos pos) then
+                (
+                  setMeshPos me pos;
+                  1
+                )
+                else 0
+              )
+    )
+    |(dummy d -> (set d.DumPos=pos;1)
+     )
+    |(_ -> 0) -> modified in
+  (
+    let if broadsender&BROAD_NONE || !modified then nil
+      else if broadsender&BROAD_OTHER then @broad_other_client
+      else if broadsender&BROAD_ALL then @OB_BroadToClient
+      else nil -> func in
+    C3Dsend func
+            [OP_SET_OBJPOSANG
+             strbuild (mesh::(itoa x)::(itoa y)::(itoa z)::
+                       (itoa a)::(itoa b)::(itoa c)::(itoa type)::nil
+                      )::nil
+             1
+            ]
+            1;
+    if type then
+    (
+       CrSaveObj3d obj3d;
+       set cel.Cel3dmodified=1
+    )
+    else nil;
+    0
+  )
+;;
+
+/********************************************
+Fonction de réinitialisation de la position et de
+l'angle d'un mesh par rapport au fichier m3d
+  mesh       : S  mesh
+  type       : I  sauvegarde de l'objet
+  broadsender: I type de renvoie au clients
+*********************************************/
+fun C3DsetObjPosAngOrig(mesh,type,broadsender)=
+  let search_point mesh -> i in
+  let searchObj3dIndexHash cel substr mesh 0 i -> obj3d in
+  let
+    match obj3d.Obj3dAtom with
+    (m3d m ->
+      (
+        let searchMeshName m substr mesh i+1 1000 -> me in
+          if me!=nil && (diffPos me.MeshPos me.MeshM3dPos) then
+          (
+            setMeshPos me me.MeshM3dPos;
+            [1 me.MeshM3dPos];
+          )
+          else
+            [0 nil]
+      )
+    )
+    |(dummy d ->
+      (
+        set d.DumPos=[[0 0 0] [0 0 0]];
+        [1 [[0 0 0] [0 0 0]]]
+      )
+    )
+    |(_ -> [0 nil])
+  -> [modified [[x y z] [a b c]]] in
+  (
+    let if broadsender&BROAD_NONE || !modified then nil
+      else if broadsender&BROAD_OTHER then @broad_other_client
+      else if broadsender&BROAD_ALL then @OB_BroadToClient
+      else nil -> func in
+      C3Dsend func
+              [OP_SET_OBJPOSANG
+               strbuild (mesh::(itoa x)::(itoa y)::(itoa z)::
+                         (itoa a)::(itoa b)::(itoa c)::(itoa type)::nil
+                        )::nil
+               1
+              ]
+              1;
+    if type then
+    (
+       CrSaveObj3d obj3d;
+       set cel.Cel3dmodified=1
+    )
+    else nil;
+    0
+  )
+;;
+
+/********************************************
+Fonction de réinitialisation de position et de
+l'angle du père d'un mesh
+  mesh       : S  index du mesh père
+  type       : I  sauvegarde de l'objet
+  broadsender: I type de renvoie au clients
+*********************************************/
+fun C3DsetObjFatherPosAngOrig (ndx,type,broadsender)=
+  let searchObj3dIndexHash cel ndx -> obj3d in
+  let
+    if diffPos (getAtomPos obj3d.Obj3dAtom) [[0 0 0] [0 0 0]] then
+    (
+      setAtomPos obj3d.Obj3dAtom [[0 0 0] [0 0 0]];
+      1
+    )
+    else
+      0
+  -> modified in
+  (
+    let if broadsender&BROAD_NONE || !modified then nil
+      else if broadsender&BROAD_OTHER then @broad_other_client
+      else if broadsender&BROAD_ALL then @OB_BroadToClient
+      else nil -> func in
+    C3Dsend func
+            [OP_SET_OBJPOSANG
+             strbuild (ndx::"0"::"0"::"0"::"0"::"0"::"0"::(itoa type)::nil)::nil
+             1
+            ]
+            1;
+    if type then
+    (
+       CrSaveObj3d obj3d;
+       set cel.Cel3dmodified=1
+    )
+    else nil;
+    0
+  )
+;;
+
+/********************************************
+Fonction de modification du scale d'un mesh
+  mesh       : S  mesh
+  scale      : I  scale
+  type       : I  sauvegarde de l'objet
+  broadsender: I type de renvoie au clients
+*********************************************/
+fun C3DsetObjScale(mesh,scale,type,broadsender)=
+  let search_point mesh -> i in
+  let searchObj3dIndexHash cel substr mesh 0 i -> obj3d in
+  let match obj3d.Obj3dAtom with
+      (m3d m -> (
+                  let searchMeshName m substr mesh i+1 1000 -> me in
+                  if me!=nil && me.MeshScale!=scale then
+                  (
+                    set me.MeshScale=scale;
+                    1
+                  )
+                  else 0
+                )
+      )
+      |(_ -> 0) -> modified in
+  (
+    let if broadsender&BROAD_NONE || !modified then nil
+        else if broadsender&BROAD_OTHER then @broad_other_client
+        else if broadsender&BROAD_ALL then @OB_BroadToClient
+        else nil -> func in
+    C3Dsend func
+            [OP_SET_OBJSCALE
+             strbuild (mesh::(itoa scale)::(itoa type)::nil)::nil
+             1
+            ]
+            1;
+    if type then
+    (
+      CrSaveObj3d obj3d;
+      set cel.Cel3dmodified=1
+    )
+    else nil;
+    0
+  );;
+
+/***************************************
+Fonction d'ajout d'un m3d par rapport
+à son pere à la nouvelle position pos
+  f       :S nouveau m3d
+  father  :S pere
+  pos     : position
+****************************************/
+fun C3DaddM3d(f,father,pos)=
+  let search_point father -> i in
+  let substr father i+1 10000 -> meshref in
+  let searchObj3dIndexHash cel substr father 0 i -> obj3d in
+  /* creation de l'objet et evaluation de son index  */
+  if obj3d==nil then nil
+  else
+  let checkObj3dIndex cel.Cel3dhashobj (newObj3d newM3d f 0 obj3d) -> newobj in
+  (
+
+    /* les registers au niveau des textures et du fichier m3d */
+    set cel.Cel3dregisteredtext=addObj3dRegisteredText newobj cel.Cel3dregisteredtext 1;
+    set cel.Cel3dregisteredM3d =addObj3dRegisteredFile newobj cel.Cel3dregisteredM3d 1;
+
+    /* mise en place du referentiel pere et de la position */
+    set newobj.Obj3dRef=if strcmp meshref "" then meshref else nil;
+    setAtomPos newobj.Obj3dAtom pos;
+
+    /* mise à jour de la sauvegarde */
+    CrSaveObj3d newobj;
+
+    /* creation du nouveau contenu de l'objet et reponses aux clients*/
+    let strbuild newobj.Obj3dSave -> content in
+    let _getlongname content strcatn "dat/desc"::newobj.Obj3dIndex::".tmp"::nil "#" -> fic in
+    (
+      _RSregister this fic RScontrol content;
+      set cel.Cel3dtemporaryReg=[fic sizelist OBLIST_GetRealClientList C3DobList]::cel.Cel3dtemporaryReg;
+      C3Dsend @OB_BroadToClient
+              [OP_ADD_M3D
+               strbuild (f::fic::father::nil)::nil
+               1
+              ]
+              1
+    );
+
+    /* modification du texte de sauvegarde de l'objet */
+    set cel.Cel3dmodified=1;
+    set cel.Cel3dmodifiedregister=1
+  );
+  0;;
+
+fun compficReg(p,s2)=
+  let p -> [s _] in
+  !strcmp s s2;;
+
+fun __C3DendAddM3d(fic)=
+  let search_in_list cel.Cel3dtemporaryReg @compficReg fic -> reg in
+  if reg!=nil then
+    let reg -> [_ i] in
+    if (i-1)==0 then
+    (
+      _RSunregister this fic;
+      set cel.Cel3dtemporaryReg=remove_from_list cel.Cel3dtemporaryReg reg;
+      0
+    )
+    else
+    (
+      mutate reg<-[_ i-1];
+      0
+    )
+  else 0;;
+
+
+/******************************************
+Fonction de rechargement d'un m3d
+de la scene
+*******************************************/
+/*fun C3DreloadM3d(ndx,f)=
+  let searchObj3dIndexHash cel ndx -> obj3d in
+  /* creation de l'objet et evaluation de son index  */
+  if obj3d==nil then nil
+  else
+  (
+    /* destruction du contenu de l'atome */
+    delAtom obj3d.Obj3dAtom obj3d.Obj3dIndex;
+
+    /* mise à jour du m3d et des materiaux */
+    match obj3d.Obj3dAtom with
+    (m3d m -> (set m.M3dfile=f;
+               set m.M3dMaterials=AnalyseM3d strextr _getpack _checkpack f
+                                  (set m.M3dMesh=newMesh nil nil nil nil 0 m.M3dHashMesh)
+                                  nil 0 0 0 m.M3dHashMesh;
+              )
+    )
+    |(_ -> nil);
+
+
+    /* mise à jour des fichiers et des textures en register */
+    set cel.Cel3dregisteredtext=addObj3dRegisteredText obj3d cel.Cel3dregisteredtext 1;
+    set cel.Cel3dregisteredM3d =addObj3dRegisteredFile obj3d cel.Cel3dregisteredM3d 1;
+
+    /* envoie de la reponse */
+    C3Dsend @OB_BroadToClient
+              [OP_RLD_M3D
+               strbuild (ndx::f::nil)::nil
+               1
+              ]
+              1;
+
+    /* mise à jour de la sauvegarde */
+    CrSaveObj3d obj3d;
+
+    /* modification du texte de sauvegarde de l'objet */
+    set cel.Cel3dmodified=1;
+    set cel.Cel3dmodifiedregister=1
+  );;
+*/
+
+fun searchAnchorInInstance(inst,an)=
+  let inst -> [_ _ ai _] in
+  if ai==nil then 0
+  else !strcmp an ai;;
+
+fun pbyname(o,s)=
+  !strcmp o.nameOb s;;
+
+/**************************************
+Fonction qui vire un objet de
+l'arborescence
+***************************************/
+fun remObj3dFromTree(o)=
+  if o.Obj3dFather.Obj3dSon==o then
+     set o.Obj3dFather.Obj3dSon=o.Obj3dBro
+  else
+     let o.Obj3dFather.Obj3dSon -> cur in
+     (
+        while cur.Obj3dBro!=o do
+          set cur=cur.Obj3dBro;
+        set cur.Obj3dBro=o.Obj3dBro;
+     );;
+
+
+/***************************************
+Fonction de suppression d'un m3d
+  ndx     :S index de l'objet
+  type    :I 1 si recursif
+             0 sinon
+****************************************/
+fun C3DdelM3d(ndx,type)=
+  let searchObj3dIndexHash cel ndx -> o in
+    if o==nil then
+      0
+    else
+      if type then
+      (
+        remObj3dFromTree o;
+        delAtom o.Obj3dAtom o.Obj3dIndex;
+        /* destruction recursive des fils*/
+        delObj3d o.Obj3dSon;
+        /* destruction de l'objet sur les clients*/
+        C3Dsend @OB_BroadToClient
+                [OP_DEL_M3D
+                 strbuild (o.Obj3dIndex::nil)::nil
+                 1
+                ]
+                1;
+        /* on enleve l'objet de la table de hachage */
+        remObj3dInHash cel o;
+        /* modification du texte de sauvegarde de l'objet */
+        set cel.Cel3dmodified=1;
+        set cel.Cel3dmodifiedregister=1
+      )
+      else
+        nil
+;;
+
+
+/****************************************
+Fonction d'ajout ou de modification d'une
+position
+  npos:   :S nom de la position
+  pos     :[[I I I][I I I]] nvle position
+*****************************************/
+fun C3DaddPos(npos,pos)=
+  if (search_in_list cel.Cel3dIpos @compPos npos)==nil then
+  (
+    let pos -> [v a] in
+    set cel.Cel3dIpos=[npos v a]::cel.Cel3dIpos;
+    _DMSdefineActions this [npos @ipos]::nil;
+    C3Dsend @OB_BroadToClient
+            [OP_ADD_POS
+             let pos -> [[x y z][a b c]] in
+             strbuild (npos::(itoa x)::(itoa y)::(itoa z)::
+                       (itoa a)::(itoa b)::(itoa c)::nil
+                      )::nil
+             1
+            ]
+            1;
+    SendPositions;
+    set cel.Cel3dmodified=1
+  )
+  else nil;;
+
+/******************************************
+Fonction de modification d'une position
+  npos:   :S nom de la position
+  pos     :[[I I I][I I I]] nvle position
+  type    : I sauvegarde imediate
+  broadsender: type de renvoie au client
+*******************************************/
+fun C3DmovPos(npos,pos,type,broadsender)=
+  let search_in_list cel.Cel3dIpos @compPos npos -> rpos in
+  let rpos -> [_ vr ar] in
+  if rpos!=nil && diffPos pos [vr ar] then
+    let if broadsender&BROAD_NONE then nil
+        else if broadsender&BROAD_OTHER then @broad_other_client
+        else if broadsender&BROAD_ALL then @OB_BroadToClient
+        else nil -> func in
+    (
+
+
+      C3Dsend func
+              [OP_MOV_POS
+               let pos -> [[x y z][a b c]] in
+               strbuild (npos::(itoa x)::(itoa y)::(itoa z)::
+                         (itoa a)::(itoa b)::(itoa c)::nil
+                        )::nil
+               1
+              ]
+              1;
+      if type then
+      (
+        let pos -> [v a] in
+        mutate rpos <- [_ v a];
+        set cel.Cel3dmodified=1
+      )
+      else nil
+    )
+  else nil;;
+
+/******************************************
+Fonction de suppression d'une position
+*******************************************/
+fun C3DdelPos(npos)=
+  let search_in_list cel.Cel3dIpos @compPos npos -> rpos in
+  if rpos !=nil then
+  (
+    set cel.Cel3dIpos=remove_from_list cel.Cel3dIpos rpos;
+    C3Dsend @OB_BroadToClient
+            [OP_DEL_POS
+             strbuild (npos::nil)::nil
+             1
+            ]
+            1;
+    SendPositions;
+    set cel.Cel3dmodified=1
+  )
+  else nil;;
+
+/******************************************
+Fonction de renommage d'une position
+*******************************************/
+/*fun C3DrenPos(old,new)=
+  let search_in_list cel.Cel3dIpos @compPos old -> rpos in
+  if rpos!=nil && (search_in_list cel.Cel3dIpos @compPos new)==nil then
+  (
+    mutate rpos <- [new _ _];
+    C3Dsend @OB_BroadToClient
+            [OP_REN_POS
+             strbuild (old::new::nil)::nil
+             1
+            ]
+            1;
+    set cel.Cel3dmodified=1
+  )
+  else nil;;
+*/
+
+fun chgAvatarPos(x,s)=
+  ObPlaceAvatar CtoU x.cliOb s;
+  0;;
+
+/******************************************
+Fonction de reset de la position de ts les
+avatars
+*******************************************/
+/*fun C3DrstPos(npos)=
+  apply_on_list C3DobList
+                @chgAvatarPos
+                npos;
+  0;;
+*/
+
+/******************************************
+Fonction de reset de la scene
+*******************************************/
+/*fun C3Dreset()=
+
+  /* destruction de touts les objets */
+  delObj3d cel.Cel3dobj.Obj3dSon;
+  set cel.Cel3dobj.Obj3dSon=nil;
+
+  /* reset de la table de hachage */
+  rstHash cel.Cel3dhashobj 0;
+  checkObj3dIndex cel.Cel3dhashobj cel.Cel3dobj;
+
+  /* reset des positionz */
+  C3Dsend @OB_BroadToClient
+            [OP_RESET
+             nil
+             1
+            ]
+            1;
+  set cel.Cel3dcol=nil;
+  set cel.Cel3dmodified=1;
+  set cel.Cel3dmodifiedregister=1;;
+*/
+
+fun __request(op,param,i)=
+  if !findList C3DlauCli DMSsender then nil
+  else
+    let hd strextr param -> l in
+    if !strcmp op OP_SET_TYPE then
+        C3DsetType (nth_list l 0) atoi (nth_list l 1) i
+    else if !strcmp op OP_SAVE then
+        C3DsaveOnDisk i
+    else if !strcmp op OP_SET_TRANSP then
+        C3DsetTransp (nth_list l 0) (atoi nth_list l 1) i
+    else if !strcmp op OP_SET_FLAT then
+        C3DsetFlat (nth_list l 0) (htoi nth_list l 1) i
+    else if !strcmp op OP_SET_TEXTURE then
+        C3DsetTexture nth_list l 0 nth_list l 1 i
+    else if !strcmp op OP_SET_FILTER then
+        C3DsetFilter (nth_list l 0) (nth_list l 1) i
+    else if !strcmp op OP_SET_OBB then
+        C3DsetObb (nth_list l 0) (atoi nth_list l 1) i
+    else if !strcmp op OP_SET_BACKCOLOR then
+        C3DsetBackColor (htoi nth_list l 0) i
+    else if !strcmp op OP_SET_GLBLIGHT then
+        C3DsetGlobalLight (nth_list l 0) i
+    else if !strcmp op OP_SET_BOX then
+        C3DsetBox (nth_list l 0) i
+    else if !strcmp op OP_SET_GRAVITY then
+      let nth_list l 0 -> grav in
+        C3DsetGravity (if grav == nil then nil else atoi grav) i
+    else if !strcmp op OP_SET_PHYSICS then
+      let nth_list l 0 -> val in
+        C3DsetPhysics (if val == nil then 1 else atoi val) i
+    else if !strcmp op OP_SET_CAMFREE then
+      let nth_list l 0 -> val in
+        C3DsetCamfree (if val == nil then 1 else atoi val) i
+    else if !strcmp op OP_ADD_INSTANCE then
+        C3DaddInstance (atoi nth_list l 0) (nth_list l 1) (nth_list l 2)
+    else if !strcmp op OP_DEL_INSTANCE then
+        C3DdelInstance (atoi nth_list l 0) (nth_list l 1) (nth_list l 2)
+
+    else if !strcmp op OP_SET_OBJPOSANG then
+        C3DsetObjPosAng (nth_list l 0)
+                        (atoi nth_list l 1) (atoi nth_list l 2) (atoi nth_list l 3)
+                        (atoi nth_list l 4) (atoi nth_list l 5) (atoi nth_list l 6)
+                        (atoi nth_list l 7) (atoi nth_list l 8)
+    else if !strcmp op OP_SET_OBJPOSANGORIG then
+        C3DsetObjPosAngOrig (nth_list l 0) (atoi nth_list l 1) (atoi nth_list l 2)
+    else if !strcmp op OP_SET_OBJFATHERPOSANGORIG then
+        C3DsetObjFatherPosAngOrig (nth_list l 0) (atoi nth_list l 1) (atoi nth_list l 2)
+    else if !strcmp op OP_SET_OBJSCALE then
+        C3DsetObjScale (nth_list l 0) (atoi nth_list l 1) (atoi nth_list l 2) (atoi nth_list l 3)
+    else if !strcmp op OP_ADD_M3D then
+        C3DaddM3d (nth_list l 0) (nth_list l 1)
+                  [[atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+                   [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]
+                  ]
+/*   else if !strcmp op OP_RLD_M3D then
+        C3DreloadM3d (nth_list l 0) (nth_list l 1)*/
+   else if !strcmp op OP_DEL_M3D then
+        C3DdelM3d (nth_list l 0) (atoi nth_list l 1)
+   else if !strcmp op OP_ADD_POS then
+        C3DaddPos (nth_list l 0)
+                  [[atoi nth_list l 1 atoi nth_list l 2 atoi nth_list l 3]
+                   [atoi nth_list l 4 atoi nth_list l 5 atoi nth_list l 6]
+                  ]
+   else if !strcmp op OP_MOV_POS then
+        C3DmovPos (nth_list l 0)
+                  [[atoi nth_list l 1 atoi nth_list l 2 atoi nth_list l 3]
+                   [atoi nth_list l 4 atoi nth_list l 5 atoi nth_list l 6]
+                  ]
+                  (atoi nth_list l 7)
+                  (atoi nth_list l 8)
+   else if !strcmp op OP_DEL_POS then
+        C3DdelPos (nth_list l 0)
+/*   else if !strcmp op OP_RST_POS then
+        C3DrstPos (nth_list l 0)
+   else if !strcmp op OP_REN_POS then
+        C3DrenPos (nth_list l 0) (nth_list l 1)
+   else if !strcmp op OP_RESET then
+        C3Dreset*/
+   else nil;;
+
+
+fun __autosave (auto, delay) =
+  set cel.Cel3dautosave = auto;
+  let delay * 1000 -> delayms in
+    set cel.Cel3dautosavedelay =
+      if (delayms != nil) && (delayms >= TIMER_SAVE_FREQUENCY) then delayms else TIMER_SAVE_FREQUENCY;
+  C3D_UpdateTimerState cel;
+  0
+;;
+
+
+/*  synchro pos */
+fun broadpos(l,comm)=
+ if l==nil then 0 else let l->[[demandeur _] nxt] in
+ (_DMSsend this demandeur.cliOb comm;
+  broadpos nxt comm);;
+
+fun checkvisi(p,x,y,z)=
+ let x/(cel.Cel3dgridsize) -> xt in let y/(cel.Cel3dgridsize)->yt in let z/(cel.Cel3dgridsize)->zt in
+ if xt==p.xtreeOb && yt==p.ytreeOb && zt==p.ztreeOb then nil
+ else
+ (set p.xtreeOb=xt; set p.ytreeOb=yt; set p.ztreeOb=zt;
+/*  _showconsole;
+  _fooS strcatn "visi "::(itoa xt)::"x"::(itoa yt)::"x"::(itoa zt)::nil;*/
+  UsetVisibility ObUi p treeNewWithPos p.rightsOb p.commutOb xt yt zt);;
+
+fun __setpos(i,x,y,z,a,b,c)=
+ if i>=0 && i<cel.Cel3dmaxOb then
+ let C3DobTab.i -> p in
+  if DMSsender!=p.cliOb then nil
+  else
+  (set p.posOb=[x y z]; set p.angOb=[a b c];
+   checkvisi p x y z;
+   set p.tickOb=_tickcount;
+   broadpos p.broadlistOb Csetpos [p.idOb x y z a b c p.tickOb];
+   set p.broadlistOb=nil;
+   _DMSsend this p.cliOb Cack [forceWaitCoef])
+ else nil;;
+
+fun __ack(sender,acknowledged,t)=
+ if (sender >=0 && sender < cel.Cel3dmaxOb) &&
+    acknowledged>=0 && acknowledged<cel.Cel3dmaxOb then
+  let (if sender!=nil then C3DobTab.sender else search_in_list C3DobList @pbycli DMSsender) -> p in
+  let C3DobTab.acknowledged -> p2 in
+  if p2==nil || DMSsender!=p.cliOb then nil
+  /* on vérifie que l'utilisateur n'est pas déjà dans la liste de diffusion */
+  else
+   if t!=nil || p2.tickOb==nil then
+     if 0==switch p2.broadlistOb p then nil
+     else
+      set p2.broadlistOb=[p 0]::p2.broadlistOb
+   else
+   (let [p2.posOb p2.angOb] -> [[x y z] [a b c]] in
+    _DMSsend this p.cliOb Csetpos [p2.idOb x y z a b c p2.tickOb];
+    nil)
+ else nil;;
+
+/**************************************************************/	
+  
+fun registerOSProject(xmlfile) =
+  regLoadProject (regCrProject xmlfile nil 0) nil nil nil nil nil 1;
+  0;; 
+  
+  
+fun registerOS(xmlfile) =
+  if (xmlfile==nil) then nil	
+  else 
+  (
+    /*register main os files to download*/
+    _fooS strcatn "Register OS:"::xmlfile::"\n"::nil; 
+	let _listoffiles (getFileDirectory xmlfile) -> mainOsfiles in
+	(
+	  //_RSregisterfiles this mainOsfiles RSfile+RScontrol;
+	  addOSlist mainOsfiles;
+	  1
+	)  
+  );;  
+ 
+/*openspace loader**/  
+fun __loadOS(xmlfile) = 
+  //_RSregisterfiles this rfiles RSfile+RScontrol;
+  _fooS strcatn "Register OS:"::xmlfile::"\n"::nil;
+  
+  set osfiles = nil; /*reset osfiles for every client else add the same files!!!*/
+  
+  let if xmlfile == nil then cel.Cel3dopenspace else xmlfile -> file in
+  if file==nil then nil else
+  ( _fooS strcatn "Register OS 2:"::file::"\n"::nil;
+  
+    /** register main os file **/
+    registerOS file; 
+	
+	/** register openspace resources **/
+	registerOSProject file;
+	
+	/*global register on osfiles*/
+	_RSregisterfiles this osfiles RSfile+RScontrol;
+	
+	let linebuild revertlist osfiles -> osf in
+	_DMSsend this DMSsender CinitOSPlayerS [xmlfile osf];
+	
+	//UsendCli this DMSsender ui "getOSFiles" osf;
+    1
+  );;          

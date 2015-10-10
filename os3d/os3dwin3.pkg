@@ -1,0 +1,929 @@
+/* 3d Window by J.DUMAY May 2000*/
+/* macfly august 2001 */
+/* païkan january 2003 */
+/* stereobit march 2015 */
+
+var Engine3DIsV4Compliant = 0;;
+typeof ScreenSize = [I I];;
+typeof Ignored3DObject = [H3d r1];;
+
+/******************************************* Manager de Vues 3d **************************************/
+struct View3dManager=[
+  MV3dChannel         : Chn,
+  MV3dWin             : ObjWin,
+  MV3dSize            : [I I],
+  MV3dFlags           : I,
+  MV3dTimer           : Timer,
+  MV3dListV3d         : [View3d r1],
+  MV3dPaint           : fun[View3dManager] I,
+  MV3dPreRender       : fun[View3dManager] I,
+  MV3dEnd             : fun [] I
+]mkView3dManager;;
+
+
+var MV3D_RESIZE =1;;
+var MV3D_INTERF =2;;
+var MV3D_CONT   =4;;
+var MV3D_CHILD  =8;;
+
+/******************************************* Vue 3d **************************************************/
+struct View3d=[
+  V3dmanager            : View3dManager,
+  V3dchannel            : Chn,
+  V3dwin                : ObjWin,
+  V3drenderType         : I,
+  V3dsession            : S3d,
+  V3dcamera             : H3d,
+
+  V3dcursorDef          : ObjCursor,
+  V3dbuf                : ObjSurface,
+  V3dwinpos             : [I I],
+  V3dsize               : [I I],
+  V3dwindowsize         : [I I],
+  V3dk                  : [I I],
+  V3dfond               : I,
+  V3dvector             : [I I I],
+  V3dangular            : [I I I],
+  V3dref                : [I I],
+  V3dref3d              : [H3d HMat3d],
+  V3doldpos             : [I I],
+  V3dclickPos           : [I I],
+  V3dcursor             : [I I],
+  V3dlast               : H3d,
+  V3dlastm              : HMat3d,
+  V3dmanageCameraMove   : I,                             /* indicate whereas C3D manage keys and mouse action for user camera move */
+
+  V3dCursorReserved     : Ob,                            /* instance which has reserved the cursor */
+  V3dReservedCursor     : ObjCursor,                     /* reserved cursor */
+  V3dMouseReserved      : Ob,                            /* instance which has reserved the mouse */
+  V3dKeyboardReserved   : Ob,                            /* instance which has reserved the keyboard */
+
+  /* les callbacks utilisateurs */
+  V3dcbResize           : fun [View3d I I] I,            /* resize */
+  V3dcbFocus            : fun [View3d] I,                /* focus */
+  V3dcbKillFocus        : fun [View3d] I,                /* kill focus */
+
+  V3dcbKeyboardUp       : [[I fun [I] I] r1],            /* absolute key up callback (param = scancode) */
+  V3dcbKeyboardDown     : [[I fun [I] I] r1],            /* absolute key down callback (param = scancode) */
+  V3dcbMouseClick       : [[I fun [I I I] I] r1],        /* absolute mouse click callback (param = x y btn) */
+  V3dcbMouseDClick      : [[I fun [I I I] I] r1],        /* absolute mouse double click callback (param = x y btn) */
+  V3dcbMouseUnclick     : [[I fun [I I I] I] r1],        /* absolute mouse unclick callback (param = x y btn) */
+  V3dcbMouseMove        : [[I fun [I I I] I] r1],        /* absolute mouse move callback (param = x y btn) */
+
+  V3dcbKeyUp            : fun [I] I,                     /* key up callback */
+  V3dcbKeyDown          : fun [I I] I,                   /* key down callback */
+  V3dcbCursorMoveCoords : fun [I I] I,                   /* cursor move Coords callback */
+  V3dcbClick            : fun [I I I H3d HMat3d] I,      /* click if 1 then traited 0 not treated */
+  V3dcbUnClick          : fun [I I I H3d HMat3d] I,      /* unclick if 1 then traited 0 not treated */
+  V3dcbTimer            : fun [] I,                      /* timer */
+  V3dcbMoveObject       : fun [[I I I] [I I I]] I,       /* deplacement object */
+  V3dcbCursorMoveObject : fun [View3d H3d HMat3d I I] I, /* cursor move sur un objet */
+  V3dcbClickObject      : fun [H3d HMat3d I] I,          /* click sur un object */
+  V3dcbDClickObject     : fun [H3d HMat3d I] I,          /* doucle click sur objet */
+  V3dcbPostRender       : fun [ObjSurface [I I]] I,      /* postrender */
+  V3dcbPreRender        : fun [] I,                      /* prerender */
+  V3dcbEnd              : fun [View3d] I
+]mkView3d;;
+
+
+var WIRE          =1;;
+var WIREORTHO     =2;;
+var TEXTURED      =4;;
+
+
+var D3DErrorDialog = 0;; /* Error Dialog not created yet */
+
+fun D3DErrorDialogOK (b, thepopup)=
+  _DSwindow thepopup;
+  set D3DErrorDialog = 0
+;;
+
+/******************************************* Vue 3d **************************************************/
+proto VIEW3D_BlitFullScreenSurface = fun [View3d] ObjWin;;
+proto VIEW3D_IsFullScreen = fun [] I;;
+
+proto C3D_GetOpenspaceFile = fun [] S;; /*openspacefile proto*/
+
+fun VIEW3D_CheckFullScreen () =
+  if Engine3DIsV4Compliant then
+    VIEW3D_IsFullScreen
+  else
+    0
+;;
+
+fun VIEW3D_ClearWindowedData (dev) =
+  _DSsurface dev.V3dbuf;
+  _DSwindow dev.V3dwin;
+  set dev.V3dbuf = nil;
+  set dev.V3dwin = nil
+;;
+
+fun VIEW3D_ClearFullScreenData (dev) =
+  _DSsurface dev.V3dbuf;
+  set dev.V3dbuf = nil;
+  set dev.V3dwin = nil
+;;
+
+fun focusView3d(win,dev)= exec dev.V3dcbFocus with [dev];;
+
+fun killfocusView3d (win,dev) =
+/* on stoppe tout déplacement de l'avatar */
+  set dev.V3dvector=[0 0 0];
+  set dev.V3dangular=[0 0 0];
+  set dev.V3dref=nil;
+  set dev.V3dref3d=nil;
+  set dev.V3doldpos=nil;
+  exec dev.V3dcbKillFocus with [dev]
+;;
+
+fun VIEW3D_Clear (dev) =
+  killfocusView3d dev.V3dwin dev;
+  if VIEW3D_CheckFullScreen then
+    VIEW3D_ClearFullScreenData dev
+  else
+    VIEW3D_ClearWindowedData dev
+;;
+
+/* CB de fermeture de la fenêtre de rendu 3D */
+fun destroyView3d(win,dev)=
+  VIEW3D_Clear dev;
+  exec dev.V3dcbEnd with [dev]
+;;
+
+
+fun VIEW3D_BlitSurface (dev) =
+  if VIEW3D_CheckFullScreen then
+    VIEW3D_BlitFullScreenSurface dev
+  else
+    let dev.V3dsize -> [w h] in
+      _BLTsurface dev.V3dwin 0 0 dev.V3dbuf 0 0 w h
+;;
+
+fun paintView3d(win,dev)= VIEW3D_BlitSurface dev;;
+
+fun VIEW3D_CreateWindowedSurface (channel, winfather, wh) =
+  let wh -> [w h] in
+    if w < 10 || h < 10 then
+      [nil nil]
+    else
+      let _CRsurface channel w h -> buf in
+        if buf == nil then
+        (
+          if !D3DErrorDialog then
+            let _GETscreenSize  -> [wscr hscr] in
+            /*let _CRwindow channel winfather (wscr-250)/2 (hscr-100)/2 250 100 WN_DIALOG _loc this "3D_ERROR" nil -> popup in
+            let _CRtext channel popup 10 10 230 40 ET_ALIGN_CENTER _loc this "3D_NOMEMORY" nil -> text in
+            let _CRbutton channel popup 85 60 80 20 ET_ALIGN_CENTER _loc this "OK" nil -> button in
+            (
+              set D3DErrorDialog = 1;
+              _CBbutton button @D3DErrorDialogOK popup;
+            )*/0
+          else
+            nil;
+          VIEW3D_CreateWindowedSurface channel winfather [w/2 h/2]
+        )
+        else
+          [buf wh]
+;;
+
+
+proto VIEW3D_GetFullScreenWin = fun [ObjSurface] ObjWin;;
+proto VIEW3D_CreateFullScreenSurface = fun [Chn ObjWin [I I]] [ObjSurface [I I]];;
+
+
+fun VIEW3D_CreateFullScreenData (channel, winfather, wh) =
+  let VIEW3D_CreateFullScreenSurface channel winfather wh -> [buf newwh] in
+    if buf == nil then
+      [nil nil nil]
+    else
+      [buf (VIEW3D_GetFullScreenWin buf) newwh]
+;;
+
+fun VIEW3D_CreateWindowedData (channel, winfather, pos, wh) =
+  let wh -> [w h] in
+  let VIEW3D_CreateWindowedSurface channel winfather wh -> [buf newwh] in
+    if buf == nil then
+      [nil nil nil]
+    else
+      let newwh -> [ww hh] in
+      let pos -> [x y] in
+        [buf (_CRwindow channel winfather x y ww hh WN_CHILDINSIDE|WN_NOCAPTION|WN_NOBORDER "") newwh]
+;;
+
+proto VIEW3D_UpdateData = fun [View3d ObjWin ObjSurface [I I]] I;;
+
+
+fun VIEW3D_ChangeScreenState (dev, newScreenSize) =
+  let
+    if VIEW3D_CheckFullScreen then
+    (
+      VIEW3D_Clear dev;/* done after test on full screen !! */
+      VIEW3D_CreateWindowedData dev.V3dmanager.MV3dChannel dev.V3dmanager.MV3dWin dev.V3dwinpos dev.V3dwindowsize
+    )
+    else
+    ( if newScreenSize == nil
+      then set ScreenSize = [800 600]
+      else
+    set ScreenSize = newScreenSize;
+      VIEW3D_Clear dev;/* done after test on full screen !! */
+      let VIEW3D_CreateFullScreenData dev.V3dmanager.MV3dChannel dev.V3dmanager.MV3dWin ScreenSize -> [buftmp wintmp newsizetmp] in
+        if buftmp == nil then
+          VIEW3D_CreateWindowedData dev.V3dmanager.MV3dChannel dev.V3dmanager.MV3dWin dev.V3dwinpos dev.V3dwindowsize
+        else
+          [buftmp wintmp newsizetmp]
+    )
+  -> [buf win newsize] in
+    if buf == nil then
+      nil
+    else
+    (/* TO DO !!!!!*/
+      VIEW3D_UpdateData dev win buf newsize
+    );
+  0
+;;
+
+fun cbresizeView3d(win,dev,w,h)=
+  VIEW3D_ClearWindowedData dev;
+  let VIEW3D_CreateWindowedData dev.V3dmanager.MV3dChannel dev.V3dmanager.MV3dWin dev.V3dwinpos [w h] -> [buf win newsize] in
+    if buf == nil then
+      nil
+    else
+    (
+      set dev.V3dwindowsize=newsize;
+      VIEW3D_UpdateData dev win buf newsize;
+      nil
+    );
+  0
+;;
+
+
+fun C3D_AddIgnored3DObject (object) =
+  if is_in_list Ignored3DObject object then
+    0
+  else
+  (
+    set Ignored3DObject = object::Ignored3DObject;
+    1
+  )
+;;
+
+fun C3D_RemoveIgnored3DObject (object) = set Ignored3DObject = remove_from_list Ignored3DObject object;;
+
+fun getInfoView3d2(dev,x,y)=
+  if dev.V3drenderType&WIRE then
+    let MX3wire dev.V3dsession dev.V3dbuf dev.V3dcamera x y dev.V3dfond -> [o m] in
+      [o m nil nil]
+  else if dev.V3drenderType&WIREORTHO then
+    let MX3wireOrtho dev.V3dsession dev.V3dbuf dev.V3dcamera x y dev.V3dfond -> [o m] in
+      [o m nil nil]
+  else /* textured */
+    let MX3renderInfo dev.V3dsession dev.V3dcamera x y ->[o m u v _] in
+      [o m u v]
+;;
+
+fun C3D_UnLinkIgnored3DObject (dev, list) =
+  if list == nil then
+    nil
+  else
+    let list -> [curr next] in
+    let M3getFather dev.V3dsession curr -> father in
+    (
+      M3unLink dev.V3dsession curr;
+      [curr father]::(C3D_UnLinkIgnored3DObject dev next)
+    )
+;;
+
+fun C3D_EltReLinkIgnored3DObject (elt, dev) =
+  let elt -> [curr father] in
+    M3link dev.V3dsession curr father
+;;
+
+fun getInfoView3d(dev,x,y)=
+  let dev.V3dsize->[w h] in
+  let getInfoView3d2 dev x-(w>>1) (h>>1)-y -> result1 in
+  let result1 -> [o _ _ _] in
+    if is_in_list Ignored3DObject o then
+      let C3D_UnLinkIgnored3DObject dev Ignored3DObject -> listUnlink in
+      let getInfoView3d2 dev x-(w>>1) (h>>1)-y -> result2 in
+      (
+        apply_on_list listUnlink @C3D_EltReLinkIgnored3DObject dev;
+        result2
+      )
+    else
+      result1
+;;
+
+fun getRealInfoView3d (dev, x, y, o, m) =
+  if is_in_list Ignored3DObject o then
+    let C3D_UnLinkIgnored3DObject dev Ignored3DObject -> listUnlink in
+    let getInfoView3d2 dev x y -> [o1 m1 _ _] in
+    (
+      apply_on_list listUnlink @C3D_EltReLinkIgnored3DObject dev;
+      [o1 m1]
+    )
+  else
+    [o m]
+;;
+
+/* ack Macfly */
+proto ManageObclickDown   = fun [[[H3d HMat3d I I] [I I I]]] I;;
+proto ManageObclickUp     = fun [[[H3d HMat3d I I] [I I I]]] I;;
+proto ManageObdoubleClick = fun [[[H3d HMat3d I I] [I I I]]] I;;
+proto ManageObmouseMove   = fun [[[H3d HMat3d I I] [I I I]]] I;;
+proto ManageObkeyUp       = fun [I] I;;
+proto ManageObkeyDown     = fun [[I I]] I;;
+
+fun RunCBV3dMouse (elt, param) =
+  let elt -> [_ f] in
+    exec f with param
+;;
+
+fun clickView3d(win,dev,x,y,btn)=
+  if dev.V3dcbMouseClick != nil then
+    apply_on_list dev.V3dcbMouseClick @RunCBV3dMouse [x y btn]
+  else
+    nil;
+  set dev.V3dclickPos =[x y];
+  _SETfocus dev.V3dwin;
+  let getInfoView3d dev x y -> [o m u v] in
+  (
+    ManageObclickDown [[o m u v] [x y btn]];
+    if dev.V3dMouseReserved == nil then
+      if (!exec dev.V3dcbClick with [x y btn o m]) then
+      (
+        set dev.V3dref    =[x y];
+        let dev.V3dsize ->[w h] in
+          set dev.V3dref3d=[o m]
+      )
+      else
+        nil
+    else
+      nil
+  );
+  if btn == 1 then
+    set dev.V3doldpos =[x y]
+  else
+    nil
+;;
+
+fun dclickView3d(win,dev,x,y,btn)=
+  if dev.V3dcbMouseDClick != nil then
+    apply_on_list dev.V3dcbMouseDClick @RunCBV3dMouse [x y btn]
+  else
+    nil;
+
+  let getInfoView3d dev x y -> [o m u v] in
+  (
+    ManageObdoubleClick [[o m u v] [x y btn]];
+    if dev.V3dMouseReserved == nil then
+      exec dev.V3dcbDClickObject with [o m btn]
+    else
+      nil
+  )
+;;
+
+fun unclickView3d(win,dev,x,y,btn)=
+  if dev.V3dcbMouseUnclick != nil then
+    apply_on_list dev.V3dcbMouseUnclick @RunCBV3dMouse [x y btn]
+  else
+    nil;
+
+  set dev.V3dvector=[0 0 0];
+  set dev.V3dangular=[0 0 0];
+  let dev.V3dref3d->[o0 m0] in
+  let dev.V3dsize->[w h] in
+  let getInfoView3d dev x y ->[o m u v] in
+  (
+    ManageObclickUp [[o m u v] [x y btn]];
+    if dev.V3dMouseReserved == nil then
+      exec dev.V3dcbUnClick with [x y btn o m]
+    else
+      nil;
+    set dev.V3dref=nil;
+    set dev.V3dref3d=nil;
+    set dev.V3doldpos=nil;
+    if dev.V3dMouseReserved == nil then
+      if o==o0 && m==m0 then
+        exec dev.V3dcbClickObject with [o m btn]
+      else
+        nil
+    else
+      nil
+  )
+;;
+
+var lastkbdstate=0;;
+typeof keycodes=tab I;;
+
+fun setkeycode(code,val)=
+ if keycodes==nil then
+  set keycodes=mktab 4 0
+ else
+  nil;
+ let val-0xff51 ->i in
+  if i<0 || i >=4 then
+    nil
+  else
+    set keycodes.i=code
+;;
+
+fun RunCBV3dKeyboard (elt, code) =
+  let elt -> [_ f] in
+    exec f with [code]
+;;
+
+fun keydownView3d (win,dev,code,val)=
+  if dev.V3dcbKeyboardDown != nil then
+    apply_on_list dev.V3dcbKeyboardDown @RunCBV3dKeyboard code
+  else
+    nil;
+  ManageObkeyDown [code val];
+  set lastkbdstate=_keybdstate;
+  setkeycode code val;
+  if dev.V3dKeyboardReserved == nil then
+  (
+    exec dev.V3dcbKeyDown with [code val];
+    let dev.V3dk ->[lv la] in
+    let [lv*128 la*128] -> [kv ka] in
+      if dev.V3dmanageCameraMove then
+      (
+        let dev.V3dvector -> v in
+          if lastkbdstate&2 then
+            if val==0xff51 then
+              mutate v<-[(-kv) _ _]
+            else if val==0xff53 then
+              mutate v<-[kv _ _]
+            else if val==0xff52 then
+              mutate v<-[_ kv _]
+            else if val==0xff54 then
+              mutate v<-[_ (-kv) _]
+            else
+              nil
+          else
+            if lastkbdstate&1 then
+              nil
+            else if val==0xff52 then
+              mutate v<-[_ _ kv]
+            else if val==0xff54 then
+              mutate v<-[_ _ (-kv)]
+            else
+              nil;
+
+        let dev.V3dangular-> a in
+          if lastkbdstate&2 then
+            nil
+          else if lastkbdstate&1 then
+            if val==0xff52 then
+              mutate a<-[_ ka _]
+            else if val==0xff54 then
+              mutate a<-[_ (-ka) _]
+            else
+              nil
+          else
+            if val==0xff51 then
+              mutate a<-[ka _ 0]
+            else if val==0xff53 then
+              mutate a<-[-ka _ 0]
+            else
+              nil;
+      )
+      else
+        nil
+  )
+  else
+    nil
+;;
+
+fun keyupView3d (win,dev,code)=
+  if dev.V3dcbKeyboardUp != nil then
+    apply_on_list dev.V3dcbKeyboardUp @RunCBV3dKeyboard code
+  else
+    nil;
+
+  ManageObkeyUp code;
+  if dev.V3dKeyboardReserved == nil then
+  (
+    exec dev.V3dcbKeyUp with [code];
+    if (code == 1) && Engine3DIsV4Compliant then /* ESC key */
+      VIEW3D_ChangeScreenState dev ScreenSize
+    else
+      nil;
+    if dev.V3dmanageCameraMove then
+      let dev.V3dvector  ->v in
+      let dev.V3dangular ->a in
+        if lastkbdstate&2 then
+          if (code==keycodes.0)||(code==keycodes.2) then
+            mutate v<-[0 _ _]
+          else if (code==keycodes.1)||(code==keycodes.3) then
+            mutate v<-[_ 0 _]
+          else
+            nil
+        else if lastkbdstate&1 then
+          if (code==keycodes.1)||(code==keycodes.3) then
+            mutate a<-[_ 0 _]
+          else
+            nil
+          else if (code==keycodes.0)||(code==keycodes.2) then
+            mutate a<-[0 _ _]
+          else if (code==keycodes.1)||(code==keycodes.3) then
+            mutate v<-[_ _ 0]
+          else
+            nil
+    else
+      nil
+  )
+  else
+    nil
+;;
+
+fun cursorView3d(win,dev,x,y,btn)=
+  if dev.V3dcbMouseMove != nil then
+    apply_on_list dev.V3dcbMouseMove @RunCBV3dMouse [x y btn]
+  else
+    nil;
+
+  let getInfoView3d dev x y ->[o m u v] in
+    ManageObmouseMove [[o m u v] [x y btn]];
+
+  if dev.V3dMouseReserved == nil then
+    if dev.V3doldpos!=nil then
+    (
+      let dev.V3dk -> [kv ka] in
+      let dev.V3doldpos -> [oldx oldy] in
+        exec dev.V3dcbCursorMoveCoords with [(x-oldx)*kv (y-oldy)*kv];
+      set dev.V3doldpos=[x y]
+    )
+    else
+      nil
+  else
+    nil;
+
+  let dev.V3dsize->[w h] in
+    set dev.V3dcursor=[x-(w>>1) (h>>1)-y];
+
+  if (dev.V3dMouseReserved != nil) || (dev.V3dref==nil) then
+    nil
+  else
+    if dev.V3dmanageCameraMove then
+      let dev.V3dk ->[kv ka] in
+      let dev.V3dref ->[xr yr] in
+      (
+        set x=x-xr;
+        set y=yr-y;
+        set dev.V3dvector=
+          if _keybdstate&2 then
+            [(-x)*kv y*kv 0]
+          else
+            if _keybdstate&1 then
+              [0 0 0]
+            else
+              [0 0 y*kv];
+
+        set dev.V3dangular=
+          if _keybdstate&2 then
+            [0 0 0]
+          else
+            if _keybdstate&1 then
+              [0 y*ka 0]
+            else
+              [(-x*ka) 0 0]
+      )
+    else
+      nil
+;;
+
+
+
+fun VIEW3D_UpdateData (dev, win, buf, size) =
+  set dev.V3dwin = win;
+  set dev.V3dbuf = buf;
+  set dev.V3dsize = size;
+  set dev.V3dcursorDef = _GETcursorWin win;
+  /* remplissage du buffer de la couleur de fond */
+  _FILLsurface dev.V3dbuf dev.V3dfond;
+
+  /* definition des reflexes de la fenetre */
+  _CBwinClose win @destroyView3d dev;
+  _CBwinFocus win @focusView3d dev;
+  _CBwinKillFocus win @killfocusView3d dev;
+  _CBwinPaint win @paintView3d dev;
+
+  if !VIEW3D_CheckFullScreen then
+  (
+    _CBwinSize win @cbresizeView3d dev;
+  )
+  else
+    nil;
+
+  _CBwinClick win @clickView3d dev;
+  _CBwinDClick win @dclickView3d dev;
+  _CBwinUnclick win @unclickView3d dev;
+  _CBwinKeydown win @keydownView3d dev;
+  _CBwinKeyup win @keyupView3d dev;
+  _CBcursorMove win @cursorView3d dev;
+  let dev.V3dsize -> [w h] in
+    if dev.V3dcamera==nil || dev.V3dsession==nil then
+      nil
+    else
+      let M3getCamera dev.V3dsession dev.V3dcamera -> [[d _] [x _] z] in
+        M3setCamera dev.V3dsession dev.V3dcamera [[d*(w>>1)/x d*(w>>1)/x] [w>>1 h>>1] z];
+  _SETfocus dev.V3dwin;
+  focusView3d dev.V3dwin dev;
+  0
+;;
+
+fun iniView3d(m3dv,typerender,pos,wh,fond)=
+  let VIEW3D_CreateWindowedData m3dv.MV3dChannel m3dv.MV3dWin pos wh -> [buf win size] in
+    if buf == nil then
+      nil
+    else
+      let mkView3d
+        [
+          m3dv
+          m3dv.MV3dChannel
+          nil /* window */
+          typerender
+          nil /* session */ nil  /* camera */ nil /* cursor */ nil /* buffer */
+          pos nil size
+          [1 20]
+          fond
+          [0 0 0]
+          [0 0 0]
+          nil nil nil nil nil nil nil
+          1 /* c3d manage camera movement with keys and mouse actions */
+          nil nil nil nil
+          nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil
+        ]
+      -> dev in
+      (
+        VIEW3D_UpdateData dev win buf size;
+        /* on ajoute la vue 3d au manager */
+        set m3dv.MV3dListV3d=dev::m3dv.MV3dListV3d;
+        dev
+      )
+;;
+
+fun dsView3d(dev)=
+  /* destruction des elements de la vue 3d */
+  set dev.V3dsession=nil;
+  VIEW3D_Clear dev;
+
+  /* on supprime la vue 3d dans le manager de vues */
+  set dev.V3dmanager.MV3dListV3d=remove_from_list dev.V3dmanager.MV3dListV3d dev;
+  0
+;;
+
+
+
+/* fonction de rendu d'une vue 3d */
+fun renderView3d(dev)=
+  if dev.V3dsession==nil || dev.V3dcamera==nil then
+    nil
+  else
+  (
+    exec dev.V3dcbTimer with [];
+    let exec dev.V3dcbMoveObject with [dev.V3dvector dev.V3dangular] -> changed in
+    (
+      exec dev.V3dcbPreRender with [];
+      let dev.V3dcursor->[x y] in
+      let
+        if dev.V3drenderType&WIRE then
+          MX3wire dev.V3dsession dev.V3dbuf dev.V3dcamera x y dev.V3dfond
+        else
+          if dev.V3drenderType&WIREORTHO then
+            MX3wireOrtho dev.V3dsession dev.V3dbuf dev.V3dcamera x y dev.V3dfond
+          else
+            MX3renderm dev.V3dsession dev.V3dbuf dev.V3dcamera x y dev.V3dfond
+      -> [h1 m1] in
+      let getRealInfoView3d dev x y h1 m1 -> [h m] in
+        if dev.V3dref!=nil || (h==dev.V3dlast && m==dev.V3dlastm) then
+          nil
+        else
+        (
+          set dev.V3dlast=h;
+          set dev.V3dlastm=m;
+          exec dev.V3dcbCursorMoveObject with [dev h m x y]
+        );
+        exec dev.V3dcbPostRender with [dev.V3dbuf dev.V3dsize];
+        VIEW3D_BlitSurface dev
+    )
+  )
+;;
+
+/* fonction de redimensionnement de la vue 3d */
+fun resizeView3d(dev,x,y,w,h)=
+  if !VIEW3D_CheckFullScreen then
+  (
+    set dev.V3dwinpos = [x y];
+    _POSITIONwindow dev.V3dwin x y w h
+  )
+  else
+    nil;
+  dev
+;;
+
+/* focntion qui met au premier plan une vue 3d */
+fun topView3d(dev)= _TOPwindow dev.V3dwin;;
+
+fun setCursorView3d(dev,curs)= _SETwinCursor dev.V3dwin curs;0;;
+
+fun resetCursorView3d(dev)= _SETwinCursor dev.V3dwin dev.V3dcursorDef;0;;
+
+/* fonctions d'affection d'une sessionet d'une camera à une vue 3d */
+fun setView3dCameraSession(dev,s,c)=
+  set dev.V3dsession=s;
+  set dev.V3dcamera=c;
+  let dev.V3dsize->[w h] in
+  (
+    if dev.V3dcamera==nil || dev.V3dsession==nil then
+      nil
+    else
+      let M3getCamera dev.V3dsession dev.V3dcamera  -> [[d _] [x _] z] in
+        M3setCamera dev.V3dsession dev.V3dcamera [[d*(w>>1)/x d*(w>>1)/x] [w>>1 h>>1] z];
+    dev
+  )
+;;
+
+/* fonctions d'affectation des callbacks utilisateurs */
+fun setView3dcbFocus(dev,f)=
+  set dev.V3dcbFocus=f;
+  dev
+;;
+
+fun setView3dcbKillFocus(dev,f)=
+  set dev.V3dcbKillFocus=f;
+  dev
+;;
+
+fun setView3dcbReflexesObject(dev,fclick,fdclick,fmoveObj,fcursObj)=
+  set dev.V3dcbClickObject=fclick;
+  set dev.V3dcbDClickObject=fdclick;
+  set dev.V3dcbMoveObject=fmoveObj;
+  set dev.V3dcbCursorMoveObject=fcursObj;
+  dev
+;;
+
+fun setView3dcbClick(dev,f)=
+  set dev.V3dcbClick=f;
+  0
+;;
+
+fun setView3dcbUnClick(dev,f)=
+  set dev.V3dcbUnClick=f;
+  0
+;;
+
+fun setView3dcbTimer(dev,f)=
+  set dev.V3dcbTimer=f;
+  dev
+;;
+
+fun setView3dcbPostRender(dev,f)=
+  set dev.V3dcbPostRender=f;
+  dev
+;;
+
+fun setView3dcbPreRender(dev,f)=
+  set dev.V3dcbPreRender=f;
+  dev
+;;
+
+fun setView3dcbKeyEvent(dev,fdown,fup)=
+  set dev.V3dcbKeyUp=fup;
+  set dev.V3dcbKeyDown=fdown;
+  dev
+;;
+
+fun setView3dcbCursorMoveCoords(dev,f)=
+  set dev.V3dcbCursorMoveCoords=f;
+  dev
+;;
+
+fun setView3dcbResize(dev,f)=
+  set dev.V3dcbResize=f;
+  dev
+;;
+
+fun setView3dcbEnd(dev,f)=
+  set dev.V3dcbEnd=f;
+  dev
+;;
+
+fun getView3dClickPos (dev)= dev.V3dclickPos;;
+
+fun setView3dMoveManagement (dev, value) = set dev.V3dmanageCameraMove = value;;
+
+fun getView3dSize (dev) = dev.V3dsize;;
+
+/******************************************* Manager de Vues 3d **************************************/
+
+/* fonctions reflexes du manager de vues 3d */
+fun execResizeV3d(v3d,wh)=
+  let wh -> [w h] in
+    if v3d==nil then
+      nil
+    else
+      exec v3d.V3dcbResize with [v3d w h]
+;;
+
+fun cbResizeView3dManager(win,m3dv,w,h)=
+  set m3dv.MV3dSize=[w h];
+  apply_on_list m3dv.MV3dListV3d @execResizeV3d [w h]
+;;
+
+fun cbPaintView3dManager(win,m3dv)= exec m3dv.MV3dPaint with [m3dv];;
+
+fun rdsView3d(v3d,blurp)=
+  if v3d==nil then
+    nil
+  else
+    dsView3d v3d
+;;
+
+fun cbDestroyView3dManager(win,m3dv)=
+  apply_on_list m3dv.MV3dListV3d @rdsView3d nil;
+  exec m3dv.MV3dEnd with []
+;;
+
+fun execRenderV3d(v3d,m3dv)=
+  if v3d==nil then
+    nil
+  else
+    renderView3d v3d
+;;
+
+fun cbTimerView3dManager(t,m3dv)=
+  exec m3dv.MV3dPreRender with [m3dv];
+  apply_on_list m3dv.MV3dListV3d @execRenderV3d m3dv
+;;
+
+
+/* fonction d'initialisation du manager de vues 3d */
+fun iniView3dManager(channel,father,pos,wh,flags,title,end)=
+  let pos->[x y] in
+  let wh -> [w h] in
+  let _CRwindow channel father x y w h
+                WN_HIDDEN+
+                  (if flags&MV3D_CHILD then WN_CHILDINSIDE|WN_NOCAPTION|WN_NOBORDER else WN_MENU+WN_MINBOX)+
+                  (if flags&MV3D_RESIZE then WN_SIZEBOX else 0)
+                title
+  -> win in
+  let mkView3dManager[channel win wh flags nil nil nil nil end] -> m3dv in
+  ( 
+    /* launch Player without 3d env params (moved outside main win = os3d->iniDMI)************/
+    //os3dViewSCS (C3D_GetOpenspaceFile) win w h; 
+	//loadOS3D nil "" (itoa w) (itoa h) 0 win;
+	
+    _CBwinDestroy win @cbDestroyView3dManager m3dv;
+    _CBwinPaint win @cbPaintView3dManager m3dv;
+    _CBwinSize win @cbResizeView3dManager m3dv;
+    m3dv
+  )
+;;
+
+
+
+/* fonction de destruction  du manager de vues 3d */
+fun dsView3dManager(m3dv)=
+  _deltimer m3dv.MV3dTimer;
+  set m3dv.MV3dTimer=nil;
+
+  _DSwindow m3dv.MV3dWin; /* remarque execution des reflexes dans la callback de destruction de la fenetre */
+  set m3dv.MV3dWin=nil
+;;
+
+
+/* fonction d'initialisation du reflexe de paint du manager de vues 3d */
+fun setView3dManagerPaint(mv3d,f)= set mv3d.MV3dPaint=f;;
+
+fun setView3dManagerPreRender(mv3d,f)= set mv3d.MV3dPreRender=f;;
+
+/* fonction de redimmensionnement du manager de vue3d */
+fun resizeView3dManager(mv3d,x,y,w,h)= _SIZEwindow mv3d.MV3dWin w h x y;;
+
+fun VM3D_RunCBviewCreatedRec (f, param) =
+  exec f with [];
+  0
+;;
+
+/* lancement du timer du manager de vue3d */
+fun startView3dManager(mv3d)=
+  _SHOWwindow mv3d.MV3dWin WINDOW_UNHIDDEN;
+  if mv3d.MV3dTimer==nil then
+    set mv3d.MV3dTimer = _rfltimer _starttimer mv3d.MV3dChannel 15 @cbTimerView3dManager mv3d
+  else
+    nil
+;;
+
+
+/* arret du timer du manager de vue3d */
+fun stopView3dManager(mv3d)=
+  if mv3d.MV3dTimer==nil then
+    nil
+  else
+  (
+    _deltimer mv3d.MV3dTimer;
+    set mv3d.MV3dTimer=nil
+  )
+;;
+

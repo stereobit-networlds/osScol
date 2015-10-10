@@ -1,0 +1,23 @@
+name os3d
+func Location
+
+serverNeeded ./preplug.pkg
+serverLoad dms/lib/quicksort.pkg dms/lib/_mlistlib.pkg ./c3d3utils.pkg ./sanchor.pkg ./c3d3plug.pkg
+serverLoad dms/3d/os3dlib/tools.pkg dms/3d/os3dlib/xmlparser.pkg dms/3d/os3dlib/ogrematparser.pkg ./os3dloader2.pkg ./os3ds.pkg
+
+clientNeeded ./preplug.pkg Dms/3d/cam1.m3d Dms/3d/av.m3d logo.bmp ./os3dEngineExtension.pkg
+clientNeeded ./splash.png dms/3d/os3dlib/os3dpreplug.pkg dms/3d/os3dlib/keyblib.pkg dms/3d/os3dlib/ogrematparser.pkg dms/3d/os3dlib/v3dlib.pkg dms/3d/os3dlib/v3dlib_physics.pkg dms/3d/os3dlib/2dglib.pkg dms/3d/os3dlib/minidhdms.pkg dms/3d/os3dlib/mkapplet.pkg dms/3d/os3dlib/netcomlib.pkg dms/3d/os3dlib/os3dpaths.pkg dms/3d/os3dlib/os3dstruct.pkg dms/3d/os3dlib/os3dtypeconv.pkg dms/3d/os3dlib/os3dplugins.pkg dms/3d/os3dlib/os3dpluginscb.pkg dms/3d/os3dlib/os3dloader.pkg dms/3d/os3d/os3dversion.pkg dms/3d/os3d/os3dlogs.pkg dms/3d/os3d/os3dplayer.pkg 
+clientNeeded dms/3d/os3dlib/res/def/azerty.def dms/3d/os3dlib/res/def/qwerty.def
+clientLoad dms/3d/os3dlib/tools.pkg dms/3d/os3dlib/xmlparser.pkg ./os3dload.pkg 
+clientLoad dms/lib/_mlistlib.pkg ./os3dutils.pkg ./os3dwin3.pkg ./inbox.pkg ./canchor.pkg ./os3dloader.pkg ./c3d3plug.pkg
+clientLoad ./os3dinstance.pkg ./instpostrender.pkg ./c3d3smoothmove.pkg ./os3dc-1.2.pkg
+
+
+editorLoad dms/3d/os3dlib/tools.pkg dms/3d/os3dlib/xmlparser.pkg Dms/3d/os3dedit/os3dload.pkg Dms/L/templateEdit1.pkg Dms/3d/os3dedit/ed.utils.pkg Dms/3d/os3dedit/tooltip.pkg Dms/3d/os3dedit/inbox.pkg Dms/3d/os3dedit/3dwin3.pkg  dms/lib/_mcolormap.pkg dms/lib/_mlistlib.pkg dms/3d/os3dedit/tree.pkg dms/lib/_mslider.pkg Dms/3d/os3dedit/anchoredit.pkg Dms/3d/os3dedit/mapedit.pkg Dms/3d/os3dedit/rename.pkg Dms/3d/os3dedit/textedit.pkg Dms/3d/os3dedit/e3dplug.pkg Dms/3d/os3dedit/editinst.pkg Dms/3d/os3d/e3dconst.pkg Dms/3d/os3dedit/ed.transp.pkg Dms/3d/os3dedit/ed.filter.pkg Dms/3d/os3dedit/e3dmng.pkg Dms/3d/os3dedit/ed.tool.pkg Dms/3d/os3dedit/ed.view.pkg Dms/3d/os3dedit/e3dld.pkg Dms/3d/os3dedit/edit3d.pkg Dms/3d/os3dedit/e3dinterface.pkg
+/*editorLoad dms/3d/os3dlib/tools.pkg dms/3d/os3dlib/xmlparser.pkg Dms/3d/os3dedit/os3dload.pkg*/
+
+helpFile Dms/3d/os3d/help/help.htm
+
+bitmap Dms/3d/os3dedit/os3d.scs.bmp
+tree Dms/3d/os3dedit/os3d.scs.bmp
+version 1 2 0

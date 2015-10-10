@@ -1,0 +1,36 @@
+/* macfly october 2001 */
+
+fun SESSION_SetMipMapping (thesession) =
+	M3textureSetGeneralDefaultType thesession TEX_MIPMAP;
+	0
+;;
+
+
+fun VIEW3D_CreateFullScreenSurface (channel, winfather, wh) =
+  let wh -> [w h] in 
+    if w < 100 || h < 100 then
+      [nil nil]
+    else
+      let _CRfullscreenSurface channel w h -> buf in
+        if buf == nil then
+          if !D3DErrorDialog then
+            let _GETscreenSize  -> [wscr hscr] in
+            let _CRwindow _channel winfather (wscr-250)/2 (hscr-100)/2 250 100 WN_DIALOG _loc this "3D_ERROR" nil -> popup in
+            let _CRtext _channel popup 10 10 230 40 ET_ALIGN_CENTER _loc this "3D_OTHERSURFACE" nil -> text in 
+            let _CRbutton _channel popup 85 60 80 20 ET_ALIGN_CENTER _loc this "OK" nil -> button in
+            (
+              set D3DErrorDialog = 1;
+              _CBbutton button @D3DErrorDialogOK popup;
+              [nil nil]
+            )
+          else
+            [nil nil]
+        else
+          [buf wh]
+;;
+
+fun VIEW3D_GetFullScreenWin (buf) = _GETwindowFromFullscreenSurface buf;;
+
+fun VIEW3D_IsFullScreen () = _GETsurfaceState != SURFACE_WINDOWED;;
+
+fun VIEW3D_BlitFullScreenSurface (dev) = _BLTsurfaceFullScreen dev.V3dbuf;;

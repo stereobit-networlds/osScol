@@ -1,0 +1,300 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/**************************************************
+ OpenSpace 3D Player
+ Version: 0.1a
+ Author: Bastien BOURINEAU / I-maginer
+ Last update: 11.16.2010
+
+**************************************************/
+
+var iWinW = 800;;
+var iWinH = 600;;
+
+typeof mainWindow = EdWindow;;
+typeof netcomOS3D = NetComm;;
+typeof sCurrentScenePath = S;;
+
+/**  cbV3DdsMainWin [Edwindow] I
+  *  callback on destroy main window
+  *  
+  *  private
+  *
+  *  return 0
+  **/
+fun cbV3DdsMainWin(winstr)=
+  _closemachine;
+  0;;
+
+
+/**  initScene [V3Dview V3Dsession] I
+  *  init default scene parameters
+  *  
+  *  parameters are :
+  *  - view 3d structure
+  *  - session 3d structure
+  *
+  *  return 0
+  **/
+fun initScene(viewstr, sessionstr)=
+  clearModLinks this;
+  destroyAllPluginInstances;
+  
+  V3DenableNavigate sessionstr 1;
+  
+  V3DresetSession sessionstr;
+  
+  // reset resources groups
+  let SO3GroupList (V3DgetSession sessionstr) -> l in
+  let sizelist l -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list l i -> resgroup in
+    if (!strcmp resgroup "V3DdefaultResources") then nil else
+      SO3GroupDelete (V3DgetSession sessionstr) resgroup;
+    
+    set i = i + 1;
+  );
+  
+  let V3DgetDefaultViewport viewstr -> viewportstr in
+  (
+    V3DuseDefaultLight sessionstr 1;
+    V3DenableView viewstr 1;
+    
+    V3DenableKeyboard viewstr 1;
+    V3DenableMouse viewstr 1;
+    V3DenableNavigate sessionstr 1;
+    
+    // set the Ambient light color
+    V3DsetAmbientLight sessionstr make_rgba 0 0 0 0;
+    
+    V3DsetViewportColor viewportstr make_rgba 0 0 0 0;
+    
+    V3DsetCamera (V3DgetDefaultCamera sessionstr) nil 1.0 0.01 100000.0;
+  );
+  0;;
+
+
+fun cbOpenError(dlg, p, rep)=
+  _closemachine;
+  0;;
+
+
+/**  cbDlgOpenScene [MessageBox V3Dview P] I
+  *  callback on dlg open
+  *  
+  *  private
+  *
+  *  return 0
+  **/
+fun cbDlgOpenScene(dlg, viewstr, pfile)=
+  if pfile == nil then
+  (
+    _closemachine;
+    0;
+  )
+  else
+  let _PtoScol pfile -> file in
+  let getFileExt file -> ext in
+  if (file == nil) || (strcmpi "xos" ext) then
+  (
+    _DLGrflmessage _DLGMessageBox _channel mainWindow.EDW_win "Error" "Your file have to be in a scol partition.\nOpenSpace 3D Player will exit." 0 @cbOpenError nil;
+    0;
+  )
+  else
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  (
+    set sCurrentScenePath = file;
+    loadProject (crProject file nil 1) viewstr nil nil nil nil 1;
+    0;
+  );
+  0;;
+
+
+fun cbDestroyView3d(viewstr)=
+  dsEdWindow mainWindow;
+  0;;
+
+
+/**  cbView3dResize [V3Dview I I] I
+  *  callback view resize
+  *  
+  *  private
+  *
+  *  return 0
+  **/
+fun cbView3dResize(viewstr, w, h, loadwidget)=
+  SO3WidgetSetPosition loadwidget 0 0;
+  SO3WidgetSetSize loadwidget w h;
+    
+  cbPlugView3dResize viewstr w h;
+  0;;
+
+
+fun cbPlugLoaded(trm, p)=
+  let p -> [viewstr loadwidget] in
+  if bPluginsLoaded then
+  (
+    _deltimer trm;
+    SO3WidgetDestroy loadwidget;
+    V3DsetCbResizeView viewstr @cbPlugView3dResize;
+    0;
+  )
+  else nil;
+  0;;
+
+
+/**  initOs3dPlayer [S S S S I] I
+  *  initialize the application
+  *  
+  *  return 0
+  **/
+  /*winobj param added *********/
+fun initOs3dPlayer(file, projname, pw ,ph, fullscreen, winobj) =
+//fun initOs3dPlayer(d,b) =
+  //let b -> [file projname pw ph fullscreen winobj] in
+  set sCurrentScenePath = file; 
+
+  InitMainChannel;
+  getOs3dVersion;
+  
+  /*if winobj!=nil then
+    //use winAX os3dload.pkg->main 
+    set mainWindow.EDW_win = winobj
+  else 	
+  ( */
+    if (pw == nil) || ((atoi pw) <= 0) then nil else
+      set iWinW = atoi pw;
+    if (ph == nil) || ((atoi ph) <= 0) then nil else
+      set iWinH = atoi ph;
+    
+    let _GETdesktopSize -> [sw sh] in
+    ( 
+      set mainWindow = setEdWindowIcon (crEdMainWindow _channel nil ((sw / 2) - (iWinW / 2)) ((sh / 2) - (iWinH / 2)) iWinW iWinH nil strcatn "OpenSpace3D Player : "::getVersionName::" ("::getVersionDate::") - "::projname::nil) sWinPlayerMainIcon;
+	
+      // size the window with borders
+      if (getEdWindowIsAX mainWindow) then nil else
+        setEdWindowPosSizeEx mainWindow ((sw / 2) - (iWinW / 2)) ((sh / 2) - (iWinH / 2)) iWinW + 1 iWinH + 1;
+	  0  
+    );
+  //);
+  // set lib 2D default res path
+  set sG2DDEFAULTRESOURCESPATH = "dms/3d/os3dlib/res/";
+  set sV3DDEFAULTRESOURCESPATH = "dms/3d/os3dlib/res/";
+ 
+  let getEdWindowSize mainWindow -> [nw nh] in
+  //_DLGrflmessage (_DLGMessageBox _channel nil "Load" strcat itoa nw "-" 0) @cbVersionError nil;
+  
+  let crEdCtrl3D mainWindow 0 0 nw nh EDWIN_RESIZE_MW|EDWIN_RESIZE_MH -> ctrl3dviewstr in
+  let getEdCtrlView3d ctrl3dviewstr -> viewstr in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  (
+    setEdCtrl3DdestroyCb ctrl3dviewstr @cbDestroyView3d;
+    
+    V3DaddViewport viewstr 0.0 0.0 1.0 1.0 0x0;
+    initScene viewstr sessionstr;
+    
+    //Loading screen
+    let V3DgetDefaultViewport viewstr -> viewportstr in
+    let SO3BitmapWidgetCreate (V3DgetSession sessionstr) viewportstr.V3D_viewport "Loading" 0 0 nw nh 100 -> loadwidget in
+    (
+      let G2DloadAlphaBmp _channel "dms/3d/os3d/splash.png" -> bmp in
+      (
+        SO3BitmapWidgetBlitAlpha loadwidget bmp;
+        _DSalphaBitmap bmp;
+        SO3BufferUpdate viewstr.V3D_buffer;
+      );
+      
+      // init keyboards definition
+      KEYBloadMaps; /*include defs into .dmc*/
+      
+      
+      // init default global network callbacks
+      set netcomOS3D = netCreateMinimum;
+      
+      netSetCbConnected netcomOS3D @cbPlugNetConnected;
+      netSetCbSConnected netcomOS3D @cbPlugNetSConnected;
+      netSetCbClosed netcomOS3D @cbPlugNetClosed;
+      netSetCbSrvMessage netcomOS3D @cbPlugNetSrvMessage;
+      netSetCbUserMessage netcomOS3D @cbPlugNetUserMessage;
+      netSetCbUserPrivateMessage netcomOS3D @cbPlugNetUserPrivateMessage;
+      netSetCbUserChangeLogin netcomOS3D @cbPlugUserChangeLogin;
+      netSetCbNewUser netcomOS3D @cbPlugNewUser;
+      netSetCbDelUser netcomOS3D @cbPlugDelUser;
+      netSetCbGetFile netcomOS3D @cbPlugGetFile;
+      netSetCbUserGetItem netcomOS3D @cbPlugUserGetItem;
+      netSetCbRoomGetItem netcomOS3D @cbPlugRoomGetItem;
+      netSetCbNbUsers netcomOS3D @cbPlugNbUsers;
+      netSetCbRoomChanged netcomOS3D @cbPlugRoomChanged;
+      
+      set s3dMainSession = sessionstr;
+      set v3dMain = viewstr;
+      
+      V3DsetCbClick viewstr @cbPlugView3dClick;
+      V3DsetCbUnClick viewstr @cbPlugView3dUnClick;
+      V3DsetCbKeyDown viewstr @cbPlugView3dKeyDown;
+      V3DsetCbKeyUp viewstr @cbPlugView3dKeyUp;
+      V3DsetCbPreRender viewstr @cbPlugView3dPreRender;
+      V3DsetCbPostRender viewstr @cbPlugView3dPostRender;
+      V3DsetCbScenePreRender sessionstr @cbPlugScenePreRender;
+      V3DsetCbScenePreRender2 sessionstr @cbPlugScenePreRender2;
+      V3DsetCbScenePreRenderPhysic sessionstr @cbPlugScenePreRenderPhysic;
+      V3DsetCbScenePostRender sessionstr @cbPlugScenePostRender;
+      V3DsetCbCursorMove viewstr @cbPlugView3dCursorMove;
+      V3DsetCbDbClick viewstr @cbPlugView3dDbClick;
+      V3DsetCbWheel viewstr @cbPlugView3dWheel;
+      V3DsetCbCameraChange viewstr @cbPlugView3dCameraChange;
+      V3DsetCbResizeView viewstr mkfun4 @cbView3dResize loadwidget;
+      V3DsetCbFocusView viewstr @cbPlugView3dFocus;
+      V3DsetCbKillFocusView viewstr @cbPlugView3dKillFocus;
+      
+      //V3DsetScreenInfos viewstr 5 5 300 200 14 0xffffff;
+      //V3DenableScreenInfos viewstr 0;
+      
+      setEdwindowCbDestroy mainWindow @cbV3DdsMainWin;
+      
+      // load plugins files
+      loadPlugins sPLUGINSPATH;
+        
+      if (file == nil) || (!strcmp (strtrim file) "") then
+      (
+        _DLGrflopen _DLGOpenFile _channel mainWindow.EDW_win nil nil "OpenSpace 3D scene\0*.xos\0All\0*.*\0\0" @cbDlgOpenScene viewstr;
+        0;
+      )
+      else
+      (
+        if !fullscreen then nil else
+        //let _GETdesktopSize -> [sw sh] in
+          V3DsetFullScreenMode viewstr iWinW iWinH;
+        
+        loadProject (crProject file nil 0) viewstr nil nil nil nil 1;
+        0;
+      );
+      
+      _rfltimer _starttimer _channel 100 @cbPlugLoaded [viewstr loadwidget];
+    );
+  );
+  0;;
