@@ -1,0 +1,465 @@
+/* 3d Editor - Aug 97 - by Sylvain HUET */
+/*             Oct 98 - by Marc BARILLEY */
+/*             Dec 99 - by Christophe LOREK */
+/*             Mar 15 - by stereobit */
+
+
+fun res_new (x, b, i)=
+ if i==0 then nil
+ else newCell b;;
+
+fun _new (x, ed, b)=
+ _DLGrflmessage _DLGMessageBox b.E3dInterf.chE3d b.E3dInterf.winE3d loc "CELL_NEW"
+  loc "CELL_CONFIRMNEW" 2 @res_new b;
+0;;
+
+fun _destroy(x,b)=
+ newCell b;
+ dsView3dManager b.vm3dE3d;
+ exec b.endE3d with [nil 1];;
+
+fun _destroyw(b)=
+ newCell b;
+ _DSwindow b.E3dInterf.winE3d;
+ exec b.endE3d with [nil 1];;
+
+fun iniStd(ch,w)=
+ set StdCursor=_GETcursorWin w;
+ let [_GETcursorSize
+     (_LDbitmap ch _checkpack "dms/3d/os3dedit/lib/hand0.bmp")]
+   -> [[X Y] GBmp] in
+ let _CRbitmap ch X Y -> CursorBmp in
+  (_SCPbitmap CursorBmp 0 0 (X-1) (Y-1) GBmp 0 0 31 31 nil;
+   set HandCursor0=_CRcursor ch CursorBmp 12 8 0 32767;
+   );;
+
+fun _selcombo(a,b,i,s)=
+ let nth_list b.E3dInterf.lwinE3d i->w in
+ if w==nil || w==b.E3dInterf.lastwinE3d then nil
+ else
+ (_SHOWwindow b.E3dInterf.lastwinE3d WINDOW_HIDDEN;
+  set b.E3dInterf.lastwinE3d=w;
+  _SHOWwindow b.E3dInterf.lastwinE3d WINDOW_UNHIDDEN);;
+
+fun resizewin(win,z)=
+ let z->[x y w h] in _POSITIONwindow win x y w h;
+ 0;;
+
+fun _resize(a,b,w,h)=
+ apply_on_list b.E3dInterf.lwinE3d @resizewin [5 25 w-10 h-30];
+ let b.E3dInterf.ctrlsE3d ->[combo links positions anchors inst plugs] in
+ (_POSITIONcombo combo 5 0 w-10 450;
+  let b.E3dInterf.ctrls2E3d ->
+    [to lo
+     [oadd [orem [oren [olight [ocoll [oscale [odummy [omodel _]]]]]]]]
+     tm lm
+     [textm [flatm [filtm [transm [lightm [gouraudm [envm _]]]]]]]
+     odiscoll] in
+  let w-130 -> newW in
+  let (w*3)/5 -> interW in
+  (_POSITIONtext to         5   5     interW-10 20;
+   _POSITIONtree lo         5   30    interW-10 h-180;
+   _POSITIONbutton oadd     2   h-148 62        20;
+   _POSITIONbutton orem     66  h-148 62        20;
+   _POSITIONbutton oren     130 h-148 62        20;
+   _POSITIONbutton olight   2   h-125 95        20;
+   _POSITIONbutton odummy   100 h-125 95        20;
+   _POSITIONbutton oscale   2   h-102 95        20;
+   _POSITIONbutton ocoll    100 h-102 95        20;
+   _POSITIONcheck odiscoll  2   h-79  180       20;
+/*   _POSITIONbutton omodel   2   h-56  180       20;*/
+
+   _POSITIONtext tm         interW  5     ((w*2)/5)-15 20;
+   _POSITIONlist lm         interW  30    ((w*2)/5)-15 h-222;
+   _POSITIONbutton textm    newW    h-190 115          20;
+   _POSITIONbutton flatm    newW    h-167 115          20;
+   _POSITIONbutton filtm    newW    h-144 115          20;
+   _POSITIONbutton transm   newW    h-121 115          20;
+   _POSITIONbutton lightm   newW    h-98  115          20;
+   _POSITIONbutton gouraudm newW    h-75  115          20;
+   _POSITIONbutton envm     newW    h-52  115          20;
+   0);
+  let links -> [txl ll [ladd [lrem [lren [lvis _]]]]] in
+  (_POSITIONtext txl    5   5     w-20  20;
+   _POSITIONlist ll     5   30    w-20  h-108;
+   _POSITIONbutton ladd 5   h-75  100   20;
+   _POSITIONbutton lrem 108 h-75  100   20;
+   _POSITIONbutton lren 210 h-75  100   20;
+   _POSITIONbutton lvis 5   h-52  100   20;
+   0);
+  let positions -> [tp lp [padd [pupd [psetc [paddo [pupdo [pseto [prem [pren _]]]]]]]]] in
+  (_POSITIONtext tp       5   5     w-20  20;
+   _POSITIONlist lp       5   30    w-20  h-172;
+   _POSITIONbutton padd   5   h-141 150   20;
+   _POSITIONbutton pupd   158 h-141 150   20;
+   _POSITIONbutton psetc  5   h-119 250   20;
+   _POSITIONbutton paddo  5   h-97  150   20;
+   _POSITIONbutton pupdo  158 h-97  150   20;
+   _POSITIONbutton pseto  5   h-75  250   20;
+   _POSITIONbutton prem   5   h-53  150   20;
+   _POSITIONbutton pren   158 h-53  150   20;
+   0);
+  let anchors -> [ta la [aadd [arem [aren _]]]] in
+  (_POSITIONtext ta     5   5     w-20  20;
+   _POSITIONlist la     5   30    w-20  h-85;
+   _POSITIONbutton aadd 5   h-53  100   20;
+   _POSITIONbutton arem 108 h-53  100   20;
+   _POSITIONbutton aren 210 h-53  100   20;
+   0);
+  let inst -> [tinst linst [instadd [instrem _]]] in
+  (_POSITIONtext tinst      5   5     w-20  20;
+   _POSITIONlist linst      5   30    w-20  h-85;
+   _POSITIONbutton instadd  5   h-53  150   20;
+   _POSITIONbutton instrem  160 h-53  150   20;
+   0);
+  let plugs -> [tplug lplug [plugadd [plugrem [plugparam _]]]] in
+  (_POSITIONtext tplug        5   5     w-20  20;
+   _POSITIONlist lplug        5   30    w-20  h-85;
+   _POSITIONbutton plugadd    5   h-53  100   20;
+   _POSITIONbutton plugrem    110 h-53  100   20;
+   _POSITIONbutton plugparam  215 h-53  100   20;
+   0);
+  0);;
+
+
+fun cbResizeMain(view,w,h)=resizeView3d view 0 0 w h;0;;
+
+
+/* Create Editor <<<<<<<<<<<<<<<<<< path changed<<<<<<<<<<<<<<<<<<<<<<<*/
+fun iniE3d(ch,father,title,end,file)=
+ set Font= if Font!=nil then Font else _CRfont ch 14 0 0 "arial";
+ let mkE3dInterface [ch  nil nil nil nil nil nil nil nil nil nil nil
+                     nil nil nil nil nil nil nil nil nil nil nil nil
+                     nil nil nil nil nil nil nil nil nil nil nil nil]
+ -> bInterf in
+ let mkE3d [nil nil nil nil nil nil nil nil nil nil 
+            nil nil nil nil nil nil nil nil nil nil
+            nil nil nil nil nil nil nil nil nil nil
+            nil nil 0 nil bInterf]
+ -> b in
+ let _GETscreenSize -> [wscr hscr]in
+ let
+  startEditor
+   ch father 20 20 330 350 WN_MENU+WN_SIZEBOX EDITOR_NORMAL
+   file "Dms/3d/os3d/os3d.dmc" "Dms/3d/os3dedit/help.txt" "Dms/3d/os3dedit/model3d.bmp" nil nil nil
+ -> ed in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wobj in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wlinks in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wpos in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wanch in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wobs in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wplug in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wsplug in
+ let _CRwindow ch ed.EditorEditWin 5 25 ed.EditorWEditWin-10 320 WN_CHILDINSIDE|WN_NOCAPTION|WN_HIDDEN
+  ""->wadv in
+ let _CRcombo ch ed.EditorEditWin 5 0 ed.EditorWEditWin-10 450 CB_NOEDIT "" -> combo in
+
+ let _CRtext ch wobj    5   5   190 20  ET_BORDER loc "OBJECTS" -> to in
+ let _CRtree ch wobj    5   30  190 170 TV_DOWN|TV_VSCROLL|TV_BUTTON -> lo in
+ let _CRbutton ch wobj  2   202 62  20  0 loc "ADD" -> oadd in
+ let _CRbutton ch wobj  66  202 62  20  0 loc "DELETE" -> orem in
+ let _CRbutton ch wobj  130 202 62  20  0 loc "RENAME" -> oren in
+ let _CRbutton ch wobj  2   225 95  20  0 loc "LIGHT" -> olight in
+ let _CRbutton ch wobj  100 225 95  20  0 loc "DUMMY" -> odummy in
+ let _CRbutton ch wobj  2   248 95  20  0 loc "SCALE" -> oscale in
+ let _CRbutton ch wobj  100 248 95  20  0 loc "COLL" -> ocoll in
+ let _CRcheck ch wobj   2   271 180 20  0 loc "COLL_DIS" -> odiscoll in
+/* let _CRbutton ch wobj  2   295 180 20  BT_HIDE loc "MODELER_START" -> omodel in*/
+
+ let _CRtext ch wobj    200 5   115 20  ET_BORDER loc "MATERIALS" -> tm in
+ let _CRlist ch wobj    200 30  115 128 LB_VSCROLL+LB_DOWN -> lm in
+ let _CRbutton ch wobj  200 160 115 20  0 loc "TEXTURE" -> textm in
+ let _CRbutton ch wobj  200 183 115 20  0 loc "FLAT" -> flatm in
+ let _CRbutton ch wobj  200 206 115 20  0 loc "FILTER" -> filtm in
+ let _CRbutton ch wobj  200 229 115 20  0 loc "TRANSP" -> transm in
+ let _CRbutton ch wobj  200 251 115 20  0 loc "LIGHT" -> lightm in
+ let _CRbutton ch wobj  200 274 115 20  0 loc "GOURAUD" -> gouraudm in
+ let _CRbutton ch wobj  200 297 115 20  0 loc "ENVMAP" -> envm in
+
+ let _CRpopupMenu ch -> rootm in
+ let _CRtext ch wlinks    5   5   310 20  ET_BORDER loc "LINKS" -> txl in
+ let _CRlist ch wlinks    5   30  310 243 LB_VSCROLL+LB_DOWN -> ll in
+ let _CRbutton ch wlinks  5   276 100 20  0 loc "ADD" -> ladd in
+ let _CRbutton ch wlinks  108 276 100 20  0 loc "REMOVE" -> lrem in
+ let _CRbutton ch wlinks  210 276 100 20  0 loc "RENAME" -> lren in
+ let _CRbutton ch wlinks  5   298 100 20  0 loc "VISIBILITY" -> lvis in
+
+ let _CRtext ch wpos    5   5   310 20  ET_BORDER loc "POSITIONS" -> tp in
+ let _CRlist ch wpos    5   30  310 178 LB_VSCROLL+LB_DOWN -> lp in
+ let _CRbutton ch wpos  5   210 150 20  0 loc "ADDCAMPOS" -> padd in
+ let _CRbutton ch wpos  158 210 150 20  0 loc "UPDCAMPOS" -> pupd in
+ let _CRbutton ch wpos  5   232 250 20  0 loc "SETCAMPOS" -> psetc in
+
+ let _CRbutton ch wpos  5   254 150 20  0 loc "ADDOBJPOS" -> paddo in
+ let _CRbutton ch wpos  158 254 150 20  0 loc "UPDOBJPOS" -> pupdo in
+ let _CRbutton ch wpos  5   276 250 20  0 loc "SETOBJPOS" -> pseto in
+
+ let _CRbutton ch wpos  5   298 150 20  0 loc "REMOVE" -> prem in
+ let _CRbutton ch wpos  158 298 150 20  0 loc "RENAME" -> pren in
+
+ let _CRtext ch wanch   5   5   310 20  ET_BORDER loc "ANCHORS" -> ta in
+ let _CRlist ch wanch   5   30  310 265 LB_VSCROLL+LB_DOWN -> la in
+ let _CRbutton ch wanch 5   297 100 20  0 loc "ADD" -> aadd in
+ let _CRbutton ch wanch 108 297 100 20  0 loc "REMOVE" -> arem in
+ let _CRbutton ch wanch 210 297 100 20  0 loc "RENAME" -> aren in
+
+ let _CRbutton ch wobs  5   5   200 20 0 strcat loc "BACKCLIP" " (cm) :" -> boback in
+ let _CRtext ch wobs    210 5   100 20 ET_DOWN "100000" -> oback in
+ let _CRbutton ch wobs  5   30  200 20 0 strcat loc "FOCAL" " :" -> bofocal in
+ let _CRtext ch wobs    210 30  100 20 ET_DOWN "29.7" -> ofocal in
+ let _CRbutton ch wobs  5   55  200 20 0 strcat loc "GRAVITY" " :" -> bograv in
+ let _CRtext ch wobs    210 55  100 20 ET_DOWN "0" -> ograv in
+ let _CRbutton ch wobs  5   80  200 20 0 strcat loc "BUFFERSIZE" " :" -> bobuf in
+ let _CRtext ch wobs    210 80  100 20 ET_DOWN "1024" -> obuf in
+ let _CRbutton ch wobs  5   105 200 20 0 strcat loc "BACKGROUND" " :" -> bback in
+ let _CRtext ch wobs    210 105 65  20 ET_DOWN "0" -> tback in
+ let _CRwindow ch wobs  280 105 30  20 WN_CHILD|WN_DOWN "" -> wback in
+ let _CRbutton ch wobs  5   130 200 20 0 strcat loc "COLLISIONS" " (.box) :" -> bcoll in
+ let _CRtext ch wobs    210 130 100 20 ET_DOWN+ET_AHSCROLL "" -> tcoll in
+ let _CRbutton ch wobs  5   155 200 20 0 strcat loc "FOG" " (cm) :" -> bofog in
+ let _CRtext ch wobs    210 155 100 20 ET_DOWN "80000" -> ofog in
+ let _CRbutton ch wobs  5   180 200 20 0 strcat loc "MOVEMENT" " (cm/s) :" -> bospeed in
+ let _CRtext ch wobs    210 180 100 20 ET_DOWN "1000" -> ospeed in
+ /*openspace 3d ************************************************************/
+ let _CRbutton ch wobs  5   205 200 20 0 strcat loc "OPENSPACE3D" " (file) :" -> bospace in
+ let _CRtext ch wobs    210 205 100 20 ET_DOWN+ET_AHSCROLL "" -> ospace in 
+ 
+ 
+
+ let _CRtext ch wplug   5   5   310 20  ET_BORDER loc "INSTANCES" -> tinst in
+ let _CRlist ch wplug   5   30  310 265 LB_VSCROLL+LB_DOWN -> linst in
+ let _CRbutton ch wplug 5   297 150 20  0 loc "ADD" -> instadd in
+ let _CRbutton ch wplug 160 297 150 20  0 loc "REMOVE" -> instrem in
+
+ let _CRtext ch wsplug    5   5   310 20  ET_BORDER loc "PLUGIN_SUPP" -> tplug in
+ let _CRlist ch wsplug    5   30  310 265 LB_VSCROLL+LB_DOWN -> lplug in
+ let _CRbutton ch wsplug  5   297 100 20  0 loc "ADD" -> plugadd in
+ let _CRbutton ch wsplug  110 297 100 20  0 loc "REMOVE" -> plugrem in
+ let _CRbutton ch wsplug  215 297 100 20  0 loc "PARAMETERS" -> plugparam in
+
+ let _CRbutton ch wadv  5   5   200 20 0 strcat loc "AVATAR_RESS" " :" -> baress in
+ let _CRtext ch wadv    210 5   100 20 ET_DOWN "Avatar" -> aress in
+ let _CRbutton ch wadv  5   30  200 20 0 strcat loc "AVATAR_DEFPLUG" " :" -> badefault in
+ let _CRtext ch wadv    210 30  100 20 ET_DOWN "default" -> adefault in
+ let _CRcheck ch wadv   5   55  300 20 0 loc "AVATAR_DEFFORCE" ->aforced in
+ let _CRcheck ch wadv   5   80  300 20 0 loc "AVATAR_INTERPOLATE" -> ainterpolate in
+ let _CRbutton ch wadv  5   105 200 20 0 strcat loc "RIGHTS_RES" " :" -> barights in
+ let _CRtext ch wadv    210 105 100 20 ET_DOWN "rights" -> arights in
+
+ let _CRbutton ch wadv    5   130 200 20 0 strcat loc "AVATAR_MAX" " :" -> batablesize in
+ let _CRtext ch wadv      210 130 100 20 ET_DOWN DEFAULT_MAX_AVATAR -> atablesize in
+ let _CRbutton ch wadv    5   155 200 20 0 loc "C3D_RES" -> ba3dress in
+ let _CRbutton ch wadv    5   180 200 20 0 loc "SIZE_COMPUTE" -> bdownloadsize in
+ let _CRbutton ch wadv    5   205 200 20 0 strcat loc "LIGHT_BASE" " :" -> badark in
+ let _CRtext ch wadv      210 205 100 20 ET_DOWN DEFAULT_LIGHT_BASE -> adark in
+ let _CReditLine ch wadv  210 230 100 20 ET_NUMBER|ET_DOWN DEFAULT_GRID_SIZE -> gridsize in
+ let _CRcheck ch wadv     5   255 300 20 0 loc "AVATAR_PSEUDO" -> apseudo in
+ let _CRcheck ch wadv     5   280 300 20 0 loc "CAM_FREE" -> camfree in
+
+
+ let iniView3dManager ch ed.EditorMainWin [380 20] [min 800 wscr-380 min 800 hscr-80]
+   7 loc "EDITOR_TITLE" mkfun1 @_destroyw b -> vm in
+ let iniView3d vm TEXTURED [0 0] vm.MV3dSize 0 -> w3d in
+ (
+    _SETcheck apseudo 1;
+    _ENcheck camfree 0;
+    _CRtext ch wadv      5   232 200 20 ET_ALIGN_CENTER strcat loc "GRID_SIZE" " (cm) :";
+
+  set MainEdit3d=b;
+  set edit=ed;
+  setView3dcbReflexesObject b.w3dE3d nil nil mkfun3 @movcam [b b.s3dE3d b.camE3d] (mkfun6 @SetMouseCursorOnLink b) ;
+  startView3dManager vm;
+  initGlobalEditorView vm w3d;
+  setView3dcbResize w3d @cbResizeMain;
+
+  set b.EditorE3d = ed; /* CL : template editor struct  */
+  set b.E3dInterf.winE3d = ed.EditorMainWin;
+  _CBwinSize ed.EditorEditWin @_resize b;
+
+  set b.E3dInterf.lwinE3d = (wobj::wlinks::wpos::wanch::wobs::wplug::wsplug::wadv::nil);
+  set b.viewE3d = 1;
+  set b.distE3d = 20;
+  set b.E3dInterf.menucontE3d = rootm;
+  set b.E3dInterf.namE3d = ed.EditorName;
+  set b.E3dInterf.fileE3d = ed.EditorFile;
+  set b.E3dInterf.backE3d = tback;
+  set b.E3dInterf.wbackE3d = wback;
+  set b.E3dInterf.collE3d = tcoll;
+  set b.E3dInterf.loE3d = lo;
+  set b.E3dInterf.lmE3d = lm;
+  set b.E3dInterf.llE3d = ll;
+  set b.E3dInterf.lpE3d = lp;
+  set b.E3dInterf.laE3d = la;
+  set b.E3dInterf.obackE3d = oback;
+  set b.E3dInterf.ofogE3d = ofog;
+  set b.E3dInterf.ofocalE3d = ofocal;
+  set b.E3dInterf.ogravE3d = ograv;
+  set b.E3dInterf.ospeedE3d = ospeed;
+  set b.E3dInterf.ospaceE3d = ospace; /*openspace 3d*/  
+  set b.E3dInterf.obufE3d = obuf;
+  set b.igravE3d = 0;
+  set b.E3dInterf.linstE3d = linst;
+  set b.E3dInterf.lplugE3d = lplug;
+  set b.E3dInterf.aressE3d=aress;
+  set b.E3dInterf.adefaultE3d=adefault;
+  set b.E3dInterf.aforcedE3d=aforced;
+  set b.E3dInterf.ainterpolateE3d=ainterpolate;
+  set b.E3dInterf.arightsE3d=arights;
+  set b.E3dInterf.tablesizeE3d=atablesize;
+  set b.E3dInterf.adarkE3d=adark;
+  set b.E3dInterf.gridsizeE3d=gridsize;
+  set b.E3dInterf.apseudoE3d=apseudo;
+  set b.E3dInterf.camfreeE3d=camfree;
+
+  set b.endE3d = end;
+  _CBeditorLoad ed mknode @dataLoader b;
+  _CBeditorSave ed mkfun3 @saveCell b;
+  set b.vm3dE3d=vm;
+  set b.w3dE3d=w3d;
+  iniStd ch ed.EditorMainWin;
+
+  _CBbutton bback @_bback b;
+  _CBbutton bcoll @_bcoll b;
+  _CBwinPaint wback @rflPaintSceneBackColorWin b;
+
+  _CBbutton oadd @_oadd b;
+  _CBbutton orem @_orem b;
+  _CBbutton oren @_oren b;
+  _CBbutton ocoll @_ocoll b;
+  _CBbutton olight @_olight b;
+  _CBbutton oscale @_oscale b;
+  _CBbutton odummy @_odummy b;
+/*  _CBbutton omodel @_omodel b;*/
+  _CBcheck odiscoll @_discoll b;
+  _CBtreeSelect lo @CBobjectTreeSelect b;
+  _CBtreeRClick lo @CBobjectTreeRightClick b;
+
+  _CBbutton textm @_selmat b;
+  _CBbutton flatm @_selflat b;
+  _CBbutton filtm @_selfilt b;
+  _CBbutton transm @_seltrans b;
+  _CBbutton lightm @_sellight b;
+  _CBbutton gouraudm @_selgouraud b;
+  _CBbutton envm @_selmatenv b;
+
+  _CBmenu (_APPitem ch rootm ME_ENABLED loc "OBJ_TAKE") @_takeobj b;
+  _CBmenu (_APPitem ch rootm ME_ENABLED loc "OBJ_LINK") @_putobj b;
+  _APPitem ch rootm ME_SEPARATOR "";
+  _CBmenu (_APPitem ch rootm ME_ENABLED loc "OBJ_RESET") @_resetobj b;
+  _CBmenu (_APPitem ch rootm ME_ENABLED loc "OBJ_CENTER") @_contcenter b;
+  _CBmenu (_APPitem ch rootm ME_ENABLED loc "OBJ_DUP") @_contdupobj b;
+
+  _CBbutton ladd @_ladd b;
+  _CBbutton lrem @_lrem b;
+  _CBbutton lren @_lren b;
+  _CBbutton lvis @_lvis b;
+
+  _CBbutton padd @CBaddCameraPos b;
+  _CBbutton prem @_prem b;
+  _CBbutton pren @_pren b;
+  _CBbutton pupd @CBupdateCameraPos b;
+  _CBbutton psetc @CBposCamera b;
+  _CBbutton paddo @CBaddObjectPos b;
+  _CBbutton pseto @CBsetObjectPos b;
+  _CBbutton pupdo @CBupdateObjectPos b;
+  _CBlistDclick lp @CBposSelect b;
+
+  _CBbutton aadd @_aadd b;
+  _CBbutton arem @_arem b;
+  _CBbutton aren @_aren b;
+  _CBlistDclick la @_selanch b;
+
+  _CBbutton boback @_chgoback b;
+  _CBbutton bofocal @_chgofocal b;
+  _CBbutton bograv @_chgograv b;
+  _CBbutton bobuf @_chgobuf b;
+  _CBbutton bofog @_chgofog b;
+  _CBbutton bospeed @_chgospeed b;
+  _CBbutton bospace @_osSelectFile b;/*_chgospace b;*/ /*open space 3d ***/
+
+  _CBlistDclick linst @_selinst b;
+  _CBbutton instadd @_instadd b;
+  _CBbutton instrem @_instrem b;
+
+  _CBbutton plugadd @_plugadd b;
+  _CBbutton plugrem @_plugrem b;
+  _CBbutton plugparam @_plugparam b;
+
+  _CBbutton baress @_chgaress b;
+  _CBbutton badefault @_chgadefault b;
+  _CBbutton barights   @_chgarights b;
+  _CBbutton batablesize @_chgtablesize b;
+  _CBbutton bdownloadsize @sizeCell b;
+  _CBbutton badark @_chgdark b;
+
+  _CBbutton ba3dress @_chga3dress b;
+
+  _ADDcombo combo 1000 loc "OBJECTS";
+  _ADDcombo combo 1000 loc "LINKS";
+  _ADDcombo combo 1000 loc "POSITIONS";
+  _ADDcombo combo 1000 loc "ANCHORS";
+  _ADDcombo combo 1000 loc "OBSERV";
+  _ADDcombo combo 1000 loc "INSTANCES";
+  _ADDcombo combo 1000 loc "PLUGINS";
+  _ADDcombo combo 1000 loc "ADVANCED";
+  _CBcombo combo @_selcombo b;
+  _SELcombo combo 0;
+  _selcombo nil b 0 nil;
+
+  set b.E3dInterf.ctrlsE3d=
+  [combo
+   [txl ll ladd::lrem::lren::lvis::nil]
+   [tp lp padd::pupd::psetc::paddo::pupdo::pseto::prem::pren::nil]
+   [ta la aadd::arem::aren::nil]
+   [tinst linst instadd::instrem::nil]
+   [tplug lplug plugadd::plugrem::plugparam::nil]
+  ];
+  set b.E3dInterf.ctrls2E3d=
+    [to lo
+     oadd::orem::oren::olight::ocoll::oscale::odummy::/*omodel::*/nil
+     tm lm
+     textm::flatm::filtm::transm::lightm::gouraudm::envm::nil
+     odiscoll];
+  createplug b;
+
+  if file==nil
+  then
+   nil
+  else
+  (
+    openDMI ed;
+    set w3d.V3dfond=htoi _GETtext b.E3dInterf.backE3d;
+	
+    /*start openspace 3d editor *********************/
+    /*os3dViewSCS b.E3dInterf.ospaceE3d; */ 
+    os3dEditSCS _GETtext b.E3dInterf.ospaceE3d;
+    0  
+  );  
+  
+  b
+ );;
+
+
+/* close editor */
+fun _destroyevent(a,b)=
+ /*saveSceneFile nil; **********openspace 3d */
+ if b then (delplug;endEditor)
+ else nil;;
+
+/* start editor */
+fun IniEditor(s)=
+ let (iniE3d _channel nil loc "CELL_TITLE" @_destroyevent s)-> b in
+  b;
+  
+  /*openspace 3d editor *********************/
+  /*os3dEditSCS ""; */
+  /*os3dViewSCS ""; */
+ 0;;
+

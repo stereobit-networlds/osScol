@@ -1,0 +1,859 @@
+/* 3d Editor (data loader) - Aug 97 - by Sylvain HUET */
+/*                           Oct 98 - by Marc BARILLEY */
+/*                           Dec 99 - by Christophe LOREK */
+/*                           Mar 01 - by Sebastien DENEUX */
+/*                           Mar 15 - by stereobit */
+
+
+/* gestion fichiers */
+
+fun isfilepresent(lf)=
+if lf == nil then 1
+else let lf -> [f nlf] in
+ if (_checkpack f) == nil then 0
+ else isfilepresent nlf;;
+
+/* return path of a filename */
+fun lastslash(s,i)=
+ let strfind "/" s i ->j in
+ if j==nil then i
+ else lastslash s j+1;;
+
+fun getfilepath(path)=substr path 0 lastslash path 0;;
+
+/* manage relativ paths (relativ files should start with ./ */
+fun getfilerelativpath(path,l)=
+ if l==nil then nil
+ else let l->[n nxt] in
+ (if !strcmp substr n 0 2 "./" then strcat path substr n 2 strlen n
+  else n)::getfilerelativpath path nxt;;
+
+fun checkplugfiles(b,a)=
+ let status b.EditorE3d strcat "checking plugin " a -> _ in
+ let strextr _getpack _checkpack a -> l in
+ let getfilepath a -> path in
+ let getfilerelativpath path getInfos l "editorNeeded" -> lef in
+ let getfilerelativpath path getInfos l "editorLoad" -> lef2 in
+  if !(isfilepresent lef) || !(isfilepresent lef2) then 0
+  else 1;;
+
+fun listplug3(b,l,r)=
+ if l==nil then r else let l->[a n] in
+ listplug3 b n if !strcmp ".plug" substr a (strlen a)-5 5 then
+ ( if checkplugfiles b a then a::r else r )
+ else r;;
+
+fun listplug2(b,l,r)=
+ if l==nil then r else let l->[a n] in
+ listplug2 b n listplug3 b _listoffiles a r;;
+
+fun listplug(b)= listplug2 b _listofsubdir "Dms/3d/Plugins" nil;;
+
+defcom SIniPlug=IniPlug S;;
+var preplug="_load \"dms/3d/edit3d3/preplug.pkg\"";;
+
+fun PlugDefine()=
+ search_in_list plugins @plugbych _channel;;
+
+fun versionplug(l)=
+ let getInfos l "version" ->[v1 [v2 _]] in
+  if v1==nil then "no_version"
+  else if v2==nil then v1
+  else strcat strcat v1 "." v2;;
+
+
+/***********************************************************************************
+                                    plugin management
+***********************************************************************************/
+
+/*modif seb : gestion editorLoad*/
+
+defcom Eload=_load S;;
+
+fun plugmkload(l)=
+ if l==nil then nil
+ else (mkscript Eload [hd l])::plugmkload tl l;;
+
+fun pluggetScript(path,plg)=
+ let getInfos plg "editorLoad" -> l in
+ if l==nil then getInfo plg "editorScript"
+ else strcatn plugmkload getfilerelativpath path l;;
+
+fun newplug(a,b)=
+ let strextr _getpack _checkpack a -> l in
+ let getfilepath a -> path in
+ let pluggetScript path l -> s in
+ let hd getfilerelativpath path (getInfo l "help")::nil -> h in
+ let _openchannel nil preplug _envchannel _channel -> ch in
+ (set plugins=(mkPlug[ch a versionplug l nil nil nil nil nil h nil nil nil nil nil])::plugins;
+  status b.EditorE3d strcat "compiling plugin " a;
+  _scriptc ch "reg";
+  _scriptc ch s;
+  _scriptc ch mkscript SIniPlug [a];
+  0
+ );;
+
+fun createplug(b)=
+ if plugins!=nil then nil
+ else apply_on_list listplug b @newplug b;;
+
+fun closeplug(a,b)=
+ let _channel -> c in
+ (_setchannel a.chnPlug;
+  exec a.cbendPlug with [];
+  _setchannel c;
+  _killchannel a.chnPlug;
+  0);;
+
+fun delplug()=
+ apply_on_list plugins @closeplug nil;;
+
+/***********************************************************************************
+                                    end plugin management
+***********************************************************************************/
+
+fun filterclass(l,class)=
+ if l==nil then nil else let l->[a n] in
+ let filterclass n class->r in
+ if !strcmp class a.classInst then a::r else r;;
+
+fun findList(l,a)=if l==nil then 0 else if a==hd l then 1 else findList tl l a;;
+
+fun plugsave(l,lp,lsupp,r1,r2,r3,r4)=
+  if lp==nil then
+    [r1 r2 r3 r4]
+  else
+    let lp->[a lpn] in
+    let filterclass l a.classPlug -> linst in
+    let
+      if (a.cbsavePlug==nil) && (a.cbsaveParamPlug == nil) then
+        if linst==nil then
+          [nil nil nil nil]
+        else
+          [nil nil ("plugin"::a.filePlug::nil)::nil nil]
+      else
+        if linst==nil && !findList lsupp a then
+          [nil nil nil nil]
+        else
+          if a.cbsaveParamPlug == nil then
+            exec a.cbsavePlug with [filterclass l a.classPlug]
+          else
+            exec a.cbsaveParamPlug with [(filterclass l a.classPlug) (strextr a.paramPlug)]
+    -> [p1 p2 p3 p4] in
+      plugsave l lpn lsupp conc p1 r1 conc p2 r2 conc p3 r3 conc p4 r4;;
+
+fun convinst(l)=
+ if l==nil then nil else (mkInst hd l)::convinst tl l;;
+
+fun _PlugSave(l,lsupp)=plugsave convinst l plugins lsupp nil nil nil nil;;
+
+fun PlugRegister(class,save,close,openedit,closeedit)=
+ let search_in_list plugins @plugbych _channel -> plug in
+ if plug==nil then nil
+ else
+ (set plug.classPlug=class;
+  set plug.cbopeneditPlug=openedit;
+  set plug.cbcloseeditPlug=closeedit;
+  set plug.cbsavePlug=save;
+  set plug.cbendPlug=close);
+ 0;;
+
+fun PlugRegister2 (class,save,close,openedit,closeedit)=
+  let search_in_list plugins @plugbych _channel -> plug in
+    if plug == nil then
+      nil
+    else
+    (
+      set plug.classPlug = class;
+      set plug.cbopeneditParamPlug = openedit;
+      set plug.cbcloseeditParamPlug = closeedit;
+      set plug.cbsaveParamPlug = save;
+      set plug.cbendPlug = close;
+    );
+  0
+;;
+
+fun PlugRegisterPro (class, pro) =
+  let search_in_list plugins @plugbych _channel -> plug in
+    if plug == nil then
+      nil
+    else
+      set plug.cbproPlug = pro
+;;
+
+fun resetscene2(b,h)=
+ if h==nil then 0
+ else let M3objName b.s3dE3d h -> name in
+ let M3getBrother b.s3dE3d h -> brother in
+ (if (nth_char name 0)=='# then M3delObj b.s3dE3d h
+  else nil;
+  resetscene2 b brother);;
+
+fun resetscene(b)=
+ M3delObj b.s3dE3d b.lightshellE3d;
+ M3delObj b.s3dE3d b.dumE3d;
+ let b.shellE3d ->sh in
+  resetscene2 b M3getFirstSon b.s3dE3d sh;
+ set b.lightshellE3d=M3createShell b.s3dE3d;
+ M3renameObj b.s3dE3d b.lightshellE3d "#Light";
+ M3load b.s3dE3d "Dms/3d/Edit3d3/Light.m3d" b.lightshellE3d;
+ set b.dumE3d=M3getObj b.s3dE3d "DUMMY";
+ M3unLink b.s3dE3d b.dumE3d;
+ setlightbase b 0;
+ 0;;
+
+
+/* new */
+fun newCell(b)=
+ UnselectObjectIn3DView;
+ resetscene b;
+ _SETtext b.E3dInterf.namE3d "";
+ _SETtext b.E3dInterf.fileE3d "";
+ _SETtext b.E3dInterf.backE3d "0";
+ _SETtext b.E3dInterf.collE3d "";
+ my_RSTtree b.lsoE3d b.E3dInterf.loE3d;
+ _RSTlist b.E3dInterf.lmE3d;
+ _RSTlist b.E3dInterf.llE3d;
+ _RSTlist b.E3dInterf.lpE3d;
+ inboxClosing b.inboxE3d;
+ set b.inboxE3d=nil;
+ set b.lsoE3d=nil;
+ set b.lsmE3d=nil;
+ set b.lschgoE3d=nil;
+ set b.lslE3d=nil;
+ set b.lspE3d=nil;
+
+ set b.lsaE3d=nil;
+ set b.lsinstE3d=nil;
+ set b.lsplugE3d=nil;
+ set b.ressE3d=nil;
+ b;;
+
+
+/* parsing routines */
+
+fun searchpoint(s)=
+ let strlen s->l in
+ let 0-> i in
+  (while i<l && (nth_char s i)!='. do set i=i+1;
+   i);;
+
+
+fun test_(s)=if strcmp s "_" then s else nil;;
+fun testnil(s)=if s==nil || 0==strlen s then "_" else s;;
+
+
+fun setindex(b,i)=
+ M3renameObj b.s3dE3d hd cur_shell strcatn "#"::i::"."::(M3objName b.s3dE3d hd cur_shell)::nil;
+ set cur_pref=(strcat i ".")::tl cur_pref;;
+
+fun mkobb(b,h)=
+ let M3calcObb b.s3dE3d h ->[v r] in
+ let M3createObb b.s3dE3d r -> o in
+ (M3setObjVec b.s3dE3d o v;
+  M3link b.s3dE3d o h);;
+
+fun setscale(b,h,coef)=
+ M3setObjScale b.s3dE3d h if coef==nil then 100 else coef;;
+
+fun settextflat(b,mat,col,txt)=
+ let M3getTexture b.s3dE3d txt -> t in
+ (if t!=nil then M3chgMaterialTexture b.s3dE3d mat t
+  else M3renameTexture b.s3dE3d (M3copyMaterialTexture b.s3dE3d mat) txt;
+  if col==nil then nil else M3setMaterialFlat b.s3dE3d mat htoi col);;
+
+typeof lastrenobj_old=S;;
+typeof lastrenobj_new=S;;
+
+fun checkname_renobj(s)=
+ if version then s
+ else if strcmp s lastrenobj_new then s
+ else lastrenobj_old;;
+
+fun datald(l,b)=
+ let hd l -> s in
+ if s==nil then nil
+ else if (!strcmp s "m3d") && (sizelist l)==2 then
+  (loadobj b nth_list l 1 nil nil hd cur_shell;
+   set cur_shell=curob::cur_shell;
+   set cur_pref=nil::cur_pref;
+   0)
+ else if (!strcmp s "m3d") && (sizelist l)>=8 then
+  (loadobj b nth_list l 1
+    [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+    [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]
+    hd cur_shell;
+   set cur_shell=curob::cur_shell;
+   set cur_pref=nil::cur_pref;
+   0)
+ else if (!strcmp s "index") && (sizelist l)>=2 then
+  let hd tl l -> i in
+  (setindex b i;
+   let htoi i -> x in if x>refm3d then set refm3d=x else nil;
+   0)
+ else if (!strcmp s "ref") && (sizelist l)>=2 then
+  let M3getObj b.s3dE3d hd tl l -> h in
+  (if h==nil then nil
+   else M3link b.s3dE3d hd cur_shell h;
+   0)
+ else if (!strcmp s "endm3d")||(!strcmp s "}") then
+  (if nil==hd cur_pref then setindex b itoh newindex
+   else nil;
+   endobj b;
+   set cur_shell=tl cur_shell;
+   set cur_pref=tl cur_pref;
+   0)
+ /* dummy loading */
+ else if (!strcmp s "dummy") && (sizelist l)>=8 then
+  (
+    Active3DIfNeeded b;
+    if !strcmp nth_list l 8 "{" then /* dhdms dat format */
+    (
+      set lastobj=_oadddummy b
+        [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+        [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7] hd cur_shell 0;
+      set cur_shell=lastobj::cur_shell;
+      set cur_pref=nil::cur_pref
+    )
+    else /* hdms dat format */
+    let nth_list l 1 -> new in
+    (
+      set lastobj=_oadddummy b
+        [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+        [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7] hd cur_shell 1;
+      set lastrenobj_old="dummy";
+      set lastrenobj_new= new;
+      OBJ3D_Rename lastobj b new;
+      nil
+    );
+    0
+  )
+ else if (!strcmp s "obj") && (sizelist l)>=8 then
+  (set lastobj=pickobj b checkname_renobj nth_list l 1
+    [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+    [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7];
+   if (atoi nth_list l 8)==1 then mkobb b lastobj else nil;
+   setscale b lastobj atoi nth_list l 9;
+   0)
+ else if (!strcmp s "delobj") && (sizelist l)>=2 then
+  (M3delObj b.s3dE3d M3getObj b.s3dE3d nth_list l 1;
+   0)
+ else if (!strcmp s "Obb") then
+  (mkobb b lastobj;
+   0)
+ else if (!strcmp s "Scale") then
+  (setscale b lastobj atoi nth_list l 1;
+   0)
+ else if (!strcmp s "material") && (sizelist l)>=5 then
+  let M3getMat  b.s3dE3d nth_list l 1-> mat in
+  let l->[_ [_ [type [flat [coef [txt _]]]]]] in
+  (settextflat b mat flat txt;
+   M3setMaterialTransparency b.s3dE3d mat atoi coef;
+   M3setType b.s3dE3d mat htoi type;
+   0)
+ else if (!strcmp s "ren_mat") && (sizelist l)>=3 then
+  (let M3getMat  b.s3dE3d nth_list l 1-> mat in
+   let nth_list l 2-> txt in
+   let nth_list l 3-> col in
+   let M3getTexture b.s3dE3d txt -> t in
+   (settextflat b mat col txt;
+    M3setType b.s3dE3d mat 8|(M3getType b.s3dE3d mat)&0xfffb);
+   0)
+ else if (!strcmp s "texture") && (sizelist l)>=3 then
+  (let M3getMat  b.s3dE3d nth_list l 1-> m in
+   (M3setMaterialFlat b.s3dE3d m htoi nth_list l 2;
+    M3setType b.s3dE3d m ((M3getType b.s3dE3d m)&0xfffe)|8);
+   0)
+ else if (!strcmp s "nolight") && (sizelist l)>=2 then
+  (let M3getMat  b.s3dE3d nth_list l 1-> m in
+   M3setType b.s3dE3d m ((M3getType b.s3dE3d m)&(~MAT_LIGHT));
+   0)
+ else if (!strcmp s "transparency") && (sizelist l)>=3 then
+  (let M3getMat  b.s3dE3d nth_list l 1-> m in
+   (M3setMaterialTransparency b.s3dE3d m atoi nth_list l 2;
+    M3setType b.s3dE3d m (M3getType b.s3dE3d m)|4);
+    0)
+ else if ((!strcmp s "ren_obj")||(!strcmp s "alias")) && (sizelist l)>=3 then
+  (
+    let nth_list l 1-> old in
+    let nth_list l 2-> new in
+    (
+      set lastrenobj_old=old;
+      set lastrenobj_new=new;
+      OBJ3D_Rename (if isdummy b hd cur_shell then hd cur_shell else M3getObj b.s3dE3d old) b new
+    );
+    0
+  )
+ else if (!strcmp s "link") && (sizelist l)>=3 then
+  (let nth_list l 2-> obj in
+   let atoi nth_list l 3-> vis in
+   let searchpoint obj -> i in
+   let if isdummy b lastobj then [lastobj nil]
+    else [M3getObj b.s3dE3d checkname_renobj substr obj 0 i M3getMat  b.s3dE3d substr obj i+1 1000]
+    ->[hl ml] in
+     newlink nth_list l 1 [b hl ml if vis==nil then 1 else vis];
+   0)
+ else if (!strcmp s "ipos") && (sizelist l)>=8 then
+  (newpos nth_list l 1
+    [b
+     [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4]
+     [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 ]];
+   0)
+ else if (!strcmp s "anchor") then
+  (newanch nth_list l 1 tl tl l b;
+   0)
+ else if (!strcmp s "name") && (sizelist l)>=2 then
+  (_SETtext b.E3dInterf.namE3d nth_list l 1;
+   0)
+ else if (!strcmp s "version") && (sizelist l)>=2 then
+  (set version=atoi nth_list l 1;
+   0)
+ else if (!strcmp s "background") && (sizelist l)>=2 then
+  (_SETtext b.E3dInterf.backE3d nth_list l 1;
+   0)
+ else if (!strcmp s "backclip") && (sizelist l)>=2 then
+  (
+    Active3DIfNeeded b;
+   _SETtext b.E3dInterf.obackE3d nth_list l 1;
+   _SETtext b.E3dInterf.ofogE3d nth_list l 2;
+   let atoi nth_list l 1 -> d in
+   let atoi nth_list l 2 -> fog in
+   let M3getCamera b.s3dE3d b.camE3d->[dx sx [z0 _ _]] in
+   M3setCamera b.s3dE3d b.camE3d [dx sx [z0 if fog==nil then d else fog d]];
+   0)
+ else if (!strcmp s "focal") && (sizelist l)>=2 then
+  (
+   Active3DIfNeeded b;
+   _SETtext b.E3dInterf.ofocalE3d nth_list l 1;
+   let (atof nth_list l 1)/.(atof "57.29") -> d in
+   let M3getCamera b.s3dE3d b.camE3d->[_ [sx sy] z] in
+   let ftoi (itof sx)/. tan d -> dx in
+   M3setCamera b.s3dE3d b.camE3d [[dx dx] [sx sy] z];
+   0)
+ else if (!strcmp s "speed") && (sizelist l)>=2 then
+  (_SETtext b.E3dInterf.ospeedE3d nth_list l 1;
+   SetSpeed atoi nth_list l 1;
+   0)
+ else if (!strcmp s "openspacefile") && (sizelist l)>=2 then
+  (_SETtext b.E3dInterf.ospaceE3d nth_list l 1;
+   /*SetSpeed atoi nth_list l 1;*/
+   0)   
+ else if (!strcmp s "light") && (sizelist l)>=8 then
+  (
+   Active3DIfNeeded b;
+   let M3getFirstSon b.s3dE3d b.lightshellE3d -> h in
+   (M3renameObj b.s3dE3d h nth_list l 1;
+    M3setObjVec b.s3dE3d h [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4];
+    M3setObjAng b.s3dE3d h [atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7]);
+   M3link b.s3dE3d b.lightshellE3d b.shellE3d;
+   0)
+ else if (!strcmp s "buffersize") && (sizelist l)>=2 then
+ let atoi (nth_list l 1) -> iBufferSize in
+  (_SETtext b.E3dInterf.obufE3d itoa E3D_SetBufferSize iBufferSize;
+   0)
+ else if (!strcmp s "inbox") && (sizelist l)>=4 then
+  (loadcoll b nth_list l 1 atoi nth_list l 2 0;
+   setograv nth_list l 3 b;
+   0)
+ else if (!strcmp s "gravity") && (sizelist l)>=2 then
+  (setograv nth_list l 1 b;
+   0)
+ else if (!strcmp s "instance") && (sizelist l)>=5 then
+  (newinst [nth_list l 1 nth_list l 2 test_ nth_list l 3 test_ nth_list l 4] b;
+   0)
+ else if (!strcmp s "suppplugin") && (sizelist l)>=2 then
+  (newsplug nth_list l 1 nth_list l 2 b;
+   0)
+ else if (!strcmp s "avatarRess") then
+  (_SETtext b.E3dInterf.aressE3d nth_list l 1;
+   0)
+ else if (!strcmp s "defaultAvatar") then
+  (_SETtext b.E3dInterf.adefaultE3d nth_list l 1;
+   0)
+ else if (!strcmp s "defaultForced") then
+  (_SETcheck b.E3dInterf.aforcedE3d atoi nth_list l 1;
+   0)
+ else if (!strcmp s "interpolate") then
+  (_SETcheck b.E3dInterf.ainterpolateE3d atoi nth_list l 1;
+   0)
+ else if (!strcmp s "darkbase") then
+  let nth_list l 1 -> darkbase in
+  (
+  if darkbase == nil then set darkbase = DEFAULT_LIGHT_BASE else nil;
+  _SETtext b.E3dInterf.adarkE3d darkbase;
+   setlightbase b atoi darkbase;
+   0)
+ else if (!strcmp s "rightsRess") then
+  (_SETtext b.E3dInterf.arightsE3d nth_list l 1;
+   0)
+ else if (!strcmp s "tablesize") then
+  (_SETtext b.E3dInterf.tablesizeE3d nth_list l 1;
+   0)
+ else if (!strcmp s "C3dress") then
+  (set b.ressE3d=nth_list l 1;
+   0)
+ else if (!strcmp s "gridsize") then
+  (_SETtext b.E3dInterf.gridsizeE3d nth_list l 1;
+   0)
+ else if (!strcmp s "avatarpseudo") then
+  (_SETcheck b.E3dInterf.apseudoE3d atoi nth_list l 1;
+   0)
+ else if (!strcmp s "camfree") then
+  (_SETcheck b.E3dInterf.camfreeE3d atoi nth_list l 1;
+   0)
+ else nil;;
+
+fun sizeof(l)=
+ if l==nil then 0
+ else let l->[a n] in
+ let _getpack _checkpack a -> s in
+ (if s==nil then 0 else strlen s)+sizeof n;;
+
+fun sizeofComp(l)=
+ if l==nil then 0
+ else let l->[a n] in
+ let _getpack _checkpack a -> s in
+ (if s==nil then 0 else strlen mzip s)+sizeofComp n;;
+
+typeof edit=Editor;;
+
+fun dataLoader (l, b)=
+ set DoNoUpdateObjectTree=1;
+ newCell b;
+ if l==nil then nil
+ else
+ (let getDef edit "dat" -> s in
+  if s==nil then nil
+  else
+  (set cur_pref=nil;
+   set cur_shell=nil;
+   set lastobj=nil;
+   set refm3d=0;
+   set version=0;
+   apply_on_list s @datald b;
+   M3recursFillMatObj b.s3dE3d b.shellE3d;
+   M3recursFillMatObj b.s3dE3d b.shelldelE3d;
+   set DoNoUpdateObjectTree=0;
+   UpdateObjectTree b;
+   0);
+  0);;
+
+
+
+fun dataPos(l)=
+ if l==nil then nil
+ else let l->[[s [x y z] [a b c]] n] in
+  ("ipos"::s::(itoa x)::(itoa y)::(itoa z)::(itoa a)::(itoa b)::(itoa c)::nil)
+  ::dataPos n;;
+
+fun dataAnch(l)=
+ if l==nil then nil
+ else let l->[[s x] n] in
+  ("anchor"::s::x)::dataAnch n;;
+
+
+fun addone(a,p)=
+ if p==nil then a::nil
+ else let p->[b n] in
+  if a==b then p else b::addone a n;;
+
+fun addmat(l,lm)=
+  if lm==nil then l
+ else let lm->[a n] in addmat addone a l n;;
+
+fun listmat(b,h,l)=
+ if h==nil then l
+ else listmat b (M3getBrother b.s3dE3d h)
+  if isblocnode b h then l
+  else let M3listOfMaterials b.s3dE3d h -> lm in
+   listmat b M3getFirstSon b.s3dE3d h addmat l lm;;
+
+fun savemat(b,s,lm)=
+ if lm==nil then nil
+ else let lm->[m n] in
+ let M3getType s m -> type in
+ ("material"::(M3materialName s m)::(itoh type)::(itoh M3getMaterialFlat s m)::
+ (itoa M3getMaterialTransparency s m)::if type&1 then (M3textureName s M3textureFromMaterial s m)::nil else nil)::
+ savemat b s n;;
+
+fun savelinks(l,b,h)=
+ if l==nil then nil else
+ let l->[[h0 m0 n0 i0] n] in
+ conc if h0!=h then nil
+  else ("link"::n0::(strcat getclear M3objName b.s3dE3d h0
+         if m0==nil then nil else strcat "." M3materialName b.s3dE3d m0)::
+         (itoa i0)::nil)::nil
+ savelinks n b h;;
+
+fun savemesh(b,h)=
+ if h==nil then nil
+ else
+ conc savemesh b M3getBrother b.s3dE3d h
+ (if (isblocnode b h) || isnonamenode b h then nil
+  else
+   let M3getObjVec b.s3dE3d h -> [x y z] in
+   let M3getObjAng b.s3dE3d h -> [an bn cn] in
+  conc ("obj"::(getclear M3objName b.s3dE3d h)::(itoa x)::(itoa y)::(itoa z)::
+   (itoa an)::(itoa bn)::(itoa cn)::(itoa nil!=GetObjectBox b h)::
+   let M3getObjScale b.s3dE3d h -> i in if i==100 then nil else (itoa i)::nil)::nil
+  conc let GetObjectAlias b h -> a in
+    if a==nil then nil else ("alias"::(getclear M3objName b.s3dE3d h)::a::nil)::nil
+  conc savelinks b.lslE3d b h
+   savemesh b M3getFirstSon b.s3dE3d h
+ )
+;;
+
+fun finddelobj(l,lm)=
+ if l==nil then nil
+ else let l->[[w1 [w2 [w3 _]]] nxt] in
+ if (!strcmp w3 "{")&&(strcmp w1 "material")&& !strFindList lm w2 then
+  ("delobj"::w2::nil)::finddelobj nxt lm
+ else finddelobj nxt lm;;
+
+fun getobjfrommeshes(l)=
+ if l==nil then nil
+ else if !strcmp hd hd l "obj" then (hd tl hd l)::getobjfrommeshes tl l
+ else getobjfrommeshes tl l;;
+
+fun ref(b,h)=
+ let M3getFather b.s3dE3d h -> r in
+ if isblocnode b r then nil else getclear M3objName b.s3dE3d r;;
+
+fun savem3d(b,h)=
+ let M3objName b.s3dE3d h -> name in
+ let getid name -> id in
+ let getclear name -> file in
+ let listmat b M3getFirstSon b.s3dE3d h nil-> lm in
+ let M3getObjVec b.s3dE3d h->[x y z] in
+ let M3getObjAng b.s3dE3d h->[an bn cn] in
+ let savemesh b M3getFirstSon b.s3dE3d h -> meshes in
+(conc
+  ("m3d"::file::(itoa x)::(itoa y)::(itoa z)::(itoa an)::(itoa bn)::(itoa cn)::"{"::nil)::
+  ("index"::id::nil)::
+  ("ref"::(ref b h)::nil)::nil
+ conc meshes
+ conc finddelobj strextr _getpack _checkpack file getobjfrommeshes meshes
+  savemat b b.s3dE3d lm
+);;
+
+fun savedummy(b,h)=
+ let getid M3objName b.s3dE3d h -> id in
+ let M3getObjVec b.s3dE3d h->[x y z] in
+ let M3getObjAng b.s3dE3d h->[an bn cn] in
+ conc
+  ("dummy"::"dummy"::
+   (itoa x)::(itoa y)::(itoa z)::(itoa an)::(itoa bn)::(itoa cn)::"{"::nil)::nil
+ conc
+ ("index"::id::nil)::
+ ("ref"::(ref b h)::nil)::nil
+ conc
+  savelinks b.lslE3d b h
+  let GetObjectAlias b h -> a in
+    if a==nil then nil else ("alias"::(getclear M3objName b.s3dE3d h)::a::nil)::nil;;
+
+
+proto saveobj2=fun[E3d H3d] [[S r1] r1];;
+
+fun savebloc(b,h)=
+ let M3objName b.s3dE3d h -> name in
+ if !strcmp name "#Light" then nil
+ else
+ conc
+  if !strcmp substr name (strlen name)-6 6 ".dummy" then savedummy b h
+   else savem3d b h
+ conc
+  saveobj2 b M3getFirstSon b.s3dE3d h
+  ("}"::nil)::nil;;
+
+
+fun saveobj2(b,h)=
+ if h==nil then nil
+ else let M3objName b.s3dE3d h -> name in
+ conc saveobj2 b M3getBrother b.s3dE3d h
+  if isblocnode b h then savebloc b h
+   else saveobj2 b M3getFirstSon b.s3dE3d h
+;;
+
+fun saveobj(b)=
+ saveobj2 b M3getFirstSon b.s3dE3d b.shellE3d;;
+
+fun searchlastpoint(s)=
+ let strlen s->l in
+ let l-1-> i in
+  (while i>=0 && (nth_char s i)!='. do set i=i-1;
+   i);;
+
+fun namedat(f)=
+ let searchlastpoint f->i in strcat if i==-1 then f else substr f 0 i ".dat";;
+
+fun dataInst(l,r)=
+ if l==nil then r
+ else let l->[[a b c d] n] in dataInst n ("instance"::(testnil a)::(testnil b)::(testnil c)::(testnil d)::nil)::r;;
+
+fun dataPlugs(l,r)=
+ if l==nil then r
+ else let l->[p n] in dataPlugs n ("suppplugin"::p.filePlug::p.paramPlug::nil)::r;;
+
+fun dataMaker(b,adddat)=
+ let nil-> l in
+ (set l=
+  ("name"::           (_GETtext b.E3dInterf.namE3d)::nil)::
+  ("version"::        "1"::nil)::
+  ("buffersize"::     (_GETtext b.E3dInterf.obufE3d)::nil)::
+  ("background"::     (_GETtext b.E3dInterf.backE3d)::nil)::
+  ("backclip"::       (_GETtext b.E3dInterf.obackE3d)::(_GETtext b.E3dInterf.ofogE3d)::nil)::
+  ("focal"::          (_GETtext b.E3dInterf.ofocalE3d)::nil)::
+  ("speed"::          (_GETtext b.E3dInterf.ospeedE3d)::nil)::
+  ("openspacefile"::  (_GETtext b.E3dInterf.ospaceE3d)::nil)::  
+  ("avatarRess"::     (_GETtext b.E3dInterf.aressE3d)::nil)::
+  ("defaultAvatar"::  (_GETtext b.E3dInterf.adefaultE3d)::nil)::
+  ("defaultForced"::  (itoa _GETcheck b.E3dInterf.aforcedE3d)::nil)::
+  ("interpolate"::    (itoa _GETcheck b.E3dInterf.ainterpolateE3d)::nil)::
+  ("darkbase"::       (_GETtext b.E3dInterf.adarkE3d)::nil)::
+  ("rightsRess"::     (_GETtext b.E3dInterf.arightsE3d)::nil)::
+  ("tablesize"::      (_GETtext b.E3dInterf.tablesizeE3d)::nil)::
+  ("gridsize"::       (itoa max MIN_GRID_SIZE (atoi _GETtext b.E3dInterf.gridsizeE3d))::nil)::
+  ("avatarpseudo"::   (itoa _GETcheck b.E3dInterf.apseudoE3d)::nil)::
+  ("camfree"::        (itoa _GETcheck b.E3dInterf.camfreeE3d)::nil)::
+  ("C3dress"::        (b.ressE3d)::nil)::
+   if nil==M3getFather b.s3dE3d b.lightshellE3d
+   then nil
+   else let M3getFirstSon b.s3dE3d b.lightshellE3d -> h in
+   let M3getObjVec b.s3dE3d h->[x y z] in
+   let M3getObjAng b.s3dE3d h->[an bn cn] in
+   ("light"::(M3objName b.s3dE3d h)::(itoa x)::(itoa y)::(itoa z)::
+    (itoa an)::(itoa bn)::(itoa cn)::nil)::nil;
+  set l=conc l dataPos b.lspE3d;
+  set l=conc l saveobj b;
+  set l=conc l dataAnch b.lsaE3d;
+  set l=conc l ("inbox"::b.inboxE3d.nameIB::(itoa b.inboxE3d.rayonIB)::"0"::nil)::nil;
+  set l=conc l ("gravity"::(itoa b.igravE3d)::nil)::nil;
+  set l=conc l dataInst b.lsinstE3d nil;
+  set l=conc l dataPlugs b.lsplugE3d nil;
+  set l=conc l adddat;
+  setDef edit "dat" l;
+  0);;
+
+fun lastpercent(n,i,l)=
+ if i>=strlen n then l
+ else lastpercent n i+1 if (nth_char n i)=='% then i else l;;
+
+fun cutnamefilter(n)=
+ let lastpercent n 0 nil-> i in
+  if i==nil then [n nil] else [substr n i+1 1000 substr n 1 i-1];;
+
+fun listtexts(l,s)=
+ if l==nil then nil
+ else let l->[m n] in
+ let M3textureFromMaterial s m -> t in
+ if t==nil then listtexts n s
+ else (let cutnamefilter M3textureName s t->[x _] in x)::listtexts n s;;
+
+fun listmatall(b,h,l)=
+ if h==nil then l
+ else listmatall b (M3getBrother b.s3dE3d h)
+  let M3listOfMaterials b.s3dE3d h -> lm in
+   listmatall b M3getFirstSon b.s3dE3d h addmat l lm;;
+
+fun regobjf(b)=
+ listtexts (listmatall b M3getFirstSon b.s3dE3d b.shellE3d nil) b.s3dE3d;;
+
+fun sortreg(a,b)=strcmp a b;;
+
+fun registf(b)=
+ quicksort regobjf b @sortreg;;
+
+fun regobj2(b,h)=
+ if h==nil then nil
+ else let regobj2 b (M3getBrother b.s3dE3d h) -> s1 in
+ let regobj2 b (M3getFirstSon b.s3dE3d h) -> s2 in
+ if (isblocnode b h)&& (!isdummy b h) && strcmp M3objName b.s3dE3d h "#Light"  then
+ (getclear M3objName b.s3dE3d h)::conc s1 s2
+ else conc s1 s2;;
+
+fun regobj(b)=
+ regobj2 b M3getFirstSon b.s3dE3d b.shellE3d;;
+
+fun regist(b)=
+ quicksort b.inboxE3d.nameIB::(regobj b) @sortreg;;
+
+
+fun actions2(l)=
+ if l==nil then nil
+ else let l->[[s _ _] n] in ("action"::s::nil)::actions2 n;;
+
+fun actions(b)=
+("action"::"out"::nil)::
+("actionC"::"!control"::nil)::
+ actions2 b.lspE3d;;
+
+fun links2(l)=
+ if l==nil then nil
+ else let l->[[_ _ s _] n] in ("eventC"::s::nil)::links2 n;;
+
+fun links(b)=
+ conc dmi
+ ("event"::"in"::nil)::
+ ("event"::"out"::nil)::
+ ("event"::"log"::nil)::
+ ("eventC"::"getControl"::nil)::
+ links2 b.lslE3d;;
+
+/*get path file*/
+fun getPathFile (longfile, file)=
+  if (longfile==nil) || (strlen longfile)==0 || (nth_char longfile ((strlen longfile)-1)) == '/
+  then
+    [longfile file]
+  else
+    getPathFile
+      substr longfile 0 (strlen longfile)-1
+      strcat
+        substr longfile ((strlen longfile)-1) 1
+        file;;
+
+/*gestion loc plugins (instances)*/
+fun getAddExtraLang(lplugins,l)=
+ if lplugins==nil then nil
+ else
+  let lplugins -> [t q] in
+  let filterclass l t.classPlug -> linst in
+   if linst!=nil then
+    let getPathFile t.filePlug "" -> [a _] in
+     (strcat a "lang/")::(getAddExtraLang q l)
+   else
+    getAddExtraLang q l;;
+
+/*gestion loc plugins (supplemental plugins)*/
+ fun getAddExtraLang2(l)=
+ if l==nil then nil
+ else
+  let l->[t q] in
+  let getPathFile t.filePlug "" -> [a _] in
+   (strcat a "lang/")::(getAddExtraLang2 q);;
+
+fun saveCell (filename, n, b)=
+ unselectObject DEVview b.w3dE3d;
+ let _PlugSave b.lsinstE3d b.lsplugE3d ->[addregF addreg adddat adddmi] in
+ let dataMaker b adddat-> x in
+ let nil-> l in
+ (set l=conc l ("registerPlugF"::addregF)::nil;
+  set l=conc l ("registerPlug"::addreg)::nil;
+  set l=conc l ("registerF"::conc addregF registf b)::nil;
+  set l=conc l ("register"::conc addreg regist b)::nil;
+  set l=conc l ("extralang"::(getAddExtraLang plugins (convinst b.lsinstE3d)))::nil; /*gestion loc plugins (instances)*/
+  set l=conc l ("extralang"::(getAddExtraLang2 b.lsplugE3d))::nil; /*gestion loc plugins (supplemental plugins)*/
+  set l=conc l ("name"::(_GETtext b.E3dInterf.namE3d)::nil)::nil;
+  set l=conc l actions b;
+  set l=conc l links b;
+  set l=conc l ("zoneC"::"View"::nil)::nil;
+  set l=conc l ("zoneC"::"ViewOS"::nil)::nil; /***************<<<<******/
+  set l=conc l ("zoneC"::"Info"::nil)::nil;
+  set l=conc l adddmi;
+  set l=conc l ("eventC"::"contextHelp"::nil)::nil;
+  l);;
+
+fun sizeCell(a,b)=
+ let _PlugSave b.lsinstE3d b.lsplugE3d ->[addregF addreg adddat adddmi] in
+ let (sizeof conc addregF (registf b))+(sizeofComp conc addreg (regist b))->sz in
+  _DLGMessageBox b.E3dInterf.chE3d b.E3dInterf.winE3d loc "DOWNLOAD_SIZE"
+   strcatn (loc "USER_SIZE")::" : "::(itoa sz)::" "::(loc "BYTES")::nil 0;;

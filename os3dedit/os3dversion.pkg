@@ -1,0 +1,117 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+typeof sVersionHuman = S;;
+typeof iVersionRelease = I;;
+typeof iVersionRevision = I;;
+typeof iVersionTag = I;;
+typeof sVersionStatus = S;;
+
+
+typeof sVersion = S;;
+
+
+fun getVersionName()=
+  sVersionHuman;;
+
+
+fun getVersionDate()=
+  strtrim ctime htoi sVersion;;
+
+
+fun getVersion()=
+  htoi sVersion;;
+
+
+fun getVersionS()=
+  sVersion;;
+
+
+fun getOs3dVersion()=
+  let strextr _getpack _checkpack "dms/3d/os3dedit/version.txt" -> lver in
+  let sizelist lver -> size in
+  let nil -> release in
+  let nil -> revision in
+  let nil -> tag in
+  let nil -> status in
+  let nil -> curver in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list lver i -> elem in
+      if !strcmpi "release" hd elem then
+        set release = hd tl elem
+      else if !strcmpi "revision" hd elem then
+        set revision = hd tl elem
+      else if !strcmpi "tag" hd elem then
+        set tag = hd tl elem
+      else if !strcmpi "status" hd elem then
+        set status = hd tl elem
+      else if !strcmpi "version" hd elem then
+        set curver = hd tl elem
+      else nil;
+      
+      set i = i + 1;
+    );
+    set sVersionHuman = strcatn release::"."::revision::"."::tag::status::nil;
+    set iVersionRelease = atoi release;
+    set iVersionRevision = atoi revision;
+    set iVersionTag = atoi tag;
+    set sVersionStatus = status;
+    set sVersion = curver;
+    
+    htoi curver;
+  );;
+
+
+fun getNewVersion()=
+  _showconsole;
+  getOs3dVersion;
+  let itoh time -> nver in
+  (
+    if iVersionTag + 1 < 9 then
+      set iVersionTag = iVersionTag + 1
+    else if iVersionRevision + 1 < 9 then
+    (
+      set iVersionRevision = iVersionRevision + 1;
+      set iVersionTag = 0;
+    )
+    else
+    (
+      set iVersionRelease = iVersionRelease + 1;
+      set iVersionRevision = 0;
+      set iVersionTag = 0;
+    );
+    
+    _fooS strcat ">>>>>>>>> new version : " nver;
+    _fooS strcat ">>>>>>>>> version date : " ctime htoi nver;
+    _storepack (strbuild ("release"::(itoa iVersionRelease)::nil)::
+                        ("revision"::(itoa iVersionRevision)::nil)::
+                        ("tag"::(itoa iVersionTag)::nil)::
+                        ("status"::sVersionStatus::nil)::
+                        ("version"::nver::nil)::nil)
+                        "dms/3d/os3dedit/version.txt";
+    
+  );;  

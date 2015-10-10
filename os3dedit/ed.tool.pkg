@@ -1,0 +1,575 @@
+
+
+
+struct ToolBar=[
+  TBcont:ObjContainer,
+  TBlistobj:[[I ObjNode] r1],
+  TBlistcheck:[[I CompCheck] r1],
+  TBlistABmp:[AlphaBitmap r1],
+  TBfont:ObjFont,
+  TBgroupchecks   :[[CompCheck r1]r1],
+  TBgrouptext     :[[I CompText]r1],
+  TBenterPos :fun [[I I I] [I I I]] I,
+  TBenterScale:fun [I] I,
+  TBfuncs :[[I fun [ObjNode I] I] r1]
+]mkToolBar;;
+
+typeof Tool=ToolBar;;
+
+var TOOL_SIZE_BORDER         =6;;
+var TOOL_SIZE_BTN            =24;;
+var TOOL_SIZE_EDIT_TEXT      =50;;
+var TOOL_SIZE_SCALE_TEXT     =35;;
+var TOOL_SIZE_FONT           =14;;
+var AUTHORIZED_CHARS         ="0123456789-";;
+var TOOL_SIZE_BAR            =20;;
+var TOOL_DECAL_TEXT          =0;;
+var TOOL_DECAL_PRES          =2;;
+
+var CHECK_VIEW          =1;;
+var CHECK_PAN           =2;;
+var CHECK_PROFONDEUR    =3;;
+var CHECK_MOVE          =4;;
+var ROL_MINMAXTOGGLE    =5;;
+var CHECK_ROTATE        =6;;
+var CHECK_SCALE         =7;;
+var TEXT_X              =8;;
+var TEXT_Y              =9;;
+var TEXT_Z              =10;;
+var TEXT_A              =11;;
+var TEXT_B              =12;;
+var TEXT_C              =13;;
+var TEXT_SCALE          =14;;
+var ROL_CLOSE           =15;;
+var CHECK_GLOBALREF     =16;;
+var TEXT_W              =17;;
+var TEXT_H              =18;;
+var TEXT_D              =19;;
+
+
+
+var BmpView         ="Dms/3d/os3dedit/lib/view.png";;
+var BmpPan          ="Dms/3d/os3dedit/lib/bougedplan.png";;
+var ProfondeurBmp   ="Dms/3d/os3dedit/lib/profplan.png";;
+var MinMaxToggleBmp ="Dms/3d/os3dedit/lib/minmax.png";;
+var MoveBmp         ="Dms/3d/os3dedit/lib/moveobject.png";;
+var ScaleBmp        ="Dms/3d/os3dedit/lib/scaleobject.png";;
+var RotateBmp       ="Dms/3d/os3dedit/lib/rotateobject.png";;
+var GlobalRefBmp    ="Dms/3d/os3dedit/lib/globalref.png";;
+
+typeof backedcolor = I;;
+typeof TextColor=[I I I I];;
+typeof SelectColor=[I I];;
+typeof TextHeight=I;;
+
+fun searchtypefunc(p,type)=
+  let p -> [t _] in
+  (t==type);;
+
+
+fun delABmp(abmp,blurp)=
+  _DSalphaBitmap abmp;;
+
+fun cbToolClose(cont,t)=
+  _DScontainer t.TBcont;
+  set t.TBcont=nil;
+  _DSfont t.TBfont;
+  apply_on_list t.TBlistABmp @delABmp nil;;
+  
+proto roClick=fun [CompRollOver [I ToolBar] I I I I] I;;  
+
+fun newToolBar(x,y,rw,rh,father)=
+  let _CRfont _channel TOOL_SIZE_FONT 0 0 "Arial" -> font in
+  let GRAPHICDRESSING_CRcontainerFromObjWin _channel 
+                                            father 
+                                            [x y rw rh] 
+                                            [rw rh rw rh]  
+                                            backedcolor
+                                            ""
+                                            font 
+                                            TextColor
+            	                              GDWIN_BORDERS|GDWIN_TITLE_BAR|GDWIN_CLOSE_BUTTON 
+                                            [nil nil nil] -> [cont _ _ _ bclose [x y w h]] in
+  let mkToolBar[ cont
+                 [ROL_CLOSE _CONVERTcompRollOverToObjNode bclose]::nil
+                 nil
+                 nil
+                 font 
+                 nil
+                 nil
+                 nil
+                 nil
+                 nil
+                ] -> t in
+  {
+    _CBcompRollOverClick bclose @roClick [ROL_CLOSE t];
+    set TOOL_SIZE_BORDER=x;
+    set TOOL_SIZE_BAR=y+TOOL_DECAL_PRES;
+     _CR_TOOLTIP _channel 
+                 cont 
+                 _CONVERTcompRollOverToObjNode bclose 
+                 font nil nil nil nil loc "CLOSE" nil nil;
+
+    _CBcontainerPreDestroy cont @cbToolClose t;
+    t
+  };;
+             
+fun destroyToolBar(t)=
+  if (t.TBcont!=nil) then
+  {
+    _DScontainer t.TBcont;
+    set t.TBcont=nil;
+    _DSfont t.TBfont;
+    apply_on_list t.TBlistABmp @delABmp nil
+  }
+  else nil;
+  0;;
+
+
+fun loadAlphaBitmap(Channel,file)=
+  let _checkpack file -> pack in
+  if pack==nil then nil
+  else
+    let _LDalphaBitmap Channel pack -> png in
+    if png==nil then
+      let let _LDbitmap Channel pack -> bmp in
+            if bmp==nil then
+            {
+              let _LDjpeg Channel pack -> jpeg in
+              if jpeg==nil then nil
+              else jpeg
+            }
+            else bmp -> objbitmap in
+      {
+        let _GETbitmapSize objbitmap -> [w h] in
+        let _CRalphaBitmap Channel objbitmap nil w h -> abmp in
+        {
+          _DSbitmap objbitmap;
+          abmp
+        }
+      }  
+    else png;;
+
+fun addList(l,a)=
+  if a==nil then l
+  else a::l;;
+
+fun OffCheck(c,check)=
+  if c!=check then
+    let _CONVERTcompCheckToObjNode c -> o in
+    { 
+      _CHANGEobjNodeFlags o OBJ_ENABLE|OBJ_VISIBLE 0;
+      _SETcompCheckState c CHK_UNCHECKED;
+      _PAINTobjNode o;
+    }
+  else nil;; 
+
+
+fun findcheck(c,check)=
+  (c==check);;
+
+fun findGroupCheck(g,check)=
+  (search_in_list g @findcheck check)!=nil;;
+   
+/************************************
+Fonction reflexe de clic dans un
+CompCheck
+*************************************/
+fun checkClick(check,param,x,y,b,m)=
+  let param -> [type t] in
+  let _GETcompCheckState check -> state in
+  let _CONVERTcompCheckToObjNode check -> objnode in
+  {
+    let search_in_list t.TBgroupchecks @findGroupCheck check -> group in
+    if group!=nil && state==CHK_CHECKED then
+    {
+        apply_on_list group @OffCheck check;
+        _CHANGEobjNodeFlags objnode OBJ_VISIBLE|OBJ_DISABLE 1;
+    }
+    else nil;
+    exec switch t.TBfuncs type with [objnode state]
+  };;
+
+
+/***********************************
+ fonction de creation d'un CompCheck
+************************************/  
+fun crCheck(t,f,name,pos,type)=
+  /* crade mais ca marche */
+  let loadAlphaBitmap _channel f -> abmp in
+  let _CBcompCheckClick if type==CHECK_GLOBALREF then
+                          GRAPHICDRESSING_CRcompCheckTransparent _channel
+                                                               t.TBcont nil pos
+                                                               OBJ_ENABLE|OBJ_VISIBLE
+                                                               OBJ_CONTAINER_MOVE 
+                                                               abmp
+                        else
+                          GRAPHICDRESSING_CRcompCheckMiddle _channel
+                                                               t.TBcont nil pos
+                                                               OBJ_ENABLE|OBJ_VISIBLE
+                                                               OBJ_CONTAINER_MOVE 
+                                                               abmp
+                        @checkClick [type t] -> check in
+  {
+    _DSalphaBitmap abmp;
+    set t.TBlistABmp=addList t.TBlistABmp abmp;
+    set t.TBlistobj=[type _CONVERTcompCheckToObjNode check]::t.TBlistobj;
+    set t.TBlistcheck=[type check]::t.TBlistcheck;
+    _CR_TOOLTIP _channel 
+                t.TBcont 
+                _CONVERTcompCheckToObjNode check 
+                t.TBfont nil nil nil nil name nil nil;
+    check
+  };;
+
+
+/**********************************
+Fonction qui ajoute un groupe de
+boutons à la liste des groupes
+de boutons
+**********************************/            
+fun linkCheck(t,l)=
+  set t.TBgroupchecks=l::t.TBgroupchecks;
+  0;;
+
+
+
+/**************************************
+Fonction reflexe de clic dans un
+CompRollOver
+***************************************/
+fun roClick(btn,param,x,y,b,m)=
+  let param -> [type t] in
+  exec switch t.TBfuncs type with [_CONVERTcompRollOverToObjNode btn nil];;
+  
+/******************************************
+Fonction de creation d'un CompRollOver
+*******************************************/
+fun CrRollOver(t,f,name,pos,type)=
+  let loadAlphaBitmap _channel f -> abmp in
+  let _CBcompRollOverClick GRAPHICDRESSING_CRcompRollOverMiddle _channel
+                                                             t.TBcont nil pos
+                                                             OBJ_ENABLE|OBJ_VISIBLE
+                                                             OBJ_CONTAINER_MOVE 
+                                                             abmp
+                           @roClick [type t] -> ro in
+  {
+    _DSalphaBitmap abmp;
+    set t.TBlistobj=[type _CONVERTcompRollOverToObjNode ro]::t.TBlistobj;
+    set t.TBlistABmp=addList t.TBlistABmp abmp;
+    _CR_TOOLTIP _channel 
+                t.TBcont 
+                _CONVERTcompRollOverToObjNode ro 
+                t.TBfont nil nil nil nil name nil nil;
+    ro
+  };;
+
+
+fun getTextVal(t,type)=
+  _GETcompText switch t.TBgrouptext type;;
+
+
+fun DegToInt(i)=i*182;;
+
+fun IntToDeg(i)=i/182;;  
+     
+fun TextValidation(txt,param,i,s)=
+  let param -> [t type] in
+  {
+    if !strcmp s "" then
+    {
+      _SETcompText txt if type==TEXT_SCALE then "100" else "0" Tool.TBfont nil nil;
+      _PAINTobjNode _CONVERTcompTextToObjNode txt
+    }
+    else nil;
+  
+    if type==TEXT_SCALE then
+      exec t.TBenterScale with [atoi getTextVal t TEXT_SCALE]
+    else
+      exec t.TBenterPos with [[atoi getTextVal t TEXT_X atoi getTextVal t TEXT_Y atoi getTextVal t TEXT_Z]
+                              [DegToInt atoi getTextVal t TEXT_B 
+                               DegToInt atoi getTextVal t TEXT_A 
+                               DegToInt atoi getTextVal t TEXT_C]
+                             ]
+  };                           
+  0;;
+
+
+fun CrText(t,name,pos,xsize,type)=
+  let strcat name ":" -> label in
+  let pos -> [x y] in
+  let _GETstringSize t.TBfont label -> [w h] in
+  let _CBcompTextValidation 
+          _SETcompTextAuthorizedChar 
+              GRAPHICDRESSING_CRcompText _channel
+                                 t.TBcont 
+                                 nil
+                                 pos
+                                 OBJ_DISABLE|OBJ_VISIBLE|CT_EDITLINE|CT_LEFT|CT_WORDWRAP
+                                 OBJ_CONTAINER_MOVE 
+                                 xsize h+8
+                                 ""
+                                 t.TBfont
+                                 TextColor
+            	                   SelectColor
+          AUTHORIZED_CHARS
+          @TextValidation [t type] CT_VALIDENTER|CT_VALIDCLICK -> txt in
+  {
+    set t.TBgrouptext=[type txt]::t.TBgrouptext;
+    set t.TBlistobj=[type _CONVERTcompTextToObjNode txt]::t.TBlistobj;
+    GRAPHICDRESSING_CRcompText _channel
+                               t.TBcont 
+                               nil
+                               [x-w-2 y]
+                               OBJ_ENABLE|OBJ_VISIBLE|CT_LABEL|CT_LEFT
+                               OBJ_CONTAINER_MOVE 
+                               w+2 h+2
+                               label
+                               t.TBfont
+                               TextColor
+            	                 SelectColor;
+    txt;
+  };;
+
+fun CrLabel(t,txt,pos,w)=
+  let _GETstringSize t.TBfont txt -> [_ h] in
+  GRAPHICDRESSING_CRcompText _channel
+                             t.TBcont 
+                             nil
+                             pos
+                             OBJ_ENABLE|OBJ_VISIBLE|CT_LABEL|CT_LEFT
+                             OBJ_CONTAINER_MOVE 
+                             w+2 h+5
+                             txt
+                             t.TBfont
+                             TextColor
+            	               SelectColor;;
+  
+
+fun getdecal(i)=
+  i*TOOL_DECAL_TEXT+(i-1)*TextHeight+TOOL_SIZE_BAR+3*TOOL_SIZE_BTN+(i-1)/4*TOOL_DECAL_PRES;;
+  
+/**********************************
+Fonction de creation de la toolbar
+**********************************/            
+fun crToolBar(x,y,father)=
+  set TextHeight=TOOL_SIZE_FONT+8;
+  
+  let THEME_getInfos GD_THEME "BACKGROUND_COLOR" -> l in
+    set backedcolor=make_rgb atoi nth_list l 0 atoi nth_list l 1 atoi nth_list l 2 ;
+  
+  let THEME_getInfos GD_THEME "TEXT_COLOR" -> l in
+    set TextColor=[make_rgb atoi nth_list l 0 atoi nth_list l 1 atoi nth_list l 2 
+                   atoi nth_list l 3
+                   atoi nth_list l 4
+                   atoi nth_list l 5
+                  ];
+  let THEME_getInfos GD_THEME "SELECT_COLOR" -> l in
+    set SelectColor=[make_rgb atoi nth_list l 0 atoi nth_list l 1 atoi nth_list l 2 
+                     atoi nth_list l 3];
+  
+  
+  
+  let atoi hd tl THEME_getInfos GD_THEME "FRAMEBORDERS_SIZE" -> i in
+  let THEME_getParamsByTheme GD_THEME "TITLEBAR" -> [_ _ _ h11 h12 h13 v11 v12 v13] in
+  {
+    if i==0 then nil else set TOOL_SIZE_BORDER=i;
+    set TOOL_SIZE_BAR=v11+v12+v13+i
+  };
+  
+  set Tool=newToolBar x y 150 (getdecal 16) father;           
+  
+  
+  /* les boutons */              
+  CrRollOver  Tool MinMaxToggleBmp loc "TOOL_MINMAX" [TOOL_SIZE_BORDER+4*TOOL_SIZE_BTN TOOL_SIZE_BAR] ROL_MINMAXTOGGLE;
+  let crCheck Tool GlobalRefBmp loc "TOOL_GLOBALREF"
+      [TOOL_SIZE_BORDER+4*TOOL_SIZE_BTN getdecal (-1)] CHECK_GLOBALREF ->check in
+    _SETcompCheckState check CHK_CHECKED;
+  
+  let crCheck Tool BmpView          loc "TOOL_VIEW"
+              [TOOL_SIZE_BORDER TOOL_SIZE_BAR] CHECK_VIEW -> chview in
+  let crCheck Tool BmpPan           loc "TOOL_PAN"
+              [TOOL_SIZE_BORDER+TOOL_SIZE_BTN TOOL_SIZE_BAR] CHECK_PAN -> chpan in
+  let crCheck Tool ProfondeurBmp    loc "TOOL_DEEP"
+              [TOOL_SIZE_BORDER+2*TOOL_SIZE_BTN TOOL_SIZE_BAR] CHECK_PROFONDEUR -> chprof in
+  let crCheck Tool MoveBmp          loc "MOVE"
+              [TOOL_SIZE_BORDER getdecal 0] CHECK_MOVE -> chsel in
+  let crCheck Tool ScaleBmp         loc "SCALE"
+              [TOOL_SIZE_BORDER getdecal 5] CHECK_SCALE -> chscale in
+  let crCheck Tool RotateBmp        loc "ROTATE"
+              [TOOL_SIZE_BORDER getdecal 11] CHECK_ROTATE -> chrot in
+  {
+    /* creation des groupes de boutons */
+    linkCheck Tool chpan::chprof::nil;
+    linkCheck Tool chview::chsel::chrot::chscale::nil;
+    
+    /* initialisation du bouton view */
+    _SETcompCheckState chview CHK_CHECKED;
+    _CHANGEobjNodeFlags _CONVERTcompCheckToObjNode chview OBJ_DISABLE|OBJ_VISIBLE 0
+  };
+  
+  
+  /* les controles textes */
+  
+  let TOOL_SIZE_BORDER+2*TOOL_SIZE_BTN -> defaultX in
+(  
+  CrLabel Tool loc "POSITION" [defaultX getdecal 0] 102;
+  CrText Tool "x" [defaultX  getdecal 1] TOOL_SIZE_EDIT_TEXT  TEXT_X;
+  CrText Tool "y" [defaultX  getdecal 2]  TOOL_SIZE_EDIT_TEXT  TEXT_Y;
+  CrText Tool "z" [defaultX  getdecal 3] TOOL_SIZE_EDIT_TEXT TEXT_Z;
+  
+  
+  CrLabel Tool loc "SIZE" [defaultX getdecal 5] 102;
+  CrText Tool "w" [defaultX getdecal 6] TOOL_SIZE_EDIT_TEXT TEXT_W;
+  CrText Tool "h" [defaultX getdecal 7] TOOL_SIZE_EDIT_TEXT TEXT_H;
+  CrText Tool "d" [defaultX getdecal 8] TOOL_SIZE_EDIT_TEXT TEXT_D;
+  
+  let getdecal 9 -> y in
+  let loc "SCALE" -> s in
+  let _GETstringSize Tool.TBfont s -> [w _] in
+  {    
+    
+    CrText Tool s [w+2*TOOL_SIZE_BORDER y] TOOL_SIZE_SCALE_TEXT TEXT_SCALE;
+    CrLabel Tool "*" [w+2*TOOL_SIZE_BORDER+TOOL_SIZE_SCALE_TEXT y] 40;
+  };
+  
+  CrLabel Tool loc "ANGLES" [defaultX getdecal 11] 102;
+  let getdecal 12 -> y in
+  {
+    CrText Tool "a" [defaultX y] TOOL_SIZE_EDIT_TEXT TEXT_A;
+    CrLabel Tool "°" [defaultX+TOOL_SIZE_EDIT_TEXT y] 40;
+  };
+  
+  let getdecal 13 -> y in
+  {             
+    CrText Tool "b" [defaultX y] TOOL_SIZE_EDIT_TEXT TEXT_B;
+    CrLabel Tool "°" [defaultX+TOOL_SIZE_EDIT_TEXT y] 40;
+  };
+  
+  let getdecal 14 -> y in
+  {
+    CrText Tool "c" [defaultX y] TOOL_SIZE_EDIT_TEXT TEXT_C;
+    CrLabel Tool "°" [defaultX+TOOL_SIZE_EDIT_TEXT y] 40;
+  };
+  
+);  
+  _PAINTcontainer Tool.TBcont;
+  _SHOWcontainer Tool.TBcont CONTAINER_UNHIDDEN;
+  _freememory;
+  0;;
+
+
+/***********************************
+Fonction d'initialisation des 
+callbacks des boutons
+************************************/
+fun initFuncBtn(t,f)=
+  let search_in_list Tool.TBfuncs @searchtypefunc t -> func in
+  if func==nil then
+    set Tool.TBfuncs=addList Tool.TBfuncs [t f]
+  else
+  {
+    mutate func<-[_ f];
+    nil
+  };;
+
+
+
+/***********************************
+Fonction d'initialisation de la
+callbacks des textes de position
+************************************/
+fun initEnterTextPos(f)=
+  set Tool.TBenterPos=f;
+  0;;
+  
+/***********************************
+Fonction d'initialisation de la
+callbacks des textes
+************************************/
+fun initEnterTextScale(f)=
+  set Tool.TBenterScale=f;
+  0;;
+  
+/***********************************
+Fonction d'initialisation des valeurs
+des texts suivant leurs identifiants
+************************************/
+fun setTextVal(lid,lval)=
+  if lid==nil then 0
+  else 
+    let lid -> [id nxtid] in
+    let lval-> [val nxtval] in
+    let (switch Tool.TBgrouptext id) -> txt in
+    {
+      _SETcompText txt val Tool.TBfont nil nil;
+      _PAINTobjNode _CONVERTcompTextToObjNode txt;
+      setTextVal nxtid nxtval
+    };;
+  
+/***********************************
+Fonction qui permet de rendre enable
+un bouton d'identifiant type
+************************************/
+fun enableObj(type)=
+  _CHANGEobjNodeFlags (switch Tool.TBlistobj type) OBJ_ENABLE|OBJ_VISIBLE 1;;
+
+/***********************************
+Fonction qui permet de rendre disable
+un bouton d'identifiant type
+************************************/
+fun disableObj(type)=
+  _CHANGEobjNodeFlags (switch Tool.TBlistobj type) OBJ_DISABLE|OBJ_VISIBLE 1;;
+
+/***********************************
+Fonction qui permet de cacher
+un bouton d'identifiant type
+************************************/
+fun hideObj(type,i)=
+  _CHANGEobjNodeFlags (switch Tool.TBlistobj type) OBJ_ENABLE|OBJ_HIDE i;;
+
+/***********************************
+Fonction qui permet de montrer
+un bouton d'identifiant type
+************************************/
+fun showObj(type,i)=
+  _CHANGEobjNodeFlags (switch Tool.TBlistobj type) OBJ_ENABLE|OBJ_VISIBLE i;;
+
+/***********************************
+Fonction qui permet de checker
+un check d'identifiant type
+************************************/
+fun uncheckBtn(type,i)=
+  _SETcompCheckState (switch Tool.TBlistcheck type) CHK_UNCHECKED;
+  _CHANGEobjNodeFlags (switch Tool.TBlistobj type) OBJ_ENABLE|OBJ_VISIBLE i;;
+  
+  
+/***********************************
+Fonction qui permet de unchecker
+un check d'identifiant type
+************************************/
+fun checkBtn(type,i)=
+  _SETcompCheckState (switch Tool.TBlistcheck type) CHK_CHECKED;
+  _CHANGEobjNodeFlags (switch Tool.TBlistobj type) OBJ_DISABLE|OBJ_VISIBLE i;;
+  
+  
+  
+/***********************************
+Fonction qui permet de changer le
+texte du tooltip
+************************************/
+fun setToolTip(obj,txt)=
+   _DStoolTip obj;
+   _CR_TOOLTIP _channel 
+                Tool.TBcont 
+                obj
+                Tool.TBfont nil nil nil nil txt nil nil;
+   0;;
+    
+/**********************************
+Fonction de destruction de la
+toolbar
+**********************************/    
+fun dsToolBar()=
+  destroyToolBar Tool;
+  set Tool=nil;;

@@ -1,0 +1,148 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*
+Keyboard mapping Library
+
+Bastien Bourineau - November 2010
+*/
+
+
+// default resource directory for *.def files
+var sKEYBDEFAULTRESOURCESPATH = "dms/3d/os3dlib/res/def/";;
+
+// current keyboard type
+typeof sKEYBtype = S;;
+
+// list of available keyboard types
+typeof lKEYBlist = [[S [[[S I] r1] [[I S] r1]]] r1];;
+
+
+// return the key name by number
+fun KEYBgetKeyName(key)=
+  let switchstri lKEYBlist sKEYBtype -> [lskey likey] in
+    switch likey key;;
+
+
+// return the key number by keyname
+fun KEYBgetKeyNumber(key)=
+  let switchstri lKEYBlist sKEYBtype -> [lskey likey] in
+    switchstri lskey key;;
+
+
+// return the list of available keyboard type
+fun KEYBgetAvailableKeyboardType()=
+  let sizelist lKEYBlist -> size in
+  let 0 -> i in
+  let nil -> retlist in
+  (
+    while i < size do
+    (
+      let nth_list lKEYBlist i -> [name _] in
+        set retlist = name::retlist;
+      
+      set i = i + 1;
+    );
+    
+    // sort keyboard type by alphabetical order
+    quicksort retlist @suppDoublon;
+  );;
+
+
+// get the current selected keyboard type
+fun KEYBgetCurrentKeyboardType()= sKEYBtype;;
+
+
+// return the list of available keys from a keyboard type
+fun KEYBgetAvailableKeysFromKeyboardType(stype)=
+  let switchstri lKEYBlist stype -> [lskey _] in
+  let sizelist lskey -> size in
+  let 0 -> i in
+  let nil -> retlist in
+  (
+    while i < size do
+    (
+      let nth_list lskey i -> [name _] in
+        set retlist = name::retlist;
+      
+      set i = i + 1;
+    );
+    
+    // sort keyboard type by alphabetical order
+    quicksort retlist @suppDoublon;
+  );;
+
+
+// set the current selected keyboard type
+fun KEYBsetCurrentKeyboardType(stype)= 
+  // do nothing if the keyboard type doesn't exist
+  if (switchstri lKEYBlist stype) == nil then nil else
+    set sKEYBtype = stype;;
+
+
+// load Keyboard definitions
+fun KEYBloadMaps()=
+  // load all *.def files in resource directory
+  // list of files is desactivated on cache activated
+  let if (_isCacheActivated) then
+        (strcat sKEYBDEFAULTRESOURCESPATH "azerty.def")::(strcat sKEYBDEFAULTRESOURCESPATH "qwerty.def")::nil
+      else
+        getFilesFromDir sKEYBDEFAULTRESOURCESPATH "def"::nil
+  -> ldef in
+  while ldef != nil do
+  (
+    let hd ldef -> file in
+    
+    // determine the keyboard name by the file name
+    let getFileNameWithoutExt file -> name in
+    
+    // initiallise list by name and list by key id
+    let nil -> lskey in
+    let nil -> likey in
+    (
+      // read the file content
+      let strextr (_getpack _checkpack file) -> lcont in
+      while lcont != nil do
+      (
+        let hd lcont -> fline in
+        (
+          set lskey = [(hd fline) (atoi (hd (tl fline)))]::lskey;
+          set likey = [(atoi (hd (tl fline))) (hd fline)]::likey;
+        );
+        
+        set lcont = tl lcont;
+      );
+      
+      set lKEYBlist = [name [lskey likey]]::lKEYBlist;
+    );
+    set ldef = tl ldef;
+  );
+  
+  // sort keyboard type by alphabetical order
+  set lKEYBlist = quicksort lKEYBlist nil;
+  
+  // select first keyboard type in list by default
+  let hd lKEYBlist -> [name _] in
+    set sKEYBtype = name;
+  0;; 

@@ -1,0 +1,51 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/**************************************************
+ OpenSpace 3D Paths
+ Author: Bastien BOURINEAU / I-maginer
+ Last update: 11.16.2010
+
+**************************************************/
+
+var sTreeBitmapScene            = "dms/3d/os3dedit/res/tree_scene.png";;
+var sTreeBitmapGroup            = "dms/3d/os3dedit/res/tree_group.png";;
+var sTreeBitmapNode             = "dms/3d/os3dedit/res/tree_node.png";;
+var sTreeBitmapLight            = "dms/3d/os3dedit/res/tree_light.png";;
+var sTreeBitmapCamera           = "dms/3d/os3dedit/res/tree_camera.png";;
+var sTreeBitmapEntity           = "dms/3d/os3dedit/res/tree_mesh.png";;
+var sTreeBitmapSky              = "dms/3d/os3dedit/res/tree_sky.png";;
+var sTreeBitmapAnim             = "dms/3d/os3dedit/res/tree_anim.png";;
+var sTreeBitmapCompositor       = "dms/3d/os3dedit/res/tree_compositor.png";;
+var sTreeBitmapBone             = "dms/3d/os3dedit/res/tree_bone.png";;
+var sTreeBitmapParticle         = "dms/3d/os3dedit/res/tree_particle.png";;
+var sTreeBitmapCubeMap          = "dms/3d/os3dedit/res/tree_node.png";;
+var sTreeBitmapReflectionMap    = "dms/3d/os3dedit/res/tree_node.png";;
+
+var sWinMainIcon                = "dms/3d/os3dedit/res/mainwin.ico";;
+var sWinDlgIcon                 = "dms/3d/os3dedit/res/dlgwin.ico";;
+
+var sWinPlayerMainIcon          = "dms/3d/os3d/os3dplayer.ico";;
+
+var sPLUGINSPATH                = "dms/3d/os3dplugins";;

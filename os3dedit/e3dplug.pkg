@@ -1,0 +1,40 @@
+/* 3d Editor Plug File - Aug 2001 - by Macfly */
+
+struct Plug = [
+  chnPlug              : Chn,
+  filePlug             : S,
+  versionPlug          : S,
+  classPlug            : S,
+  cbsavePlug           : fun [[Inst r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]],
+  cbendPlug            : fun [] I,
+  cbopeneditPlug       : fun [ObjWin S] I,
+  cbcloseeditPlug      : fun [] S, 
+  helpPlug             : S,
+  cbsaveParamPlug      : fun [[Inst r1] [[S r1] r1] ] [[S r1] [S r1] [[S r1]r1] [[S r1]r1]],
+  cbopeneditParamPlug  : fun [ObjWin S [[S r1]r1]] I,
+  cbcloseeditParamPlug : fun [[[S r1]r1]] S, 
+  cbproPlug            : fun [] I,
+  paramPlug            : S
+ ]mkPlug;;
+
+typeof plugins=[Plug r1];;
+
+fun plugbych(a,c) = a.chnPlug==c;;
+fun plugbyclass(p,n) = !strcmp p.classPlug n;;
+fun plugbyfile(p,n) = !strcmp p.filePlug n;;
+
+fun PLUG_GetName (p) = p.classPlug;;
+fun PLUG_GetParam (p) = strextr p.paramPlug;;
+fun PLUG_GetHelp (p) = p.helpPlug;;
+
+fun PLUG_Print (p) = strcatn p.classPlug::" ("::p.versionPlug::")"::nil;;
+
+fun PLUG_HaveEditor (p) = (p.cbopeneditPlug != nil) || (p.cbopeneditParamPlug != nil);;
+
+fun PLUG_Compare (p1, p2) =
+  let strcmp p1.classPlug p2.classPlug -> result in
+    if result != 0 then
+      result
+    else
+      strcmp p1.versionPlug p2.versionPlug
+;;

@@ -1,0 +1,449 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*! @defgroup plugITApi OpenSpace3D plugIT Api
+ *  OpenSpace3D plugIT Api
+ *  @{
+ */
+
+/** @} */
+
+/* ********************************************************************************************* /
+  DMS compatibility
+/ ********************************************************************************************* */
+
+var iLinkSpoofing = 10000;;
+var iLinkSpoofingTimeStop = 1;;
+var iLinkSpoofingTimeSafe = 2;;
+
+typeof DMSdebug = fun [S] I;;
+typeof DMSerror = fun [S] I;;
+
+struct DMIAction = [
+  DACT_sName       : S,
+  DACT_funCb       : fun [DMI S S S S] I
+
+] mkDMIAction;;
+
+struct DMIlink = [
+  DLINK_action    : DMIAction,
+  DLINK_sParam    : S,
+  DLINK_iLastCall : I,
+  DLINK_IError    : I
+] mkDMILink;;
+
+struct DMIEvent = [
+  DEVT_sName       : S,
+  DEVT_lLinks      : [[S DMIlink] r1]
+  
+] mkDMIEvent;;
+
+/************** DMI renamed as DMIos (compatibility issue)**/
+/****************************** _DMSevent has deactivated **/
+struct DMIos = [
+  DMI_iId         : I,
+  DMI_sName       : S,
+  DMI_chn         : Chn,
+  DMI_lActions    : [[S DMIAction] r1],
+  DMI_lEvents     : [[S DMIEvent] r1]
+
+ ]mkDMI;;
+
+typeof this=DMIos;;
+
+typeof DMSnbDmi=I;;
+
+typeof DMSdmi= [[I DMIos] r1];;
+
+
+/* ********************************************************************************************* /
+
+/ ********************************************************************************************* */
+fun niltest(a,b)=if a==nil then b else a;;
+
+
+fun Tunder(s)= if strcmp s "_" then s else nil;;
+
+fun underT(s)= if (s == nil) then "_" else s;;
+
+fun swbystr(a,b)=let a->[x _] in !strcmp x b;;
+
+
+fun getSwitchStr(l,s)=search_in_list l @swbystr s;;
+
+
+/* return wether a string element is in a list */
+fun strFindList(l,a)=
+ if l==nil then 0 else let l->[x n] in
+ if !strcmp a x then 1 else strFindList n a;;
+
+
+/* ********************************************************************************************* /
+  
+/ ********************************************************************************************* */
+
+fun _DMSrootModule()= switch DMSdmi 0;;
+
+
+fun _DMSgetByHandle(h)= switch DMSdmi h;;
+
+
+fun _DMSremoveEvent(d, name)=
+  let getSwitchStr d.DMI_lEvents name -> evt in
+  if evt == nil then nil else
+    set d.DMI_lEvents = remove_from_list d.DMI_lEvents evt;
+  0;;
+
+
+fun _DMSremoveEvents(d, l)=
+  if l==nil then 0 else
+  let getSwitchStr d.DMI_lEvents hd l -> x in
+  (
+    if x==nil then nil else
+      set d.DMI_lEvents=remove_from_list d.DMI_lEvents x;
+    _DMSremoveEvents d tl l;
+  );;
+
+
+fun _DMSfindEventStartedByName(l, name)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> [evt _ ] in
+      if (strcmp name (substr evt 0 (strlen name))) then nil else
+        set ndata = evt::ndata;
+      
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+fun removeFromListStartedBy(l, name)=
+  if l == nil then nil else
+  (
+    let l -> [elem next] in
+    let elem -> [action _ ] in
+    if (!strcmp name (substr action 0 (strlen name))) then
+      (removeFromListStartedBy next name)
+    else
+      elem::(removeFromListStartedBy next name);
+  );;
+
+
+fun _DMSremoveEventStartedByName(d, name)=
+  set d.DMI_lEvents = removeFromListStartedBy d.DMI_lEvents name;
+  0;;
+
+
+fun _DMSgetEvent(d, name)=
+  let switchstr d.DMI_lEvents name -> evt in
+  if (evt == nil) then
+    let mkDMIEvent [name nil] -> nevt in
+    (
+      set d.DMI_lEvents = [name nevt]::d.DMI_lEvents;
+      nevt;
+    )
+  else evt;;
+
+
+fun _DMSgetAction(d, name)=
+  let switchstr d.DMI_lActions name -> act in
+  if (act == nil) then
+    let mkDMIAction [name nil] -> nact in
+    (
+      set d.DMI_lActions = [name nact]::d.DMI_lActions;
+      nact;
+    )
+  else act;;
+
+
+fun _DMSdefineAction(d, name, cbfun)=
+  //exec DMSerror with [strcatn "Link DEBUG : add action : "::name::nil];
+  let _DMSgetAction d name -> act in
+  (
+    set act.DACT_funCb = cbfun;
+    act;
+  );;
+
+
+fun _DMSremoveActions(d, l)=
+  if l==nil then 0 else
+  let getSwitchStr d.DMI_lActions hd l -> x in
+  (
+    if x==nil then nil else
+      set d.DMI_lActions=remove_from_list d.DMI_lActions x;
+    _DMSremoveActions d tl l;
+  );;
+
+
+fun _DMSfindActionStartedByName(l, name)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> [action _ ] in
+      if (strcmp name (substr action 0 (strlen name))) then nil else
+        set ndata = action::ndata;
+      
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+fun _DMSremoveActionStartedByName(d, name)=
+  set d.DMI_lActions = removeFromListStartedBy d.DMI_lActions name;
+  0;;
+
+
+fun removeDmiById(id)=
+  let sizelist DMSdmi -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list DMSdmi i -> elem in
+      let elem -> [eid _] in
+      if eid == id then nil else
+        set ndata = elem::ndata;
+      set i = i + 1;
+    );
+    set DMSdmi = revertlist ndata;
+  );
+  0;;
+
+
+fun addDmiById(id, d)=
+  let switch DMSdmi id -> dd in
+  if dd == nil then nil else
+    removeDmiById id;
+  
+  set DMSdmi = lcat DMSdmi [id d]::nil;
+  d;;
+
+
+fun cbDebugConsol(mess)=
+  _fooS strcat ">>>>>>>>>>>>>> Mini DHDMS debug > " mess;
+  0;;
+
+
+fun createDMI(id, name)=
+  let switch DMSdmi id -> old in
+  let mkDMI [id name _channel nil nil] -> d in
+  (
+    addDmiById id d;
+    
+    set DMSerror = @cbDebugConsol;
+    set this = _DMSrootModule;
+  );;
+
+
+/* ********************************************************************************************* /
+  
+/ ********************************************************************************************* */
+
+fun getModNbLinks(d)=
+  let d.DMI_lEvents -> l in
+  let 0 -> nb in
+  (
+    while (l != nil) do
+    (
+      let hd l -> [_ evt] in
+        set nb = nb + (sizelist evt.DEVT_lLinks);
+      
+      set l = tl l;
+    );
+    nb;
+  );;
+
+
+fun getModNbEvents(d)= sizelist d.DMI_lEvents;;
+
+
+fun getModNbActions(d)= sizelist d.DMI_lEvents;;
+
+
+fun getModLinkByLink(d, event, action, param, reply)=
+  let switchstr d.DMI_lEvents event -> evt in
+    switchstr evt.DEVT_lLinks strcatn action::(underT param)::(underT reply)::nil;;
+
+
+fun delModLink(d, slink)=
+  let hd strextr slink -> [event [action [param [reply [cond _]]]]] in
+  let switchstr d.DMI_lEvents event -> evt in
+  let getSwitchStr evt.DEVT_lLinks strcatn action::(underT param)::(underT reply)::nil -> tlink in
+  (
+    set evt.DEVT_lLinks = remove_from_list evt.DEVT_lLinks tlink;
+  
+    if (evt.DEVT_lLinks != nil) then nil else
+      _DMSremoveEvent d event;
+  );
+  0;;
+
+
+fun addModLink(d, event, action, param, reply)=
+  //exec DMSerror with [strcatn "Link DEBUG : add event : "::event::nil];
+  let _DMSgetEvent d event -> evt in
+  let mkDMILink [(_DMSgetAction d action) (Tunder param) 0 0] -> link in
+    set evt.DEVT_lLinks = lcat evt.DEVT_lLinks [strcatn action::(underT param)::(underT reply)::nil link]::nil;
+  0;;
+
+
+fun setModLink(d, oldlink, newlink)=
+  let hd strextr newlink -> [nevent [naction [nparam [nreply [ncond _]]]]] in
+  let getModLinkByLink d nevent naction nparam nreply -> existlink in
+  if existlink != nil then
+  (
+    0;
+  )
+  else
+  (
+    if oldlink == nil then
+    (
+      //add link
+      addModLink d nevent naction nparam nreply;
+      1;
+    )
+    else
+    (
+      delModLink d oldlink;
+      addModLink d nevent naction nparam nreply;
+      1;
+    );
+  );;
+
+
+fun clearModLinks(d)=
+  set d.DMI_lActions = nil;
+  set d.DMI_lEvents = nil;
+  0;;
+
+
+/* ********************************************************************************************* /
+  
+/ ********************************************************************************************* */
+
+fun dmsReadParam(param, puser)=
+  if puser == nil then param else
+  if (strfindi "$" puser 0) == nil then puser else
+  (
+    let strToWordList param -> lp in
+      replaceByKeyIndex puser "$" lp;
+  );;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Send an event to another plugITs
+  *
+  *  <b>Prototype:</b> fun [DMI S S S] I
+  *
+  *  \param DMI : use 'this' for this parameter in OpenSpace3D
+  *  \param S : the event name, generally constructed with (getPluginInstanceEvent inst "Event name")
+  *  \param S : the event user parameter
+  *  \param S : the event reply value
+  *
+  *  \return 0
+  **/
+fun _DMSevent(d, ev, param, repl)=
+  let switchstr d.DMI_lEvents ev -> event in
+  let event.DEVT_lLinks -> l in
+  while (l != nil) do
+  (
+    let hd l -> [_ link] in
+    if (link.DLINK_IError > iLinkSpoofing) then nil else
+    // test if link param exist use in priority
+    let dmsReadParam param link.DLINK_sParam -> nparam in
+    let _tickcount -> tick in
+    (
+      // link loop detection
+      if ((tick - link.DLINK_iLastCall) < iLinkSpoofingTimeStop) then
+      (
+        set link.DLINK_IError = link.DLINK_IError + 1;
+        if ((mod link.DLINK_IError (iLinkSpoofing / 10)) != 0) then nil else
+          exec DMSerror with [strcatn "Link WARNING : Possible loop or too fast repetitive event detected. - Nb : "::(itoa link.DLINK_IError)::" - Link : "::ev::" -> "::link.DLINK_action.DACT_sName::" with param : "::(if nparam == nil then "NIL" else nparam)::nil];       
+        0;
+      )
+      else if ((link.DLINK_IError <= 0) || ((tick - link.DLINK_iLastCall) < iLinkSpoofingTimeSafe)) then nil else
+      (
+        set link.DLINK_IError = 0;
+        0;
+      );
+      
+      set link.DLINK_iLastCall = tick;
+     
+      if (link.DLINK_IError > iLinkSpoofing) then
+      (
+        exec DMSerror with [strcatn "Link ERROR : Loop detected. This link have been disabled - Link : "::ev::" -> "::link.DLINK_action.DACT_sName::" with param : "::(if nparam == nil then "NIL" else nparam)::nil];
+        0;
+      )
+      else
+      (
+        if DMSdebug == nil then nil else
+          exec DMSdebug with [strcatn "Event : "::ev::" with param : "::(if param == nil then "NIL" else param)::nil];
+
+        if DMSdebug == nil then nil else
+          exec DMSdebug with [strcatn "Action : "::link.DLINK_action.DACT_sName::" with param : "::(if nparam == nil then "NIL" else nparam)::" and reply param : "::(if repl == nil then "NIL" else repl)::nil];
+        
+		/***DISABLED********************************************************************/
+        //exec link.DLINK_action.DACT_funCb with [d link.DLINK_action.DACT_sName nparam nil repl];
+		
+        //execch d.DMI_chn link.DLINK_action.DACT_funCb [d link.DLINK_action.DACT_sName nparam nil repl];
+        0;
+      );
+    );
+    
+    set l = tl l;
+  );
+  0;;
+
+
+/* ********************************************************************************************* /
+  C3dx definitions
+/ ********************************************************************************************* */
+
+typeof s3dMainSession = V3Dsession;; //!< the default 3D session structure
+typeof v3dMain = V3Dview;;           //!< the default 3D view structure
+
+/*! @ingroup plugITApi
+ *  @defgroup pmainvar Common global variables
+ *  Common global variables
+ *  @{
+ */
+fun c3dXsession()= s3dMainSession;;  //!< the default 3D session structure
+fun c3dXview()= v3dMain;;            //!< the default 3D view structure
+fun c3dXwin()= v3dMain.V3D_win;;     //!< the default 3D window
+fun DMSwin()= v3dMain.V3D_win;;      //!< the default 3D window (alias)
+
+// used for AR plugITs, this value can be changed by the camera input plugIT
+var c3dxCameraSize = [640 480];;    //!< the default web cam size, this can be changed by AR plugIT for example
+var c3dxCameraFlip = 0;;            //!< the default web cam flip state, this can be changed by AR plugIT for example
+
+/** @} */

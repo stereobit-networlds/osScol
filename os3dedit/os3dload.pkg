@@ -1,0 +1,356 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+var sTesturl = "http://www.google.com";;
+var sUpdateUrl = "http://www.openspace3d.com/os3dupdate.php?v=";;
+
+var iMinVoyagerVersion = 0xd2ef8155;;
+
+proto getOs3dVersion = fun [] I;;
+proto getVersionS = fun [] S;;
+proto initOs3dEditor = fun [S] I;;
+
+//Navigator window
+typeof winAX = ObjWin;;
+
+fun cbCloseApp(dlg, p, rep)=
+  _closemachine;
+  0;;
+
+
+fun getStringSize2(font, txtList, w, h)=
+  if txtList == nil then [w+1 h]
+  else let txtList -> [first next] in
+       let _GETstringSize font first -> [nw nh] in
+         getStringSize2 font next (if nw>w then nw else w) (nh+h)
+  ;;
+
+
+fun getStringSize(font, str)= getStringSize2 font (lineextr str) 0 0;;
+
+
+fun cbErrorDialogBtn(btn, p)=
+	let p -> [win font] in
+	(
+		_DSwindow win;
+		_DSfont font;
+	); 
+	cbCloseApp nil nil nil;
+	0;;
+
+
+fun errorDialog(father, title, content, error)=
+	let _SETdefaultFont _CRfont _channel 10 0 FF_PIXEL "Arial" -> font in
+	let getStringSize font content -> [fw fh] in
+	let if fw < 200 then 200 else fw -> fw in
+	
+	let fw + 60 -> w in
+	let fh + 160 -> h in
+	let _GETdesktopSize -> [sw sh] in
+	let _CRwindow _channel father ((sw / 2) - (w / 2)) ((sh / 2) - (h / 2)) w h WN_DIALOG|WN_NOSCOL title -> win in
+	(	
+		_CRtext _channel win 5 5 (w - 10) (fh + 20) 0 content;
+		_CRtext _channel win 5 (fh + 20) (w - 10) (h - 35 - fh - 20) ET_AHSCROLL|ET_AVSCROLL|ET_VSCROLL|ET_HSCROLL|ET_BORDER error;
+		_CBbutton (_CRbutton _channel win ((w / 2) - 45) (h - 25) 90 20 PB_DEFAULT "Ok") @cbErrorDialogBtn [win font];
+		_CBwinDestroy win @cbErrorDialogBtn [win font];
+		_TOPwindow win;
+	);
+	0;;
+
+
+fun secureLoad(pack)=
+  let _testpak pack -> ret in
+  if (ret == nil) then
+  (
+    _load pack;
+    ret;
+  )
+  else
+  (
+		_fooS strcat ">>>>> Compilation error : " ret;
+		ret;
+  );;
+
+
+/**  loadOS3D [S] I
+  *  launch Editor
+  *  
+  *  return 0
+  **/
+fun loadOS3D(file)=
+  /*let "dms/3d/os3dlib/tools.pkg":: ...........moved to .dmc
+    "dms/3d/os3dlib/xmlparser.pkg"::*/
+   let "dms/3d/os3dlib/keyblib.pkg"::
+      "dms/3d/os3dlib/ogrematparser.pkg"::
+      "dms/3d/os3dlib/v3dlib.pkg"::
+      "dms/3d/os3dlib/v3dlib_physics.pkg"::
+      "dms/3d/os3dlib/2dglib.pkg"::
+      "dms/3d/os3dlib/minidhdms.pkg"::
+      "dms/3d/os3dlib/mkapplet.pkg"::
+      "dms/3d/os3dlib/netcomlib.pkg"::
+      "dms/3d/os3dlib/os3dpaths.pkg"::
+      "dms/3d/os3dlib/os3dstruct.pkg"::
+      "dms/3d/os3dlib/os3dtypeconv.pkg"::
+      "dms/3d/os3dlib/os3dplugins.pkg"::
+      "dms/3d/os3dlib/os3dpluginscb.pkg"::
+      "dms/3d/os3dlib/os3dloader.pkg"::
+      "dms/3d/os3dedit/os3dstruct.pkg"::
+      "dms/3d/os3dedit/os3dplugit.pkg"::
+      "dms/3d/os3dedit/os3dnav.pkg"::
+      "dms/3d/os3dedit/os3dlogs.pkg"::
+      "dms/3d/os3dedit/os3dtools.pkg"::
+      "dms/3d/os3dedit/os3dsettingshadows.pkg"::
+      "dms/3d/os3dedit/os3dsettingphysics.pkg"::
+      "dms/3d/os3dedit/os3dsettingrendering.pkg"::
+      "dms/3d/os3dedit/os3dsettingenv.pkg"::
+      "dms/3d/os3dedit/os3deditor.pkg"::
+      nil
+  -> lfiles in
+  let nil -> ret in
+  (
+    while (lfiles != nil) && ((set ret = secureLoad hd lfiles) == nil) do
+    (
+      set lfiles = tl lfiles;
+    );
+    
+    if (lfiles == nil) then
+    (
+      // launch Editor
+      initOs3dEditor file;
+      0;
+    )
+    else
+    (
+    	errorDialog nil "OpenSpace3D Error :" "This version of OpenSpace3D Editor is not compatible with your Scol Voy@ger version.\nPlease perform an update." ret;
+      //_DLGrflmessage (_DLGMessageBox _channel nil "Error" "This version of OpenSpace3D Editor is not compatible with your Scol Voy@ger version, please perform an update" 0) @cbCloseApp nil;
+      0;
+    );
+  );
+  0;;
+
+/**  getVoyagerVersion [] I
+  *  retrive the Scol Voy@ger version
+  *  
+  *  return the Scol Voy@ger version
+  **/
+fun getVoyagerVersion()=
+  let strextr _getpack _checkpack "locked/etc/version.txt" -> lver in
+  let sizelist lver -> size in
+  let nil -> curver in
+  let 0 -> i in
+  (
+    while (i < size) && (curver == nil) do
+    (
+      let nth_list lver i -> elem in
+      if strcmpi "version" hd elem then nil else
+        set curver = htoi hd tl elem;
+      
+      set i = i + 1;
+    );
+    curver;
+  );;
+
+
+/**  getVoyagerVersionS [] S
+  *  retrive the Scol Voy@ger version
+  *  
+  *  return the Scol Voy@ger version in string
+  **/
+fun getVoyagerVersionS()=
+  let strextr _getpack _checkpack "locked/etc/version.txt" -> lver in
+  let sizelist lver -> size in
+  let nil -> curver in
+  let 0 -> i in
+  (
+    while (i < size) && (curver == nil) do
+    (
+      let nth_list lver i -> elem in
+      if strcmpi "version" hd elem then nil else
+        set curver = hd tl elem;
+      
+      set i = i + 1;
+    );
+    curver;
+  );;
+
+
+/**  cbKillOs3d [Timer u0] I
+  *  timer callback to closemachine after opening scolring
+  *  
+  *  return 0
+  **/
+fun cbKillOs3d(trm, p)=
+  _deltimer trm;
+  _closemachine;
+  0;;
+
+
+/**  cbDlScol [MessageBox u0 I] I
+  *  open scolring and quit
+  *  
+  *  return 0
+  **/
+fun cbDlScol(msgbox, p, rep)=
+  if rep == 1 then
+  (
+    _openbrowserhttp "http://www.scolring.org";
+    _rfltimer _starttimer _channel 1000 @cbKillOs3d nil;
+    0;
+  )
+  else
+  (
+    _closemachine;
+  );
+  0;;
+  
+
+fun cbCloseTimer(trm, p)=
+  _deltimer trm;
+  _closemachine;
+  0;;
+
+
+/**  cbGetUpgrade [MessageBox [S S] I] I
+  *  open dl url
+  *
+  *  return 0
+  **/
+fun cbGetUpgrade(msgbox, url, state)=
+  if (((strlen url) <= 4) || (state == 0)) then
+  (
+    0;
+  )
+  else
+  (
+    _openbrowserhttp url;
+    _rfltimer _starttimer _channel 1000 @cbCloseTimer nil;
+    0;
+  );
+  0;;
+
+
+/**  CheckReferenceVersion [[S r1]] I
+  *  test the current openspace3d version
+  *  
+  *  return 0
+  **/
+fun CheckReferenceVersion(l) =
+  _fooS ">>>>>>>>> Recovering Openspace3d Reference Version from Internet - File content:";
+  _fooS strcat ">>>>>>>>> current version : " getVersionS;
+  _fooS (hd l);
+  _fooS (hd tl l);
+  if !strcmp "#OS3DVER#" (hd l) then 
+  (
+    if  (!strcmp (hd tl l) "nil") then 
+    (
+      _fooS ">>>>>>>>>> Local version is up to date !";
+      0;
+    )
+    else
+    (
+      _fooS ">>>>>>>>>> New version available !";
+      /*_DLGrflmessage _DLGMessageBox _channel nil "Update version" "A new version of OpenSpace3D Editor is available, do you want to download it now ?" 2 @cbGetUpgrade (hd tl l);
+	   DISABLE POPUP VERSION*/
+      0;
+    );
+    0;
+  )
+  else
+  (
+    _fooS ">>>>>>>>> Recovering Openspace3d Reference Version from Internet - Bad file content !";
+    0;
+  ); 
+  0;;
+
+
+/**  cbGotCurrentVer [INET [S] S I] I
+  *  test the current openspace3d version
+  *  
+  *  return 0
+  **/
+fun cbGotCurrentVer(req, p, data, code) =
+  if (code == 0) then
+  (
+    let p -> [_ gbuff] in
+      mutate p <- [_ strcat gbuff data];
+    0;
+  )
+  else if (code == 1) then
+  (
+    let p -> [_ gbuff] in
+      CheckReferenceVersion lineextr gbuff;
+    0;
+  )
+  else
+  (
+    _fooS ">>>>>>>>> Recovering Openspace3d Reference Version from Internet failed !";
+    0;
+  );
+  0;;
+
+
+/**  cbGetCurrentVer [S S I] I
+  *  test the current openspace3d version
+  *  
+  *  return 0
+  **/
+fun cbGetCurrentVer(url, file, rc) =
+  if (rc == 1) then          // Active Internet Connection detected
+  let [0 nil] -> p in
+  (
+    INETGetURL _channel _fooS (strcat sUpdateUrl getVersionS) 0 @cbGotCurrentVer p;
+    0;
+  )
+  else
+  (
+    0;                    // No Active Internet Connection detected
+  );
+  0;;
+
+
+/**  main [S] I
+  *  initialize the application
+  *  
+  *  return 0
+  **/
+fun main(file) =
+  let getVoyagerVersion -> curver in
+  if curver < iMinVoyagerVersion then
+  (
+      _DLGrflmessage (_DLGMessageBox _channel nil "Error" "You need a more recent Scol Voy@ger to start OpenSpace3D, you can download the last Scol Voy@ger on www.scolring.org. Download the Scol Voy@ager now ?" 2) @cbDlScol nil;
+      0;
+  )
+  else
+  (
+    _load "dms/3d/os3dedit/os3dversion.pkg";
+    getOs3dVersion;
+
+    loadOS3D file;
+    _rflINETisConnected sTesturl @cbGetCurrentVer nil;
+    0;
+  );
+  0;;
+  
+/*func to open openspace as 3d editor inside scs*/  
+fun os3dEditSCS(file) = main file;; /*loadOS3D file;;*/
