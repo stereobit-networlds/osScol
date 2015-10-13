@@ -70,10 +70,11 @@ struct DMIos = [
  ]mkDMI;;
 
 typeof this=DMIos;;
+typeof thisOS=DMIos;; /** added as thisOS for OS **/
 
 typeof DMSnbDmi=I;;
 
-typeof DMSdmi= [[I DMIos] r1];; 
+typeof DMSdmiOS= [[I DMIos] r1];; /** renamed DMSdmi->DMSdmiOS client side OS dmi system**/
 
 
 /* ********************************************************************************************* /
@@ -102,10 +103,11 @@ fun strFindList(l,a)=
   
 / ********************************************************************************************* */
 
-fun _DMSrootModule()= switch DMSdmi 0;;
+fun _DMSrootModule()= switch DMSdmiOS 0;;
+fun _DMSrootModuleOS()= switch DMSdmiOS 0;; /** OS alias **/
 
 
-fun _DMSgetByHandle(h)= switch DMSdmi h;;
+fun _DMSgetByHandle(h)= switch DMSdmiOS h;;
 
 
 fun _DMSremoveEvent(d, name)=
@@ -223,29 +225,29 @@ fun _DMSremoveActionStartedByName(d, name)=
 
 
 fun removeDmiById(id)=
-  let sizelist DMSdmi -> size in
+  let sizelist DMSdmiOS -> size in
   let nil -> ndata in
   let 0 -> i in
   (
     while i < size do
     (
-      let nth_list DMSdmi i -> elem in
+      let nth_list DMSdmiOS i -> elem in
       let elem -> [eid _] in
       if eid == id then nil else
         set ndata = elem::ndata;
       set i = i + 1;
     );
-    set DMSdmi = revertlist ndata;
+    set DMSdmiOS = revertlist ndata;
   );
   0;;
 
 
 fun addDmiById(id, d)=
-  let switch DMSdmi id -> dd in
+  let switch DMSdmiOS id -> dd in
   if dd == nil then nil else
     removeDmiById id;
   
-  set DMSdmi = lcat DMSdmi [id d]::nil;
+  set DMSdmiOS = lcat DMSdmiOS [id d]::nil;
   d;;
 
 
@@ -255,13 +257,14 @@ fun cbDebugConsol(mess)=
 
 
 fun createDMI(id, name)=
-  let switch DMSdmi id -> old in
+  let switch DMSdmiOS id -> old in
   let mkDMI [id name _channel nil nil] -> d in
   (
     addDmiById id d;
     
     set DMSerror = @cbDebugConsol;
     set this = _DMSrootModule;
+	set thisOS = _DMSrootModuleOS; /** OS alias **/
   );;
 
 
@@ -429,6 +432,8 @@ fun _DMSevent(d, ev, param, repl)=
   );
   0;;
 
+/*** alias ***/  
+fun _DMSeventOS(d, ev, param, repl)=  _DMSevent d ev param repl;;
 
 /* ********************************************************************************************* /
   C3dx definitions
