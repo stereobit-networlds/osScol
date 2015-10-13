@@ -359,17 +359,75 @@ fun _destroyE(a,b)=
 
 fun _suspend(a,b)=_closemachine;;
 
+/*override destroy event*/
+fun CBcloseMain(a,b) = 
+  let 0 -> i in
+  while (i<10000) do
+  (
+    set i=i+1;
+  );
+  _destroyE nil nil;
+  0
+;;
+
 /*fun _platform()=3;;*/
+
+/***** ask for exit  *******/
+fun _cbExit(win, b)=
+  _DSwindow win; 
+  0;;
+  
+fun _cbExitNo(win, w)=
+  _DSwindow w; 
+  0;;
+  
+fun _cbExitYes(win, w)=
+  //let "https://www.facebook.com/cryo3d" -> url in /*******!********/
+  //_openbrowserhttp url;
+  _DSwindow w; 
+  _destroyE nil nil;  
+  0;;  
+  
+typeof exittimer = Timer;;  
+fun _cbExitYesWait(win, w)=
+  _CRtext _channel win 0 0 250 100 ET_BORDER "Shutdown...";
+  set exittimer = _rfltimer _starttimer _channel 10000 @_cbExitYes w; 
+  0;;  
+
+fun askExit(a,b)=
+
+  let _CRwindow _channel DMSwin 200 150 250 160 WN_MENU+WN_NOSCOL "Exit" -> winExit in
+  (
+   _CRtext _channel winExit 0 0 250 100 ET_BORDER "Are you sure ?";
+   _CBbutton _CRbutton _channel winExit 25 115 80 25 0 "Yes" @_cbExitYes winExit;
+   _CBbutton _CRbutton _channel winExit 145 115 80 25 0 "No" @_cbExitNo winExit;   
+   _CBwinDestroy winExit @_cbExit 0;
+   0
+  );
+  0;;
 
 fun _DMSiniW(w,h,http)=
  set DMSwin= _GETactiveXWindow _channel 0 "Scol";
  set DOCactiveX= if DMSwin!=nil then 1 else 0;
  if DMSwin!=nil then nil
  else set DMSwin = _CRwindow _channel nil nil nil w h
-   WN_MENU+WN_MINBOX+WN_SIZEBOX "DMS Manager";
- _CBwinDestroy DMSwin @_destroyE 0;
+   WN_MENU+WN_MINBOX+WN_SIZEBOX+WN_NOSCOL "DMS Manager"; 
+   
+   
+ _CBwinDestroy DMSwin @_destroyE 0; 
+ 
 /* _CBwinSuspend DMSwin @_suspend 0;*/
  _SETdefaultFont set Font=_CRfont _channel 14 0 0 "arial";
+ 
+ _SETwindowMinSize DMSwin 600 400; /*<---------------------*/
+ let _GETscreenSize -> [myw myh] in
+ if (myw>0) then
+   _SIZEwindowEx DMSwin (myw-1) (myh-1) 0 0
+ else nil; 
+ 
+ _CBwinClose DMSwin @askExit 0; //CBcloseMain nil; 
+ 
+ 
  set StdCursor=_GETcursorWin DMSwin;
  let [_GETcursorSize
      (_LDbitmap _channel _checkpack if _platform==3 then "dms/lib/handmac.bmp" else "dms/lib/hand.bmp")
