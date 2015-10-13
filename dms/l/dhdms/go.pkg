@@ -1,0 +1,27 @@
+/* <Scol Technologies License> */
+/* Copyright (c) 2003, organization : Scol Technologies Association, owner : Sylvain Huet */
+/* For conditions of distribution and use, see copyright notice in dms/l/license.txt */
+/* or on 'www.scol-technologies.org' */
+
+fun go()=
+_load "dms/lib/stdlib.pkg";
+_load "dms/lib/quicksort.pkg";
+_load "dms/l/dhdms/score.pkg";
+_load "dms/l/dhdms/sloc.pkg";
+_load "dms/l/dhdms/sdownload.pkg";
+_load "dms/l/dhdms/sdef.pkg";
+_load "dms/l/dhdms/sconnect.pkg";
+_load "dms/l/dhdms/sgraph.pkg";
+_load "dms/l/dhdms/smod.pkg";
+_load "dms/l/dhdms/sdoc.pkg";
+_load "dms/l/dhdms/scomm.pkg";
+_load "dms/l/dhdms/susers.pkg";
+_load "dms/l/dhdms/stdsrv.pkg";
+_load "dms/l/mndms/tools.pkg";
+_load "dms/l/mndms/xmlparser.pkg";
+_load "dms/l/mndms/v3dlib.pkg";
+_load "dms/l/mndms/v3dlib_physics.pkg";
+_load "dms/l/mndms/2dglib.pkg";
+_load "dms/l/mndms/minidhdms.pkg";
+_load "dms/l/mndms/mkapplet.pkg";;
+

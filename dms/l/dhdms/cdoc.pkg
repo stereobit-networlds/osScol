@@ -1,0 +1,403 @@
+/* <Scol Technologies License> */
+/* Copyright (c) 2003, organization : Scol Technologies Association, owner : Sylvain Huet */
+/* For conditions of distribution and use, see copyright notice in dms/l/license.txt */
+/* or on 'www.scol-technologies.org' */
+
+/* cDHDMS - mar 00 - by Sylvain HUET */
+/* document part */
+
+
+typeof DMSdocs=DOC;;
+var DOCactiveX=0;;
+
+var DOCpopup=1;;
+var DOChomot=2;;
+var DOCtiled=4;;
+var DOCstretched=8;;
+
+typeof Font=ObjFont;;
+typeof StdCursor=ObjCursor;;
+typeof HandCursor=ObjCursor;;
+typeof CrossCursor=ObjCursor;;
+
+struct Zone=
+ [nameZone:S,coordZone:[I I I I I I I],usingZone:[[DMI fun [] I fun[[ObjWin I I I I]] I fun[] I]r1]
+ ]mkZone;;
+
+struct DOC=
+ [sonsDOC:[DOC r1],fatherDOC:DOC,bmpnameDOC:S,bmpDOC:ObjBitmap,bmprscDOC:RSC,
+  winDOC:ObjWin,nameDOC:S,typeDOC:I,coordDOC:[I I I I I I I],typebmpDOC:I,
+  zonesDOC:[Zone r1]
+ ]mkDOC;;
+
+fun Otonil(s)=if s then s else nil;;
+
+fun DocTreeLd(ll,m)=
+ if ll==nil then nil
+ else let ll->[l nxt] in
+ let hd l -> s in if s==nil then DocTreeLd nxt m
+ else if !strcmp s "doc" then
+  let mkDOC [nil m Tunder nth_list l 10 nil nil nil nth_list l 1 atoi nth_list l 2
+   [atoi nth_list l 3 atoi nth_list l 4 atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 atoi nth_list l 8 atoi nth_list l 9]
+   atoi nth_list l 11 nil]-> a in
+  (set m.sonsDOC=a::m.sonsDOC;
+   DocTreeLd (DocTreeLd nxt a) m)
+ else if (!strcmp s "enddoc") then nxt
+ else if (!strcmp s "zone") then
+ (set m.zonesDOC=
+  (mkZone [nth_list l 1 [atoi nth_list l 2 atoi nth_list l 3 atoi nth_list l 4
+    atoi nth_list l 5 atoi nth_list l 6 atoi nth_list l 7 atoi nth_list l 8] nil])::m.zonesDOC;
+  DocTreeLd nxt m)
+ else DocTreeLd nxt m;;
+
+fun DocTreeLoader(l)=
+ let mkDOC[nil nil nil nil nil nil nil nil nil nil nil] -> m in
+ (DocTreeLd l m;
+  m);;
+
+
+/* client specific */
+fun getbmpdoc2(s,z)=
+ if s==nil then nil
+ else let z->[d f] in
+ (set d.bmpDOC=_LDbitmap DMSserver _checkpack d.bmpnameDOC;
+  if d.bmpDOC==nil then set d.bmpDOC=_LDjpeg DMSserver _checkpack d.bmpnameDOC
+  else nil;
+  exec f with [nil d]);;
+
+fun getbmpdoc(d,f)=
+ _RSCdownload _DMSrootModule d.bmpnameDOC d.bmpnameDOC mknode @getbmpdoc2 [d f] 3;;
+
+fun dontneedbmpdoc(d)=
+ if d.bmprscDOC==nil then nil
+ else _RSCabort _DMSrootModule d.bmprscDOC;
+ set d.bmprscDOC=nil;;
+
+/* general part */
+fun cbp(s,i,j)=
+ if j>=strlen s then (substr s i j-i)::nil
+ else if (nth_char s j)!='. then cbp s i j+1
+ else (substr s i j-i)::if j+1 >= strlen s then nil else cbp s j+1 j+1;;
+
+fun cutbypoint(s)=if s==nil then nil else cbp s 0 0;;
+
+fun fullnamezone(d,z)= hd switchstr _DMSgetZones d z;;
+
+fun findDoc(dl,l)=
+ if dl==nil then nil
+ else let dl->[d dnxt] in let l->[n nxt] in
+ if strcmp d.nameDOC n then findDoc dnxt l
+ else if (tl nxt)==nil then [d hd nxt]
+ else findDoc d.sonsDOC nxt;;
+
+fun zoneByName(z,n)=!strcmp z.nameZone n;;
+
+fun findZone(d,n)=search_in_list d.zonesDOC @zoneByName n;;
+
+fun calcDim(typ,x1,w,x2,l)=
+ let max 1 (if typ&1 then x1 else 0)+(if typ&2 then w else 0)+(if typ&4 then x2 else 0) ->sum in
+ [if typ&1 then (x1*(l-x1-x2-w+sum))/sum else x1
+  if typ&2 then (w*(l-x1-x2-w+sum))/sum else w];;
+
+fun calcZone(doc,coord)=
+ let coord->[typ x1 y1 x2 y2 w h] in
+ let if doc.fatherDOC==nil then _GETscreenSize
+     else let _GETwindowSizePosition doc.winDOC -> [a b _ _] in [a b]
+  -> [wwin hwin] in
+ let calcDim typ x1 w x2 wwin ->[xx ww] in
+ let calcDim typ>>3 y1 h y2 hwin ->[yy hh] in
+ [doc.winDOC xx yy ww hh];;
+
+fun resizeRun(x,y)=
+ let x->[d _ f _] in execch if d.chnDMI==nil then _channel else d.chnDMI f [exec @calcZone with y];
+ 0;;
+
+fun resizeZone(z,d)=apply_on_list z.usingZone @resizeRun [d z.coordZone];;
+
+fun resizeDoc(d,f)=
+ if d.typeDOC&DOCpopup then nil
+ else let calcZone f d.coordDOC
+  ->[_ x y w h] in _SIZEwindow d.winDOC w h x y;;
+
+fun _resizeE(a,d,x,y)=
+ if x==0 && y==0 then nil
+ else
+ (apply_on_list d.zonesDOC @resizeZone d;
+  apply_on_list d.sonsDOC @resizeDoc d);;
+
+fun destroyRun(x,y)=
+ let x->[d _ _ f] in execch d.chnDMI f [];
+ 0;;
+
+fun destroyZone(z,d)=apply_on_list z.usingZone @destroyRun d;;
+fun destroyD(l)=
+ if l==nil then 0 else let l->[d n] in
+ (if d.winDOC==nil then nil
+  else
+  (set d.winDOC=nil;
+   if d.bmpDOC==nil then nil
+   else
+   (_DSbitmap d.bmpDOC;
+   set d.bmpDOC=nil);
+   dontneedbmpdoc d;
+   destroyD d.sonsDOC; 
+   apply_on_list d.zonesDOC @destroyZone d);
+  destroyD n);;
+
+fun _destroyD(a,d)=destroyD d::nil;;
+
+fun _paintdoc(a,d)=
+ if d.bmpDOC==nil then nil
+ else let _GETwindowSizePosition d.winDOC-> [ww hw _ _] in
+ let _GETbitmapSize d.bmpDOC -> [wb hb] in
+ if d.typebmpDOC & DOCtiled then
+  let 0->i in while i <ww do
+  (let 0->j in while j <hw do
+   (_BLTbitmap d.winDOC d.bmpDOC i j;
+    set j=j+hb);
+   set i=i+wb)
+ else if d.typebmpDOC&DOCstretched then
+  let _CRbitmap DMSserver ww hw -> b in
+  (_SCPbitmap b 0 0 ww-1 hw-1 d.bmpDOC 0 0 wb-1 hb-1 nil;
+   _BLTbitmap d.winDOC b 0 0;
+   _DSbitmap b;
+   0)
+ else
+ (_BLTbitmap d.winDOC d.bmpDOC (ww-wb)>>1 (hw-hb)>>1;
+  0);;
+
+fun defbmpdoc(d)=
+ if d.bmpnameDOC==nil then nil
+ else
+ (_CBwinPaint d.winDOC @_paintdoc d;
+  getbmpdoc d @_paintdoc);;
+
+fun createFathers(d)=
+ if d==nil then nil
+ else if d.winDOC!=nil then nil
+ else
+ (createFathers d.fatherDOC;
+  set d.winDOC=if d.typeDOC&DOCpopup then
+   let calcZone nil d.coordDOC ->[_ x y w h] in
+   _CRwindow DMSserver d.fatherDOC.winDOC x y w h
+    WN_MENU+WN_MINBOX+WN_SIZEBOX d.nameDOC
+  else let calcZone d.fatherDOC d.coordDOC
+    ->[win x y w h] in
+   _CRwindow DMSserver win x y w h
+     WN_CHILDINSIDE|WN_NOCAPTION|WN_NOBORDER d.nameDOC;
+  _CBwinDestroy d.winDOC @_destroyD d;
+  _CBwinSize d.winDOC @_resizeE d;
+  defbmpdoc d
+ );;
+
+fun activZone(zone,flag)=
+ let findDoc DMSdocs.sonsDOC cutbypoint zone ->[doc n] in
+ let findZone doc n -> z in
+ if z==nil then nil
+ else
+ (if flag then createFathers doc else nil;
+  [doc z]);;
+
+fun zoneUsed(l)=
+ if l==nil then 0 else let l->[z n] in
+ if z.usingZone==nil then zoneUsed n
+ else 1;;
+
+fun desactivDoc(dl)=
+ if dl==nil then 0 else let dl->[d nxt] in
+ let if (desactivDoc d.sonsDOC)||(zoneUsed d.zonesDOC) then 1 else 0 -> i in
+ (if i || d.winDOC==DMSwin then nil
+  else (_DSwindow d.winDOC; set d.winDOC=nil);
+  i+desactivDoc nxt);;
+
+fun _DMSdesactivDoc()=
+ desactivDoc DMSdocs.sonsDOC;;
+
+fun conflictZone(d,l)=
+ if l==nil then 0 else let l->[[dd conf _ _]nxt] in
+  (if dd==d then nil else execch dd.chnDMI conf [];
+   conflictZone d nxt);;
+
+fun removeDmiZone(d,l)=
+ if l==nil then nil else let l->[a n] in
+ let a->[dd _ _ _] in if dd==d then n
+ else a::removeDmiZone d n;;
+
+fun removeDmiZones(zl,dm)=
+ if zl==nil then 0 else let zl->[z nxt] in
+ (set z.usingZone=removeDmiZone dm z.usingZone;
+  removeDmiZones nxt dm);;
+
+fun removeDmiDoc(dl,dm)=
+ if dl==nil then 0 else let dl->[d nxt] in
+ (removeDmiZones d.zonesDOC dm;
+  removeDmiDoc d.sonsDOC dm;
+  removeDmiDoc nxt dm);;
+
+fun _DMSgetZone(d,zone,conflict,resize,close)=
+ let if d==nil then zone else fullnamezone d zone -> s in
+ let activZone s 1 -> [doc z] in
+ if z==nil then nil
+ else
+  (set z.usingZone=[d mkfun1 conflict zone mkfun2 resize zone mkfun1 close zone]::
+    removeDmiZone d z.usingZone;
+   conflictZone d tl z.usingZone;
+   calcZone doc z.coordZone);;
+
+fun _DMSreleaseZone(d,zone)=
+ let fullnamezone d zone -> s in
+ let activZone s 0 -> [doc z] in
+ if z==nil then nil
+ else
+ (set z.usingZone=removeDmiZone d z.usingZone;
+  _DMSdesactivDoc;
+  0);;
+
+fun _DOCremoveDmiDoc(d)=
+ removeDmiDoc DMSdocs.sonsDOC d;
+ _DMSdesactivDoc;;
+
+fun _DMSiniDoc(name)=
+ let findDoc DMSdocs.sonsDOC name::"x"::nil -> [d _] in
+ if d==nil then nil
+ else
+ (set d.winDOC=DMSwin;
+  if DOCactiveX then nil
+  else let calcZone nil d.coordDOC ->[_ x y w h] in _SIZEwindow d.winDOC w h x y;
+  _CBwinSize d.winDOC @_resizeE d;
+  defbmpdoc d);
+ 0;;
+
+fun buildzonename(d,n)=
+ if d.nameDOC==nil then n
+ else buildzonename d.fatherDOC strcat strcat d.nameDOC "." n;;
+
+fun searchzone(l,n)=
+ if l==nil then nil
+ else let l->[d nxt] in
+ let findZone d n -> z in
+ if z!=nil then buildzonename d n
+ else let searchzone d.sonsDOC n -> x in
+ if x==nil then searchzone nxt n
+ else x;;
+
+/* download bar */
+typeof BARwin=ObjWin;;
+var BARdenom=0;;
+var BARquot=0;;
+
+var BARwidth=0;;
+var BARheight=0;;
+var BARback=0xcfcfcf;;
+var BARfore=0x00007f;;
+var BARtext=0x000000;;
+
+var BARhttpmode=0;;
+
+fun BARpaintbarre()=
+ if BARwin==nil then nil else
+ if BARquot==0 then nil
+ else
+  _PAINTrectangle BARwin 0 0 BARwidth*BARdenom/BARquot BARheight+1
+   DRAW_INVISIBLE 0 0 DRAW_SOLID BARfore;
+  _TXTout BARwin Font BARwidth/2 1 TD_TOP+TD_CENTER BARtext
+   strcat if BARquot then "Loading " else nil if BARhttpmode then "- via HTTP -" else nil;
+ 0;;
+
+fun BARpaintback()=
+ if BARwin==nil then nil else
+ _PAINTrectangle BARwin 0 0 BARwidth+1 BARheight+1 DRAW_INVISIBLE 0 0 DRAW_SOLID BARback;
+ 0;;
+
+fun _paintE(w,x)=
+ BARpaintback;
+ BARpaintbarre;;
+ 
+fun _BARinit(ww)=
+ set BARdenom=0;
+ set BARquot=0;
+ set BARwin=nil;
+ if ww==nil then nil
+ else let ww->[root [x y] [w h]] in
+ (set BARwin=_CRwindow _channel root x y w h  WN_CHILDINSIDE|WN_NOCAPTION "BARwin";
+  set BARwidth=w;
+  set BARheight=h;
+  _CBwinPaint BARwin @_paintE 0;
+  _paintE nil 0);;
+
+fun _BARresize(z)=
+ if BARwin==nil then nil
+ else let z->[x y w h] in
+ (set BARwidth=w;
+  set BARheight=h;
+  _SIZEwindow BARwin w h x y;
+  _paintE nil 0);;
+
+fun _BARremove()=
+ _DSwindow BARwin;
+ set BARwin=nil;
+ 0;;
+
+fun _BARsetColor(b,f,t)=
+ if b==nil then nil else set BARback=b;
+ if f==nil then nil else set BARfore=f;
+ if t==nil then nil else set BARtext=t;
+ _paintE nil 0;;
+
+fun _BARupdate(denom,quot)=
+ set BARdenom=denom;
+ set BARquot=quot;
+ _paintE nil 0;;
+ 
+/* main window */
+
+fun _destroyE(a,b)=
+ set DMSoff=1;
+ exitgracefully;
+ _onX Cdestroyed[];
+ _closemachine;;
+
+fun _suspend(a,b)=_closemachine;;
+
+/*fun _platform()=3;;*/
+
+fun _DMSiniW(w,h,http)=
+ set DMSwin= _GETactiveXWindow _channel 0 "Scol";
+ set DOCactiveX= if DMSwin!=nil then 1 else 0;
+ if DMSwin!=nil then nil
+ else set DMSwin = _CRwindow _channel nil nil nil w h
+   WN_MENU+WN_MINBOX+WN_SIZEBOX "DMS Manager";
+ _CBwinDestroy DMSwin @_destroyE 0;
+/* _CBwinSuspend DMSwin @_suspend 0;*/
+ _SETdefaultFont set Font=_CRfont _channel 14 0 0 "arial";
+ set StdCursor=_GETcursorWin DMSwin;
+ let [_GETcursorSize
+     (_LDbitmap _channel _checkpack if _platform==3 then "dms/lib/handmac.bmp" else "dms/lib/hand.bmp")
+     (_LDbitmap _channel _checkpack if _platform==3 then "dms/lib/crossmac.bmp" else "dms/lib/cross.bmp")]
+   -> [[X Y] GBmp GBmp2] in
+ let _GETbitmapSize GBmp -> [dx _] in
+ let _CRbitmap _channel X Y -> CursorBmp in
+  (_SCPbitmap CursorBmp 0 0 (X-1) (Y-1) GBmp 0 0 dx-1 dx-1 nil;
+   set HandCursor=_CRcursor _channel CursorBmp 12*dx/32 6*dx/32 0 32767;
+   _SCPbitmap CursorBmp 0 0 (X-1) (Y-1) GBmp2 0 0 dx-1 dx-1 nil;
+   set CrossCursor=_CRcursor _channel CursorBmp 15*dx/32 15*dx/32 0 32767
+   );
+ set BARhttpmode=http;
+ _BARinit [DMSwin [0 0] [w h]]
+;;
+
+fun resizeDl(x,s)=
+ let x->[win x y w h] in
+ (_BARresize [x y w h]);
+ 0;;
+
+fun _DOCparse(file)=
+ set DMSdocs=DocTreeLoader strextr _getpack _checkpack file;
+ _SETwindowName DMSwin webtostr DMSname;
+ _DMSiniDoc "client";
+ _BARremove;
+ let searchzone DMSdocs.sonsDOC "download" -> namedownload in
+ let _DMSgetZone nil namedownload nil @resizeDl nil ->[win x y w h] in
+  if win==nil then nil
+  else _BARinit [win [x y] [w h]];;
+
