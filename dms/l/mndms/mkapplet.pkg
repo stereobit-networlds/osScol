@@ -1,0 +1,1138 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*
+applet file generator
+origin by Sylvain Huet - oct 2003
+
+Bastien Bourineau - june 2009
+*/
+
+struct FtpSetting= [
+  AFTP_telnet       : TELNET,
+  AFTP_trmTimeout   : Timer,
+  AFTP_sDataCmd     : S,
+  AFTP_sIp          : S,
+  AFTP_sHost        : S,
+  AFTP_iport        : I,
+  AFTP_sLogin       : S,
+  AFTP_sPass        : S,
+  AFTP_sDir         : S,
+  AFTP_sAppDir      : S,
+  AFTP_sUrl         : S,
+  AFTP_bWebIn       : I,
+  AFTP_iWidth       : I,
+  AFTP_iHeight      : I,
+  AFTP_lFiles       : [S r1],
+  AFTP_lDirs        : [S r1],
+  AFTP_wLogFile     : W,
+  
+  AFTP_ctrlWindow   : EdWindow,
+  AFTP_ctrlHost     : EdControl,
+  AFTP_ctrlPort     : EdControl,
+  AFTP_ctrlLogin    : EdControl,
+  AFTP_ctrlPass     : EdControl,
+  AFTP_ctrlRoot     : EdControl,
+  AFTP_ctrlDir      : EdControl,
+  AFTP_ctrlWww      : EdControl,
+  AFTP_ctrlInWeb    : EdControl,
+  
+  AFTP_ctrlLog      : EdControl,
+  AFTP_ctrlOk       : EdControl,
+  AFTP_ctrlCancel   : EdControl,
+  AFTP_bError       : I,
+  AFTP_iState       : I
+  
+  ] mkFtpSetting ;;
+
+
+var sMkAppletPath    = "tools/os3dlib/res/web/";;
+var sMkAppletTmpPath = "tmp/mkapplet/";;
+
+typeof winMkApplet   = EdWindow;;
+
+var iTimeOut         = 60000;;
+var iTimeOutCmd      = 10000;;
+
+
+var sExportDirectory = "export";;
+var lConfidentialMarks = "ftpHost"::"ftpPort"::"ftpLogin"::"ftpRoot"::"ftpDir"::"ftpWWW"::"ftpIntegrated"::nil;;
+
+proto sendFtpCommand = fun[FtpSetting S I] I;;
+proto ftpConnect     = fun[FtpSetting] I;;
+proto getMkAppletXmlResources = fun [S] [S r1];;
+proto getProjectSetting = fun [S] S;;
+proto setProjectSetting = fun [S S] I;;
+
+/* ********************************************************************************************* /
+  FTP Functions
+/ ********************************************************************************************* */
+
+
+fun mkAppletEnableInterface(ftpstr, mode)=
+  setEdCtrlButtonEnable ftpstr.AFTP_ctrlOk mode;
+  setEdCtrlTextLineEnable ftpstr.AFTP_ctrlHost mode;
+  setEdCtrlFloatEnable ftpstr.AFTP_ctrlPort mode;
+  setEdCtrlTextLineEnable ftpstr.AFTP_ctrlLogin mode;
+  setEdCtrlTextLineEnable ftpstr.AFTP_ctrlPass mode;
+  setEdCtrlTextLineEnable ftpstr.AFTP_ctrlRoot mode;
+  setEdCtrlTextLineEnable ftpstr.AFTP_ctrlDir mode;
+  setEdCtrlTextLineEnable ftpstr.AFTP_ctrlWww mode;
+  setEdCtrlCheckEnable ftpstr.AFTP_ctrlInWeb mode;
+  0;;
+
+
+fun mkAppletAddLog(ftpstr, message)=
+  if ((getEdCtrlTextLineCount ftpstr.AFTP_ctrlLog) < 100) then nil else
+    removeEdCtrlTextLine ftpstr.AFTP_ctrlLog 0;
+    
+  addEdCtrlTextValue ftpstr.AFTP_ctrlLog message;
+  _appendpack message ftpstr.AFTP_wLogFile;
+  
+  scrollEdCtrlText ftpstr.AFTP_ctrlLog 0 (getEdCtrlTextLineCount ftpstr.AFTP_ctrlLog);
+  0;;
+
+
+fun cbDlgTimeout (dlg, ftpstr, res)=
+  if res == 1 then
+    ftpConnect ftpstr
+  else 
+  (
+    mkAppletAddLog ftpstr "Connection closed\n";
+    mkAppletEnableInterface ftpstr 1;
+    0;
+  );
+  0;;
+
+
+fun cbMkAppletTimeOut(timer, ftpstr)=
+  _deltimer timer;
+  _TELNETClose ftpstr.AFTP_telnet;
+  let _DLGMessageBox _channel ftpstr.AFTP_ctrlWindow.EDW_win "Time Out" "Connection failed, retry ?" 1 -> dlgTimeOut in
+    _DLGrflmessage dlgTimeOut @cbDlgTimeout ftpstr;
+  0;;
+
+
+fun cbTimeOutCmd (timer, ftpstr)=
+  _deltimer timer;
+  _TELNETClose ftpstr.AFTP_telnet;
+  mkAppletAddLog ftpstr ">> Try to connect\n";
+  ftpConnect ftpstr;
+  0;;
+
+
+fun sendFtpCommand (ftpstr, cmd, log)=
+  let strcat (ctoa 13) (ctoa 10) -> lnfeed in
+  if (strfind "LIST" cmd 0)!=nil || (strfind "NLST" cmd 0)!=nil || (strfind "STOR" cmd 0)!=nil || (strfind "RETR" cmd 0)!=nil then
+  (
+    set ftpstr.AFTP_sDataCmd = cmd;
+    mkAppletAddLog ftpstr ">> PASV\n";
+    _TELNETSend (strcat "PASV" lnfeed) ftpstr.AFTP_telnet;
+    0;
+  )
+  else
+  (
+    if !log then nil else
+      mkAppletAddLog ftpstr strcat ">> " cmd;
+    
+    _TELNETSend (strcat cmd lnfeed) ftpstr.AFTP_telnet; 
+    0; 
+  );
+  
+  set ftpstr.AFTP_trmTimeout = _starttimer _channel iTimeOutCmd;
+  _rfltimer ftpstr.AFTP_trmTimeout @cbTimeOutCmd ftpstr;
+  0;;
+
+
+fun cbDataTimer (t, data)=
+  _deltimer t;
+  _TELNETClose data;
+  0;;
+
+
+fun cbDataWrite (data, ftpstr)=
+  if (strfind "STOR" ftpstr.AFTP_sDataCmd 0)!=nil then
+  (
+    let (hd ftpstr.AFTP_lFiles) -> file in
+    (
+      mkAppletAddLog ftpstr strcatn ">> data upload : "::file::"\n"::nil;
+      _TELNETSend (_getpack _checkpack (strcat sMkAppletTmpPath file)) data;
+      set ftpstr.AFTP_lFiles = tl ftpstr.AFTP_lFiles;
+    );
+    
+    // il manque parfois un octet le timer va permetre de lui laisser le temps d'envoyer
+    let _starttimer _channel 500 -> datatimer in
+      _rfltimer datatimer @cbDataTimer data;
+    0;
+  )
+  else
+  (
+    _TELNETClose data;
+    0;
+  );
+  0;;
+
+
+fun cbDataRead(data, ftpstr)=
+  let _TELNETGetBuffer data -> ftpecho in
+    mkAppletAddLog ftpstr ftpecho;
+  _TELNETClose data;
+  0;;
+
+
+fun cbDataConnect(ftpdata, ftpstr)=
+  //_SETtext output strcatn (_GETtext output)::"\n"::">> connected data"::"\n"::nil;
+  _TELNETrflRead ftpdata @cbDataRead ftpstr;
+  _TELNETrflWrite ftpdata @cbDataWrite ftpstr;
+  //_SETtext output strcatn (_GETtext output)::">> "::cmd::"\n"::nil; 
+  
+  let strcat (ctoa 13) (ctoa 10) -> lnfeed in
+    _TELNETSend (strcat ftpstr.AFTP_sDataCmd lnfeed) ftpstr.AFTP_telnet;
+  0;;
+
+
+fun cbDataClose(ftpdata, ftpstr)=
+  mkAppletAddLog ftpstr ">> upload successfull\n";
+  0;;
+
+
+// se connecte au port ftp data
+fun tryToConnectData(serveur, ftpstr)=
+  let _TELNETConnect _channel serveur -> telnetdata in
+ 	(
+ 	  mkAppletAddLog ftpstr strcatn ">> Connecting on : "::serveur::"\n"::nil;
+ 	  _TELNETrflConnect telnetdata @cbDataConnect ftpstr;
+ 	  _TELNETrflClose telnetdata @cbDataClose ftpstr;
+  );
+  0;;
+
+
+fun getPort(str, portpos, pos)=
+  let strfind "," str pos -> npos in
+    if npos==nil then 
+      (
+        let substr str pos ((strfind ")" str 0) - pos) -> port in
+        let substr str portpos ((pos -1) - portpos) -> coef in
+          (
+            _fooS strcat ">>>>>>> coef : " coef;
+            _fooS strcat ">>>>>>> port : " port;
+            itoa ((atoi coef)*256+(atoi port));
+          );
+      )
+    else
+      getPort str pos npos+1
+  ;;
+
+
+fun cbMkAppletOpenBrowser(dlg, ftpstr, rep)=
+  if rep then
+  (
+    let strcatn ftpstr.AFTP_sUrl::"web/index.html"::nil -> url in
+      _openbrowserhttp url;
+  )
+  else nil;
+  
+  _TELNETClose ftpstr.AFTP_telnet;
+  dsEdWindow winMkApplet;
+  set winMkApplet = nil;
+  0;;
+
+
+fun getFtpResponse(ftpEcho, ftpstr)=
+  let strextr ftpEcho -> echolist in
+  let if (sizelist echolist) > 1 then 
+        atoi (hd (nth_list echolist ((sizelist echolist)-1)))
+      else 
+        atoi (hd hd echolist)
+  -> cmdid in
+//let atoi substr ftpEcho 0 3 -> cmdid in
+  if cmdid == 330 then
+  (
+    // please log in
+    sendFtpCommand ftpstr (strcatn "USER "::ftpstr.AFTP_sLogin::nil) 1;
+  )
+  else
+  if cmdid == 220 then
+  (
+    // ready
+    sendFtpCommand ftpstr (strcatn "USER "::ftpstr.AFTP_sLogin::nil) 1;
+  )
+  else if cmdid == 331 then
+  (
+    let strlen ftpstr.AFTP_sPass -> plen in
+    let "" -> pmask in
+    (
+      while plen > 0 do
+      (
+        set pmask = strcat pmask "*";
+        set plen = plen - 1;
+      );
+      
+      // transfert complete
+      mkAppletAddLog ftpstr strcat ">> " (strcatn "PASS "::pmask::"\n"::nil);
+      sendFtpCommand ftpstr (strcatn "PASS "::ftpstr.AFTP_sPass::nil) 0;
+    );
+  )
+   else if cmdid == 230 then
+  (
+    // logged in
+    sendFtpCommand ftpstr (strcatn "SYST"::nil) 1;
+  )
+  else if cmdid == 215 then
+  (
+    // System type
+    sendFtpCommand ftpstr "TYPE I" 1;
+  )
+  else if cmdid == 200 then
+  (
+    // TYPE ok
+    sendFtpCommand ftpstr (strcatn "CWD "::ftpstr.AFTP_sDir::nil) 1;
+  )
+  /*
+  else if cmdid == 250 then
+  (
+    // CWD successful
+    sendFtpCommand ftpstr "LIST" 1;
+  )
+  */
+  // upload
+  else if cmdid == 250 || cmdid == 226 || cmdid == 257 || cmdid == 550 || cmdid == 521 then
+  (
+    // MDK ok or exist transfert complete
+    // nextCommmand
+    if (cmdid == 550) && !ftpstr.AFTP_iState then
+    (
+      sendFtpCommand ftpstr "QUIT" 1;
+      set ftpstr.AFTP_bError = 1;
+      0;
+    )
+    else
+    (
+      // first CWD passed
+      set ftpstr.AFTP_iState = 1;
+      
+      if ftpstr.AFTP_lDirs != nil then
+      (
+        sendFtpCommand ftpstr (strcatn "MKD "::(hd ftpstr.AFTP_lDirs)::nil) 1;
+        set ftpstr.AFTP_lDirs = tl ftpstr.AFTP_lDirs;
+        0;
+      )
+      else if ftpstr.AFTP_lFiles != nil then 
+      (
+        //let if (hd ftpstr.AFTP_lFiles) == nil then (hd tl ftpstr.AFTP_lFiles) else (hd ftpstr.AFTP_lFiles) -> fileok in
+        sendFtpCommand ftpstr (strcatn "STOR "::((hd ftpstr.AFTP_lFiles))::nil) 1;
+        0;
+      )
+      else
+      (
+        sendFtpCommand ftpstr "QUIT" 1;
+        0;
+      );
+    );
+    0;
+  )
+  else if cmdid == 227 then
+  (
+    // pasv
+    tryToConnectData (strcatn ftpstr.AFTP_sIp::":"::(getPort ftpEcho 0 0)::nil) ftpstr;
+  )
+  else if cmdid == 421 then
+  (
+    // time out
+    _DLGMessageBox _channel ftpstr.AFTP_ctrlWindow.EDW_win "Time Out" "You have been disconnected from the server" 0;
+    mkAppletEnableInterface ftpstr 1;
+    0;
+  )
+  else if cmdid == 221 then
+  (
+    // Quit
+    if (!ftpstr.AFTP_bError) then
+    (
+      let strcatn ftpstr.AFTP_sUrl::"web/index.html"::nil -> url in
+        _DLGrflmessage _DLGMessageBox _channel ftpstr.AFTP_ctrlWindow.EDW_win "Upload finished" (strcat "Upload finished. Do you want to open the web page ? " url) 1 @cbMkAppletOpenBrowser ftpstr;
+      0;
+    )
+    else
+    (
+      _TELNETClose ftpstr.AFTP_telnet;
+      _DLGMessageBox _channel ftpstr.AFTP_ctrlWindow.EDW_win "Upload Error" "An error occured, check the ftp logs and retry" 0;
+      mkAppletEnableInterface ftpstr 1;
+      0;
+    );
+    0;
+  )
+  else if cmdid == 530 then
+  (
+    // bad login
+    mkAppletAddLog ftpstr "Bad login or password\n";
+    _TELNETClose ftpstr.AFTP_telnet; 
+    mkAppletEnableInterface ftpstr 1;
+    0;
+  )
+  else if cmdid == 150 then
+  (
+    mkAppletAddLog ftpstr "Transfer in progress ...\n";
+    0;
+  )
+  else nil;   
+  0;;
+
+
+fun cbTelnetWrite (tel, ftpstr)=
+  mkAppletAddLog ftpstr ">> server ready\n";
+  0;;
+
+
+fun cbTelnetRead(tel, ftpstr)=
+  let _TELNETGetBuffer tel -> ftpecho in
+  (
+    _deltimer ftpstr.AFTP_trmTimeout;
+    mkAppletAddLog ftpstr ftpecho;
+
+    getFtpResponse ftpecho ftpstr;
+  );
+  0;;
+
+
+fun cbTelnetConnect(tel, ftpstr)=
+  mkAppletAddLog ftpstr ">> Connected\n";
+  _TELNETrflRead tel @cbTelnetRead ftpstr;
+  _TELNETrflWrite tel @cbTelnetWrite ftpstr;
+  0;;
+
+
+fun ftpConnect(ftpstr)=
+  let (_gethostbyname ftpstr.AFTP_sHost) -> resolvip in
+  let (strcatn resolvip::":"::(itoa ftpstr.AFTP_iport)::nil) -> ftpadress in
+  let _TELNETConnect _channel ftpadress -> telnetftp in
+ 	(
+ 	  set ftpstr.AFTP_telnet = telnetftp;
+ 	  set ftpstr.AFTP_sIp = resolvip;
+    mkAppletAddLog ftpstr strcatn ">> Connecting on "::ftpstr.AFTP_sHost::" FTP server\n"::nil;
+    
+ 	  set ftpstr.AFTP_trmTimeout = _starttimer _channel iTimeOut;
+    _rfltimer ftpstr.AFTP_trmTimeout @cbMkAppletTimeOut ftpstr;
+    _TELNETrflConnect ftpstr.AFTP_telnet @cbTelnetConnect ftpstr;
+  );
+  0;;
+
+
+fun addDirToList(l, ftpstr)=
+  if l == nil then nil else
+  let l -> [elem next] in
+  (
+    set ftpstr.AFTP_lDirs = elem::ftpstr.AFTP_lDirs;
+    addDirToList next ftpstr;
+  );
+  0;;
+
+
+fun getInitDirs (initdir, ftpstr)=
+  let 0 -> curpos in
+  let nil -> newldir in
+  let (strfind "/" initdir curpos) -> dirpos in
+  (
+    while dirpos != nil do
+    (
+      let (strfind "/" initdir (dirpos +1)) -> nextpos in
+      let substr initdir curpos ((dirpos) - curpos) -> newdir in
+      (
+        if (isStringInList ftpstr.AFTP_lDirs (strlowercase newdir)) then nil else 
+          set newldir = (strlowercase newdir)::newldir;
+      );
+      set dirpos = (strfind "/" initdir dirpos +1);
+    );
+    addDirToList newldir ftpstr;
+  );
+  0;;
+
+
+fun mkAppletGetDirectories(l)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+      let getPathFile elem "" -> [path _] in
+        set ndata = path::ndata;
+        
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+/*
+fun debugStringList(l, file)=
+  let sizelist l -> size in
+  let "" -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+        set ndata = strcatn ndata::elem::"\n"::nil;
+      set i = i + 1;
+    );
+    _storepack ndata file;
+  );;
+*/
+
+fun mkAppletUploadFiles(ftpstr)=
+  apply_on_list (mkAppletGetDirectories ftpstr.AFTP_lFiles) @getInitDirs ftpstr;
+  // sort list by alphabetical order
+  set ftpstr.AFTP_lDirs = sortlist ftpstr.AFTP_lDirs @isSmaller;
+  //debugStringList ftpstr.AFTP_lFiles strcat sMkAppletTmpPath "debug.txt";
+  
+  ftpConnect ftpstr;
+  0;;
+
+
+/* ********************************************************************************************* /
+  Make Applet files
+/ ********************************************************************************************* */
+fun mkAppletCpWebfiles(l, path)=
+  if l == nil then nil else
+  (
+    let getPathFile (hd l) "" -> [_ filename] in
+    if !strcmpi "index.html" filename then nil else
+    let _getpack (_checkpack (hd l)) -> fileCont in
+      _storepack fileCont (strcatn path::"web/"::filename::nil);
+    mkAppletCpWebfiles (tl l) path;
+  );
+  0;;
+
+
+fun mkAppletPhpInc(ftpstr, filename, xmlpath)=
+  let if ftpstr.AFTP_sAppDir == nil then sMkAppletTmpPath else strcatn sMkAppletTmpPath::ftpstr.AFTP_sAppDir::"/"::nil -> tmppath in
+  let _listoffiles sMkAppletPath -> lwebfiles in
+  let XMLload xmlpath -> xmlscenestr in
+  let XMLgetMarkByValue xmlscenestr "environment" -> envmark in
+  let XMLgetMarkByValueFromMarkSons envmark "colourBackground" -> backstr in
+  let make_rgb (ftoi ((atof XMLgetParam backstr "b") *. 255.0)) (ftoi ((atof XMLgetParam backstr "g") *. 255.0)) (ftoi ((atof XMLgetParam backstr "r") *. 255.0)) -> bgcolor in
+  (
+    mkAppletCpWebfiles lwebfiles tmppath;
+    let strreplace strcatn "scol://applet?app="::ftpstr.AFTP_sUrl::filename::nil " " "%20" -> appurl in
+    let strreplace strcatn "scol://applet:"::ftpstr.AFTP_sUrl::filename::nil " " "%20" -> oldappurl in
+    let getVoyagerVersionS -> svoyver in
+    let _getpack _checkpack strcat sMkAppletPath "index.html" -> html in
+    (
+      set html = strreplace html "$BGCOLOR" (if bgcolor == 0 then "000000" else (itoh bgcolor));
+      set html = strreplace html "$SCOL_SITE_URL_OLD" oldappurl;
+      set html = strreplace html "$SCOL_SITE_URL" appurl;
+      set html = strreplace html "$WIN_32_PLUGIN_URL" "http://www.scolring.org/rsc/scol_plugin.exe";
+      set html = strreplace html "$MINIMUMSCOLVERSION" svoyver;
+      set html = strreplace html "$WEBINTEGRATED" (itoa ftpstr.AFTP_bWebIn);
+      set html = strreplace html "$WIDTH" (itoa ftpstr.AFTP_iWidth);
+      set html = strreplace html "$HEIGHT" (itoa ftpstr.AFTP_iHeight);
+      _storepack html strcatn tmppath::"web/index.html"::nil;
+    );
+    
+    let sizelist lwebfiles -> size in
+    let nil -> ndata in
+    let 0 -> i in
+    (
+      while i < size do
+      (
+        let nth_list lwebfiles i -> elem in
+        let getPathFile elem "" -> [_ wname] in
+          set ndata = (strcatn ftpstr.AFTP_sAppDir::"/web/"::wname::nil)::ndata;
+          
+        set i = i + 1;
+      );
+      (strcat ftpstr.AFTP_sAppDir "/web/index.html")::ndata;
+    );
+  );;
+
+
+fun strright(s, i) = substr s (strlen s)-i i;;
+
+
+fun getFileContent(file)=
+  //test for xos file and remove private content
+  let getFileExt file -> ext in
+  if (!strcmpi ext "xos") then
+  (
+    let XMLload file -> xmlstr in
+    (
+      let XMLgetMarkByValue xmlstr "project" -> srcprjmark in
+      let XMLgetMarkByValueFromMarkSons srcprjmark "setting" -> srcsettingmark in
+      let sizelist lConfidentialMarks -> size in
+      let 0 -> i in
+      (
+        while (i < size) do
+        (
+          let nth_list lConfidentialMarks i -> key in
+          let XMLgetMarkByValueFromMarkSons srcsettingmark key -> mark in
+          if (mark == nil) then nil else
+            XMLdelMark xmlstr mark;
+          
+          set i = i + 1;
+        );
+      );
+      
+     XMLserialize xmlstr;
+    );
+  )
+  else
+  (
+    _getpack _checkpack file;
+  );;
+
+
+fun mkAppletFilter(l, path)=
+  if (l == nil) then nil else
+  let if path == nil then sMkAppletTmpPath else strcatn sMkAppletTmpPath::path::"/"::nil -> tmppath in
+  let l->[x nxt] in
+  let x->[url [name[size[type[sgn _]]]]] in
+  if url!=nil && ((!strcmp "http://" substr url 0 7) || (!strcmp "https://" substr url 0 8) || (!strcmp "ftp://" substr url 0 6)) then
+  (
+    let getFileContent name -> content in
+    let zip content -> zipfile in
+  	(
+  	  _storepack zipfile strcatn tmppath::name::".zp"::nil;
+  		((if !strcmpi strright url 3 ".zp" then url else strcat url ".zp")::name::(itoa strlen zipfile)::"2"::(_getlongname content "" "#")::nil)::(mkAppletFilter nxt path);
+    );
+  )
+  else
+  	x::(mkAppletFilter nxt path);;
+
+
+fun mkAppletCrypt(ftpstr, name, cont, lfiles, xmlpath)=
+  let if (ftpstr.AFTP_sAppDir == nil) then name else strlowercase strcatn ftpstr.AFTP_sAppDir::"/"::name::nil -> destfile in
+  let strbuild mkAppletFilter strextr cont ftpstr.AFTP_sAppDir -> newcontent in
+  (
+    _storepack newcontent strcat sMkAppletTmpPath destfile;
+    
+    let mkAppletPhpInc ftpstr name xmlpath -> lwebfiles in
+    let listLowercase (destfile::(lcat lwebfiles lfiles)) -> lupfiles in
+      set ftpstr.AFTP_lFiles = lupfiles;
+    
+    mkAppletUploadFiles ftpstr;
+  );
+  0;;
+
+
+fun fileExist(l, file)=
+if l ==nil then 0 else
+  if (!strcmp (hd l) file) then 
+    1
+  else fileExist (tl l) file;;
+
+
+fun findExcluFile(lfiles)=
+  let sizelist lfiles -> size in
+  let nil -> nlist in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list lfiles i -> file in
+      let getFileExt file -> ext in 
+        if (!strcmpi "bak" ext) || 
+          (!strcmpi "scol" ext) ||
+          (!strcmpi "max" ext) ||
+          (!strcmpi "psd" ext) ||
+          (!strcmpi "exe" ext) ||
+          (!strcmpi "php" ext) ||
+          (!strcmpi "db" ext) ||
+          (fileExist nlist file)
+        then nil else
+      set nlist = file::nlist;
+      
+      set i = i + 1;
+    );
+    nlist;
+  );;
+
+
+// get default player lib and plugin resources
+fun getMkAppletXmlResources(xmlpath)=
+  let XMLload xmlpath -> xmlscenestr in
+  let XMLgetMarksByValue xmlscenestr "resource" -> lresourcemarks in
+  let XMLgetMarksByValue xmlscenestr "plugin" -> lpluginsmarks in
+  let nil -> lout in
+  (
+    let sizelist lresourcemarks -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lresourcemarks i -> resourcemark in
+      let XMLgetParam resourcemark "type" -> type in
+      let XMLgetParam resourcemark "path" -> path in
+        set lout = path::lout;
+      
+      set i = i + 1;
+    );
+    
+    let sizelist lpluginsmarks -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lpluginsmarks i -> pluginmark in
+      let strcat "tools/os3dplugins/" XMLgetParam pluginmark "source" -> source in
+      let getPathFile source "" -> [plugdir _] in
+      let XMLload source -> xmlpluginstr in
+      let XMLgetMarkByValue xmlpluginstr "resource" -> resourcemark in
+      let XMLgetMarksByValueFromMark resourcemark "file" -> lfilemarks in 
+      let XMLgetMarkByValue xmlpluginstr "client" -> clientmark in
+      let XMLgetMarkByValue xmlpluginstr "editor" -> editormark in
+      let XMLgetMarksByValueFromMark clientmark "script" -> lscripmarks in
+      let XMLgetMarksByValueFromMark editormark "param" -> lparams in
+      (
+        set lout = source::lout;
+        
+        let sizelist lfilemarks -> size in
+        let 0 -> i2 in
+        while i2 < size do
+        (
+          let nth_list lfilemarks i2 -> filemark in
+          let getRelativePath (getDirectoryWithoutLastSlash plugdir) (XMLgetParam filemark "path") -> file in
+            set lout = file::lout;
+          set i2 = i2 + 1;
+        );
+        
+        let sizelist lscripmarks -> size in
+        let 0 -> i2 in
+        while i2 < size do
+        (
+          let nth_list lscripmarks i2 -> scriptmark in
+          let getRelativePath (getDirectoryWithoutLastSlash plugdir) (XMLgetParam scriptmark "path") -> file in
+            set lout = file::lout;
+          set i2 = i2 + 1;
+        );
+        
+        let sizelist lparams -> size3 in
+        let 0 -> i3 in
+        while i3 < size3 do
+        (
+          let nth_list lparams i3 -> parammark in
+          let XMLgetParam parammark "name" -> pname in
+          let XMLgetParam parammark "type" -> ptype in
+          if (!strcmpi ptype "file") then
+          (
+            let XMLgetMarksByValueAndParamValueFromMark pluginmark "param" "name" pname -> liparam in
+            while liparam != nil do
+            (
+              let XMLgetData (hd liparam) -> path in
+              if (!strcmp "" strtrim path) || (path == nil) || ((_checkpack path) == nil) then nil else
+              (
+                let getFileExt path -> ext in
+                if ((!strcmpi ext "xos") && !(isStringInListi lout path) && (strcmpi path xmlpath)) then
+                  set lout = lcat (getMkAppletXmlResources path) lout
+                else
+                  set lout = path::lout;
+              );
+              
+              set liparam = tl liparam;
+            );
+          )
+          else nil;
+            
+          set i3 = i3 + 1;
+        );
+      );
+      
+      set i = i + 1;
+    );
+    
+    xmlpath::lout;
+  );;
+
+
+fun mkAppletAddFile(url, l, ls)=
+  if l ==nil then ls else 
+  let l -> [elem next] in
+  (
+    let (strreplace (strcat url elem) " " "%20") -> nurl in
+    let (strcatn nurl::"\ "::(strreplace elem " " "\\ ")::"\n"::ls::nil) -> newstring in
+    mkAppletAddFile url next newstring;
+  );;
+
+
+fun mkAppletUpdateZpFilesName(l, path)=
+  let if path == nil then "" else strcatn path::"/"::nil -> tmppath in
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+        set ndata = (strcatn tmppath::elem::".zp"::nil)::ndata;
+        
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+fun mkAppletGetFilesMd5(lfiles)=
+  let sizelist lfiles -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list lfiles i -> elem in
+      let _filemd5 _checkpack elem -> fmd5 in
+      if fmd5 == nil then nil else
+        set ndata = fmd5::ndata;
+      
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+fun copyFilesToExportDirectory(dir, lfiles, xmlpath, fname, w, h, renderer, antialias, iconpath)=
+  while lfiles != nil do
+  (
+    let hd lfiles -> file in
+      _storepack (getFileContent file) strcatn dir::"/partition/"::file::nil;
+    
+    set lfiles = tl lfiles;    
+  );
+  
+  //copy scol voyager
+  let getFilesFromDir "" "dll"::"ini"::"ocx"::"ico"::"pak"::nil -> lroot in
+  while lroot != nil do
+  (
+    let hd lroot -> file in
+      _storepack (_getpack _checkpack file) strcatn dir::"/"::file::nil;
+    
+    set lroot = tl lroot;
+  );
+  
+  //copy plugins
+  let getFilesFromDirRecursive "plugins" -> lplugins in
+  while lplugins != nil do
+  (
+    let hd lplugins -> file in
+      _storepack (_getpack _checkpack file) strcatn dir::"/"::file::nil;
+    
+    set lplugins = tl lplugins;
+  );
+  
+  //copy web data
+  let getFilesFromDirRecursive "locales" -> llocales in
+  while llocales != nil do
+  (
+    let hd llocales -> file in
+      _storepack (_getpack _checkpack file) strcatn dir::"/"::file::nil;
+    
+    set llocales = tl llocales;
+  );
+  
+  _storepack (_getpack _checkpack "Scol.exe") strcatn dir::"/"::(strcat fname ".exe")::nil;
+  
+  if (iconpath == nil) then nil else
+    _storepack (_getpack iconpath) strcatn dir::"/partition/tools/os3dplayer/os3dplayer.ico"::nil;
+  
+  //make usm.ini
+  let strextr (_getpack (_checkpack (strcatn dir::"/"::"usm.ini"::nil))) -> lusm in
+  let ("standalone"::"yes"::nil)::("log"::"no"::nil)::nil -> pusm in
+  (
+    while lusm != nil do
+    (
+      let hd lusm -> elem in
+      if (!strcmp "scol" (hd elem)) || (!strcmp "plugin" (hd elem)) then
+        set pusm = lcat pusm elem::nil
+      else nil;
+      set lusm = tl lusm;
+    );
+    
+    set pusm = lcat pusm
+    ("cache"::"./partition"::"0"::nil)::
+    ("diska"::"./partition"::"0"::nil)::
+    ("SO3Renderer"::renderer::nil)::
+    ("3DFSAA"::antialias::nil)::
+    ("3DMipmap"::"2"::nil)::
+    nil;
+    
+    _storepack (strbuild pusm) strcatn dir::"/"::"usm.ini"::nil;
+  );
+  
+  //make master.pkg
+  let ("typeof"::"env_ref=Env;;"::nil)::
+      ("defcom"::"Smain=main"::"S"::"S"::"S"::"S"::"I;;"::nil)::
+      ("fun"::"main(p)="::nil)::
+      ("set"::"env_ref=_envchannel"::"_channel;"::nil)::
+      ("_load"::"\"tools/os3dplayer/os3dload.pkg\";"::nil)::
+      ("_script"::"mkscript"::"Smain"::(strcatn "[\""::xmlpath::"\""::nil)::(strcatn "\""::fname::"\""::nil)::(strcatn "\""::(itoa w)::"\""::nil)::(strcatn "\""::(itoa h)::"\""::nil)::"0];"::nil)::
+      ("0;;"::nil)::nil
+  -> pmaster in
+  _storepack (strbuild pmaster) strcatn dir::"/partition/locked/master.pkg"::nil;
+  0;;
+
+
+fun mkStandAloneListFiles(xmlpath)=
+  let getFilesFromDir "locked" nil -> locked in
+  let getFilesFromDirRecursive "locked/etc" -> etc in
+  let getFilesFromDirRecursive "locked/lib" -> lcklib in
+  let getFilesFromDirRecursive "tools/os3dlib" -> lib in
+  let getFilesFromDirRecursive "tools/os3dplayer" -> player in
+  let getMkAppletXmlResources xmlpath -> lres in
+    listLowercase findExcluFile (lcat (lcat (lcat (lcat (lcat locked etc) lcklib) lib) player) lres);;
+
+
+fun mkAppletListFiles(xmlpath)=
+  let getFilesFromDirRecursive "tools/os3dlib" -> lib in
+  let getFilesFromDirRecursive "tools/os3dplayer" -> player in
+  let getMkAppletXmlResources xmlpath -> lres in
+    listLowercase findExcluFile (lcat (lcat lib player) lres);;
+
+
+fun mkAppletGetAppMd5(xmlpath)=
+  mkAppletGetFilesMd5 mkAppletListFiles xmlpath;;
+
+
+fun cbMkAppletOkBtn(ctrlbtn, p)=
+  let p -> [xmlpath script ftpstr] in
+  let getDirectoryWithoutLastSlash (getEdCtrlTextLineValue ftpstr.AFTP_ctrlWww) -> www in
+  let getDirectoryWithoutFirstSlash getDirectoryWithoutLastSlash (getEdCtrlTextLineValue ftpstr.AFTP_ctrlDir) -> appdir in
+  let if (!strcmpi "" (strtrim appdir)) then nil else strlowercase appdir -> appdir in
+  let getDirectoryWithoutLastSlash (getEdCtrlTextLineValue ftpstr.AFTP_ctrlRoot) -> ftproot in
+  let if !strcmp (strtrim ftproot) "" then "/" else (strcat ftproot "/") -> ftproot in
+  let (getEdCtrlTextLineValue ftpstr.AFTP_ctrlHost) -> ftphost in
+  let ftoi (getEdCtrlFloatValue ftpstr.AFTP_ctrlPort) -> ftpport in
+  let (getEdCtrlTextLineValue ftpstr.AFTP_ctrlLogin) -> ftplogin in
+  let (getEdCtrlTextLineValue ftpstr.AFTP_ctrlPass) -> ftppass in
+  let (getEdCtrlCheckState ftpstr.AFTP_ctrlInWeb) -> webin in
+  let if appdir == nil then
+        strcatn (if (!strcmp "http://" substr www 0 7) || (!strcmp "https://" substr www 0 8) then nil else "http://")::www::"/"::nil
+      else
+        strcatn (if (!strcmp "http://" substr www 0 7) || (!strcmp "https://" substr www 0 8) then nil else "http://")::www::"/"::appdir::"/"::nil
+  -> url in
+  if (!strcmp (strtrim ftphost) "") || (ftpport == nil) || (!strcmp (strtrim ftplogin) "") || (!strcmp (strtrim ftppass) "") || (!strcmp (strtrim www) "") then
+  (
+    _DLGMessageBox _channel ftpstr.AFTP_ctrlWindow.EDW_win "Error" "Please check the form" 0;
+    0;
+  )
+  else
+  (
+    set ftpstr.AFTP_bError = 0;
+    set ftpstr.AFTP_iState = 0;
+    set ftpstr.AFTP_sHost = ftphost;
+    set ftpstr.AFTP_iport = ftpport;
+    set ftpstr.AFTP_sLogin = ftplogin;
+    set ftpstr.AFTP_sPass = ftppass;
+    set ftpstr.AFTP_sDir = ftproot;
+    set ftpstr.AFTP_sAppDir = appdir;
+    set ftpstr.AFTP_sUrl = strreplace url " " "%20";
+    set ftpstr.AFTP_bWebIn = webin;
+    
+    //save ftp configuration
+    setProjectSetting "ftpHost" ftphost;
+    setProjectSetting "ftpPort" itoa ftpport;
+    setProjectSetting "ftpLogin" ftplogin;
+    setProjectSetting "ftpRoot" ftproot;
+    setProjectSetting "ftpDir" appdir;
+    setProjectSetting "ftpWWW" www;
+    setProjectSetting "ftpIntegrated" itoa webin;
+    
+    setEdCtrlTextValue ftpstr.AFTP_ctrlLog "";
+    mkAppletEnableInterface ftpstr 0;
+    
+    let ctime time -> date in
+    let if ftpstr.AFTP_sAppDir == nil then strcatn sMkAppletTmpPath::"ftp.log"::nil else strcatn sMkAppletTmpPath::ftpstr.AFTP_sAppDir::"/"::"ftp.log"::nil -> logpath in
+    (
+      _storepack strcatn "OS3D FTP Upload on "::date::"\n"::nil logpath;
+      set ftpstr.AFTP_wLogFile = _getmodifypack logpath;
+    );
+    
+    let getFileNameWithoutExt xmlpath -> fname in
+    let mkAppletListFiles xmlpath -> lfiles in
+    let strcatn (mkAppletAddFile url lfiles nil)::"\nscript\n"::script::nil -> cont in
+      mkAppletCrypt ftpstr (strlowercase (strcat fname ".txt")) cont (mkAppletUpdateZpFilesName lfiles ftpstr.AFTP_sAppDir) xmlpath;
+  );
+  0;;
+
+
+fun cbMkAppletCancelBtn(ctrlbtn, p)=
+  let p -> [winstr ftpstr] in
+  (
+    _TELNETClose ftpstr.AFTP_telnet;
+    dsEdWindow winstr;
+    set winMkApplet = nil;
+  );
+  0;;
+
+
+fun cbDestroyExportAppletWin(winstr, ftpstr)=
+  _TELNETClose ftpstr.AFTP_telnet;
+  set winMkApplet = nil;
+  0;;
+
+
+fun mkApplet(fatherstr, projname, xmlpath, script, w, h)=
+  if winMkApplet != nil then nil else
+  (
+    let _GETscreenSize -> [sw sh] in
+    let [430 405] -> [iw ih] in
+    let getFileNameWithoutExt xmlpath -> fname in
+    
+    //get the user ftp preference
+    let getProjectSetting "ftpHost" -> ftphost in
+    let itof (atoi getProjectSetting "ftpPort") -> ftpPort in
+    let if (ftpPort == nil) then 21.0 else ftpPort -> ftpPort in
+    let getProjectSetting "ftpLogin" -> ftpLogin in
+    let getProjectSetting "ftpRoot" -> ftpRoot in
+    let if (ftpRoot == nil) then "/" else ftpRoot -> ftpRoot in
+    let getProjectSetting "ftpDir" -> ftpDir in
+    let if (ftpDir == nil) then fname else ftpDir -> ftpDir in
+    let getProjectSetting "ftpWWW" -> ftpWWW in
+    let atoi (getProjectSetting "ftpIntegrated") -> ftpIntegrated in
+    let if (ftpIntegrated == nil) then 1 else ftpIntegrated -> ftpIntegrated in
+      
+    let crEdModalDialogWindow _channel fatherstr ((sw / 2) - (iw / 2)) ((sh / 2) - (ih / 2)) iw ih WN_NOSCOL|WN_MENU nil "Export to Web Page" -> winstr in
+    let crEdCtrlLabel winstr 10 12 205 20 "Ftp host" nil -> labelhost in
+    let crEdCtrlTextLine winstr 220 10 (iw - 230) 20 ftphost nil EDWIN_RESIZE_MW -> ctrlhost in
+    let crEdCtrlLabel winstr 10 37 205 20 "Ftp port" nil -> labelport in
+    let crEdCtrlFloat winstr 220 35 60 20 ftpPort 1.0 65535.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlport in
+    let crEdCtrlLabel winstr 10 62 205 20 "Ftp login" nil -> labellogin in
+    let crEdCtrlTextLine winstr 220 60 (iw - 230) 20 ftpLogin nil EDWIN_RESIZE_MW -> ctrllogin in
+    let crEdCtrlLabel winstr 10 87 205 20 "Ftp password" nil -> labelpass in
+    let crEdCtrlTextLine winstr 220 85 (iw - 230) 20 "" ET_BORDER|ET_AHSCROLL|ET_TABFOCUS|ET_PASSWORD EDWIN_RESIZE_MW -> ctrlpass in
+    let crEdCtrlLabel winstr 10 112 205 20 "Ftp www root path (ex:/www)" nil -> labelroot in
+    let crEdCtrlTextLine winstr 220 110 (iw - 230) 20 ftpRoot nil EDWIN_RESIZE_MW -> ctrlroot in
+    let crEdCtrlLabel winstr 10 137 205 20 "Ftp destination directory (ex:project)" nil -> labeldir in
+    let crEdCtrlTextLine winstr 220 135 (iw - 230) 20 ftpDir nil EDWIN_RESIZE_MW -> ctrldir in
+    let crEdCtrlLabel winstr 10 162 205 20 "Http domain (ex:www.domain.com)" nil -> labelwww in
+    let crEdCtrlTextLine winstr 220 160 (iw - 230) 20 ftpWWW nil EDWIN_RESIZE_MW -> ctrlwww in
+    let crEdCtrlCheck winstr 10 185 (iw - 20) 20 "Insert the application in the web page" EDWIN_RESIZE_MW -> ctrlwebin in
+    let crEdCtrlText winstr 10 210 (iw - 20) 150 "" ET_BORDER|ET_AVSCROLL|ET_VSCROLL|ET_TABFOCUS EDWIN_RESIZE_MW -> ctrlinfos in
+    let crEdCtrlButton winstr 10 (ih - 30) 90 20 "Ok" EDWIN_RESIZE_MW -> ctrlok in
+    let crEdCtrlButton winstr (iw - 100) (ih - 30) 90 20 "Cancel" EDWIN_RESIZE_MW -> ctrlcancel in
+    let mkFtpSetting [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil winstr ctrlhost ctrlport ctrllogin ctrlpass ctrlroot ctrldir ctrlwww ctrlwebin ctrlinfos ctrlok ctrlcancel 0 0] -> ftpstr in    
+    (
+      set winMkApplet = winstr;
+      set ftpstr.AFTP_iWidth = w;
+      set ftpstr.AFTP_iHeight = h;
+      setEdCtrlCheckState ctrlwebin ftpIntegrated;
+      setEdCtrlButtonCb ctrlok mkfun2 @cbMkAppletOkBtn [xmlpath script ftpstr];
+      setEdCtrlButtonCb ctrlcancel mkfun2 @cbMkAppletCancelBtn [winstr ftpstr];
+      
+      setEdwindowCbDestroy winstr mkfun2 @cbDestroyExportAppletWin ftpstr;
+    );
+  );
+  0;;
+
+
+fun cbMkStandAloneDoneBtn(ctrlbtn, winstr)=
+  dsEdWindow winstr;
+  0;;
+
+
+fun cbMkStandAloneOk(ctrlbtn, p)=
+  let p -> [pwinstr fatherstr projname xmlpath script w h iconpath ctrliconpath ctrlrenderer ctrlantialias] in
+  let getSelectedEdCtrlSelect ctrlrenderer -> renderer in
+  let getSelectedEdCtrlSelect ctrlantialias -> antialias in
+  let _GETscreenSize -> [sw sh] in
+  let [430 120] -> [iw ih] in
+  let getDirectoryWithoutLastSlash (getFileDirectory xmlpath) -> projdir in
+  let if (projdir == nil) || (!strcmp projdir "") then (strcatn sExportDirectory::"/"::projname::nil) else (strcatn projdir::"/"::sExportDirectory::"/"::projname::nil) -> exportdir in
+  (
+    dsEdWindow pwinstr;
+    let crEdModalDialogWindow _channel fatherstr ((sw / 2) - (iw / 2)) ((sh / 2) - (ih / 2)) iw ih WN_NOSCOL|WN_MENU nil "Export to Stand alone application" -> winstr in
+    let crEdCtrlLabelEx winstr 10 12 iw-20 50 "Exporting, please wait ..." ET_ALIGN_CENTER nil -> labelport in
+    let crEdCtrlButton winstr ((iw /2) - 45) (ih - 30) 90 20 "Done" EDWIN_RESIZE_MW -> ctrldone in
+    (
+      setEdCtrlButtonEnable ctrldone 0;
+      _addPartition "./" 2;
+      let mkStandAloneListFiles xmlpath -> lfiles in
+      (
+        cleanDirectory exportdir;
+        copyFilesToExportDirectory exportdir lfiles xmlpath projname w h renderer antialias iconpath;
+      );
+      
+      _removeLastPartition;
+      setEdCtrlLabelValue labelport strcatn "Export complete in \""::exportdir::"\" directory"::nil;
+      setEdCtrlButtonCb ctrldone mkfun2 @cbMkStandAloneDoneBtn winstr;
+      setEdCtrlButtonEnable ctrldone 1;
+    );
+  );
+  0;;
+
+
+fun cbStandAloneRenderer(ctrlselect, pos, elem, ctrlantialias)=
+  fillEdCtrlSelect ctrlantialias (SO3GetMultisamplingMode (if (!strcmp elem "DirectX9") then SO3_DIRECTX9_RENDERER else if (!strcmp elem "DirectX11") then SO3_DIRECTX11_RENDERER else SO3_OPENGL_RENDERER));
+  0;;
+
+
+fun cbDlgStandAloneGetIconPath(dlg, p, pfile)=
+  let p -> [ctrlbtn p1] in
+  let p1 -> [pwinstr fatherstr projname xmlpath script w h iconpath ctrliconpath ctrlrenderer ctrlantialias] in
+  (
+    if pfile == nil then nil else
+    let _GetFileNameFromP pfile -> fname in
+      setEdCtrlTextLineValue ctrliconpath fname;
+
+    setEdCtrlButtonEnable ctrlbtn 1;
+    
+    mutate p1 <- [_ _ _ _ _ _ _ pfile _ _ _];
+  );
+  0;;
+
+
+fun cbBtnStandAlonePickIconPath(ctrlbtn, p)=
+  let p -> [winstr _ _ _ _ _ _ _ _ _ _] in
+  (
+    setEdCtrlButtonEnable ctrlbtn 0;
+    
+    _DLGrflopen _DLGOpenFile _channel winstr.EDW_win nil nil "Icon\0*.ico\0All\0*.*\0\0" @cbDlgStandAloneGetIconPath [ctrlbtn p];
+  );
+  0;;
+
+
+fun mkStandAlone(fatherstr, projname, xmlpath, script, w, h)=
+  let _GETscreenSize -> [sw sh] in
+  let [430 120] -> [iw ih] in
+  let 10 -> ipos in
+  let crEdModalDialogWindow _channel fatherstr ((sw / 2) - (iw / 2)) ((sh / 2) - (ih / 2)) iw ih WN_NOSCOL|WN_MENU nil "Export to Stand alone application" -> winstr in
+  let crEdCtrlLabel winstr 10 (ipos + 2) 160 20 "Renderer" nil -> labelrenderer in
+  let crEdCtrlSelect winstr 180 ipos (iw - 190) 120 CB_AHSCROLL -> ctrlrenderer in
+  let crEdCtrlLabel winstr 10 ((set ipos = ipos + 25) + 2) 160 20 "Antialiasing" nil -> labelantialias in
+  let crEdCtrlSelect winstr 180 ipos (iw - 190) 120 CB_AHSCROLL -> ctrlantialias in
+  let crEdCtrlLabel winstr 10 ((set ipos = ipos + 25) + 2) 160 20 "Icon path" nil -> labelicon in
+  let crEdCtrlTextLine winstr 180 ipos (iw - 250) 20 nil nil EDWIN_RESIZE_MW -> ctrliconpath in
+  let crEdCtrlButton winstr (iw - 65) ipos 55 20 "..." nil -> pickbtn in
+  
+  let crEdCtrlButton winstr 10 (ih - 30) 90 20 "Ok" EDWIN_RESIZE_MW -> ctrlok in
+  let crEdCtrlButton winstr (iw - 100) (ih - 30) 90 20 "Cancel" EDWIN_RESIZE_MW -> ctrlcancel in
+  let [winstr fatherstr projname xmlpath script w h nil ctrliconpath ctrlrenderer ctrlantialias] -> p in
+  (
+    setEdCtrlTextLineEnable ctrliconpath 0;
+    setEdCtrlButtonCb pickbtn mkfun2 @cbBtnStandAlonePickIconPath p;
+    
+    fillEdCtrlSelect ctrlrenderer "DirectX9"/*::"DirectX11"*/::"OpenGL"::nil;
+    setEdCtrlSelectCb ctrlrenderer mkfun4 @cbStandAloneRenderer ctrlantialias;
+    fillEdCtrlSelect ctrlantialias (SO3GetMultisamplingMode SO3_DIRECTX9_RENDERER);
+    
+    
+    setEdCtrlButtonCb ctrlok mkfun2 @cbMkStandAloneOk p;
+    setEdCtrlButtonCb ctrlcancel mkfun2 @cbMkStandAloneDoneBtn winstr;
+  );
+  0;;

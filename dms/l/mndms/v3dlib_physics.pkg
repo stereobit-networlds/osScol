@@ -1,0 +1,284 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/**************************************************
+ Ogre 3D Newton physics library
+ Version: 1.0
+ Author: Bastien BOURINEAU
+ Last update: 16.12.2008
+
+**************************************************/
+
+// arch     : SO3_PA_DEFAULT SO3_PA_MEDIUM SO3_PA_BEST
+// solver   : SO3_SM_EXACT SO3_SM_ADAPTATIVE 
+// friction : SO3_FM_EXACT SO3_FM_ADAPTATIVE 
+
+struct V3Dphysics =
+[
+  V3DPHYS_vWold         : [F F F],
+  V3DPHYS_iFps          : I,
+  V3DPHYS_iArchMode     : I,
+  V3DPHYS_iSolverMode   : I,
+  V3DPHYS_iFrictionMode : I,
+  
+  V3DPHYS_bEnable       : I
+
+] mkV3Dphysics;;
+
+proto V3DphysCreateBodyEllipsoid = fun [SO3_OBJECT [F F F]] SO3_PHYSICBODY;;
+proto V3DphysCreateBodyBox = fun [SO3_OBJECT [F F F]] SO3_PHYSICBODY;;
+//proto V3DphysCreateBodyFluid = fun [SO3_OBJECT] SO3_PHYSICBODY;;
+
+
+fun V3DphysEnablePhysic(sessionstr, state)=
+  if (sessionstr.V3D_physics.V3DPHYS_bEnable == 1 && state == 1) then nil else
+  (
+    set sessionstr.V3D_physics.V3DPHYS_bEnable = state;
+    SO3WorldSetEnabled (V3DgetSession sessionstr) state;
+  );
+  0;;
+
+
+fun V3DphysResetPhysic(sessionstr)=
+  SO3WorldReset (V3DgetSession sessionstr);
+  0;;
+
+
+fun V3DphysGetState(sessionstr)= sessionstr.V3D_physics.V3DPHYS_bEnable;;
+
+
+fun V3DphysSetWorld(sessionstr, vec)=
+  if vec == nil then nil else
+  let vec -> [x y z] in
+  (
+    set sessionstr.V3D_physics.V3DPHYS_vWold = vec;
+    SO3WorldSetSize (V3DgetSession sessionstr) [(-.x /. 2.0) (-.y /. 2.0) (-.z /. 2.0)] [(x /. 2.0) (y /. 2.0) (z /. 2.0)];
+  ); 
+  0;;
+
+
+fun V3DphysGetWorld(sessionstr)= sessionstr.V3D_physics.V3DPHYS_vWold;;
+
+
+fun V3DphysSetFps(sessionstr, fps)=
+  if fps == nil then nil else
+  (
+    set sessionstr.V3D_physics.V3DPHYS_iFps = fps;
+    SO3WorldSetFPS (V3DgetSession sessionstr) sessionstr.V3D_physics.V3DPHYS_iFps;
+  );
+  0;;
+
+
+fun V3DphysGetFps(sessionstr)= sessionstr.V3D_physics.V3DPHYS_iFps;;
+
+
+fun V3DphysSetGravity(sessionstr, g)=
+  SO3WorldSetGravity (V3DgetSession sessionstr) (multiplyVectorF g [(itof iGlobalUnit) (itof iGlobalUnit) (itof iGlobalUnit)]);
+  0;;
+
+
+fun V3DphysGetGravity(sessionstr)= divideVectorF (SO3WorldGetGravity (V3DgetSession sessionstr)) [(itof iGlobalUnit) (itof iGlobalUnit) (itof iGlobalUnit)];;
+
+
+fun V3DphysSetArchitectureMode(sessionstr, mode)=
+  if mode == nil then nil else
+  (
+    set sessionstr.V3D_physics.V3DPHYS_iArchMode = mode;
+    SO3WorldSetPlateformArchitecture (V3DgetSession sessionstr) sessionstr.V3D_physics.V3DPHYS_iArchMode;
+  );
+  0;;
+
+
+fun V3DphysGetArchitectureMode(sessionstr)= sessionstr.V3D_physics.V3DPHYS_iArchMode;;
+
+
+fun V3DphysGetArchitectureModeName(sessionstr)=
+  let [SO3_PA_DEFAULT "default"]::[SO3_PA_MEDIUM "medium"]::[SO3_PA_BEST "best"]::nil -> l in
+    switch l (V3DphysGetArchitectureMode sessionstr);;
+
+
+fun V3DphysSetArchitectureModeByName(sessionstr, smode)=
+  let ["default" SO3_PA_DEFAULT]::["medium" SO3_PA_MEDIUM]::["best" SO3_PA_BEST]::nil -> l in
+    V3DphysSetArchitectureMode sessionstr (switchstri l smode);;
+
+
+fun V3DphysSetSolverMode(sessionstr, mode)=
+  if mode == nil then nil else
+  (
+    set sessionstr.V3D_physics.V3DPHYS_iSolverMode = mode;
+    SO3WorldSetSolverModel (V3DgetSession sessionstr) sessionstr.V3D_physics.V3DPHYS_iSolverMode;
+  );
+  0;;
+
+
+fun V3DphysGetSolverMode(sessionstr)= sessionstr.V3D_physics.V3DPHYS_iSolverMode;;
+
+
+fun V3DphysGetSolverModeName(sessionstr)=
+  let [SO3_SM_EXACT "exact"]::[SO3_SM_ADAPTATIVE "adaptative"]::nil -> l in
+    switch l (V3DphysGetSolverMode sessionstr);;
+
+
+fun V3DphysSetSolverModeByName(sessionstr, smode)=
+  let ["exact" SO3_SM_EXACT]::["adaptative" SO3_SM_ADAPTATIVE]::nil -> l in
+    V3DphysSetSolverMode sessionstr (switchstri l smode);;
+
+
+fun V3DphysSetFrictionMode(sessionstr, mode)=
+  if mode == nil then nil else
+  (
+    set sessionstr.V3D_physics.V3DPHYS_iFrictionMode = mode;
+    SO3WorldSetFrictionModel (V3DgetSession sessionstr) sessionstr.V3D_physics.V3DPHYS_iFrictionMode;
+  );
+  0;;
+
+
+fun V3DphysGetFrictionMode(sessionstr)= sessionstr.V3D_physics.V3DPHYS_iFrictionMode;;
+
+
+fun V3DphysGetFrictionModeName(sessionstr)=
+  let [SO3_FM_EXACT "exact"]::[SO3_FM_ADAPTATIVE "adaptative"]::nil -> l in
+    switch l (V3DphysGetFrictionMode sessionstr);;
+
+
+fun V3DphysSetFrictionModeByName(sessionstr, smode)=
+  let ["exact" SO3_FM_EXACT]::["adaptative" SO3_FM_ADAPTATIVE]::nil -> l in
+    V3DphysSetFrictionMode sessionstr (switchstri l smode);;
+
+
+/*  
+fun V3DphysSetFluidProperties(sessionstr, body, p)=
+	let p -> [density viscosity accviscosity] in
+  SO3BodySetFluidProperties (V3DgetSession sessionstr) body density viscosity accviscosity;
+  0;;
+*/
+
+
+fun V3DphysSetBodyMaterial(sessionstr, body, matname)=
+  let if ((matname == nil) || (!strcmp "" (strtrim matname))) then "default" else matname -> matname in
+  let SO3PhysicsGetMaterial (V3DgetSession sessionstr) matname -> mat in
+  let if mat == nil then SO3PhysicsMaterialCreate (V3DgetSession sessionstr) matname else mat -> mat in
+  (
+    SO3BodySetMaterial body mat;
+    mat;
+  );;
+
+
+fun V3DphysCreateMaterialOnNode(sessionstr, node)=
+  let SO3ObjectGetName node -> name in
+  let SO3SceneNodeGetBody node -> body in
+  if (body == nil) then nil else
+  let SO3PhysicsMaterialCreate (V3DgetSession sessionstr) strcat name "_physmat" -> mat in
+  (
+    SO3BodySetMaterial body mat;
+    mat;
+  );;
+
+
+fun V3DphysCreateBodyEllipsoid(node, vec)=
+  let if vec == nil then let SO3ObjectGetBoundingBoxInfo node 0 -> [nvec _ _] in nvec else multiplyVectorF (SO3ObjectGetGlobalScale node) vec -> [x y z] in
+  let [(if x <=. 0.0 then 0.01 else x/.2.0) (if y <=. 0.0 then 0.01 else y/.2.0) (if z <=. 0.0 then 0.01 else z/.2.0)] -> vec in
+    SO3BodyCreateEllipsoid node vec;;
+
+
+fun V3DphysCreateBodyBox(node, vec)=
+  let if vec == nil then let SO3ObjectGetBoundingBoxInfo node 0 -> [nvec _ _] in nvec else multiplyVectorF (SO3ObjectGetGlobalScale node) vec -> [x y z] in
+  let [(if x <=. 0.0 then 0.01 else x) (if y <=. 0.0 then 0.01 else y) (if z <=. 0.0 then 0.01 else z)] -> vec in
+    SO3BodyCreateBox node vec;;
+
+
+fun V3DphysCreateBodyCylinder(node, vec)=
+  let if vec == nil then let SO3ObjectGetBoundingBoxInfo node 0 -> [nvec _ _] in nvec else multiplyVectorF (SO3ObjectGetGlobalScale node) vec -> [x y z] in
+  let [(if x <=. 0.0 then 0.01 else x) (if y <=. 0.0 then 0.01 else y) (if z <=. 0.0 then 0.01 else z)] -> [x y z] in
+    SO3BodyCreateCylinder node (y /. 2.0) x;;
+
+
+fun V3DphysCreateBodyChamferCylinder(node, vec)=
+  let if vec == nil then let SO3ObjectGetBoundingBoxInfo node 0 -> [nvec _ _] in nvec else multiplyVectorF (SO3ObjectGetGlobalScale node) vec -> [x y z] in
+  let [(if x <=. 0.0 then 0.01 else x) (if y <=. 0.0 then 0.01 else y) (if z <=. 0.0 then 0.01 else z)] -> [x y z] in
+    SO3BodyCreateChamferCylinder node (y /. 2.0) x;;
+
+
+fun V3DphysCreateBodyCapsule(node, vec)=
+  let if vec == nil then let SO3ObjectGetBoundingBoxInfo node 0 -> [nvec _ _] in nvec else multiplyVectorF (SO3ObjectGetGlobalScale node) vec -> [x y z] in
+  let [(if x <=. 0.0 then 0.01 else x) (if y <=. 0.0 then 0.01 else y) (if z <=. 0.0 then 0.01 else z)] -> [x y z] in
+    SO3BodyCreateCapsule node (y /. 2.0) x;;
+
+
+fun V3DphysCreateBodyCone(node, vec)=
+  let if vec == nil then let SO3ObjectGetBoundingBoxInfo node 0 -> [nvec _ _] in nvec else multiplyVectorF (SO3ObjectGetGlobalScale node) vec -> [x y z] in
+  let [(if x <=. 0.0 then 0.01 else x) (if y <=. 0.0 then 0.01 else y) (if z <=. 0.0 then 0.01 else z)] -> [x y z] in
+    SO3BodyCreateCone node (y /. 2.0) x;;
+
+
+fun V3DphysCreateBodyPyramid(node, vec)=
+  let if vec == nil then let SO3ObjectGetBoundingBoxInfo node 0 -> [nvec _ _] in nvec else multiplyVectorF (SO3ObjectGetGlobalScale node) vec -> [x y z] in
+  let [(if x <=. 0.0 then 0.01 else x) (if y <=. 0.0 then 0.01 else y) (if z <=. 0.0 then 0.01 else z)] -> vec in
+    SO3BodyCreatePyramid node vec;;
+
+
+fun V3DphysSetMaterialProperties(material, bcoll, bcontcoll, staticfriction, kineticfriction, elasticity, softness)=
+  
+  0;;
+
+
+fun V3DphysEnableBody(body, mode)=
+  let if !mode == 0 then 0 else 1 -> state in
+    SO3BodySetFreeze body state;
+  0;;
+
+
+fun V3DphysShowDebug(sessionstr, state)=
+  SO3WorldShowLines (V3DgetSession sessionstr) state;
+  0;;
+
+
+fun V3DphysCreate(sessionstr)=
+  let mkV3Dphysics [nil nil nil nil nil nil] -> physstr in
+  //SO3_PA_DEFAULT SO3_SM_EXACT SO3_FM_EXACT 
+  (
+    set sessionstr.V3D_physics = physstr;
+    
+    V3DphysSetArchitectureMode sessionstr SO3_PA_DEFAULT;
+    V3DphysSetSolverMode sessionstr SO3_SM_ADAPTATIVE;
+    V3DphysSetFrictionMode sessionstr SO3_SM_ADAPTATIVE;
+    
+    V3DphysSetWorld sessionstr [1000.0 1000.0 1000.0];
+    V3DphysSetFps sessionstr 60;
+    V3DphysSetGravity sessionstr [0.0 (-.9.81) 0.0];
+    V3DphysEnablePhysic sessionstr 0;
+  );
+  0;;
+
+
+fun V3DphysDestroy(sessionstr)=
+  V3DphysEnablePhysic sessionstr 0;
+  set sessionstr.V3D_physics = nil;
+  0;;
+
+
+fun V3DphysReset(sessionstr)=
+  V3DphysDestroy sessionstr;
+  V3DphysCreate sessionstr;
+  0;;
