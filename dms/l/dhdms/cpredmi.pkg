@@ -1,0 +1,13 @@
+/* <Scol Technologies License> */
+/* Copyright (c) 2003, organization : Scol Technologies Association, owner : Sylvain Huet */
+/* For conditions of distribution and use, see copyright notice in dms/l/license.txt */
+/* or on 'www.scol-technologies.org' */
+
+/* cDHDMS - mar 00 - by Sylvain HUET */
+/* client preDMI part */
+
+typeof this=DMI;;
+typeof from=DMI;;
+fun reg(i)= set this=DMSdmi.i;;
+fun regch()= set this=DMSthis;set from=DMSfrom;;
+

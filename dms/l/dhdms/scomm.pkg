@@ -1,0 +1,362 @@
+/* <Scol Technologies License> */
+/* Copyright (c) 2003, organization : Scol Technologies Association, owner : Sylvain Huet */
+/* For conditions of distribution and use, see copyright notice in dms/l/license.txt */
+/* or on 'www.scol-technologies.org' */
+
+/* sDHDMS - mar 00 - by Sylvain HUET */
+/* communication part */
+
+
+var versionmin=816;; /*848*/
+var srcpkgcli=
+ "dms/lib/stdlib.pkg"::"dms/lib/quicksort.pkg"::"locked/lib/directsound.pkg"::
+ "dms/l/dhdms/ccore.pkg"::"dms/l/dhdms/cloc.pkg"::"dms/l/dhdms/cdownload.pkg"::
+ "dms/l/dhdms/cmod.pkg"::"dms/l/dhdms/cdoc.pkg"::"dms/l/dhdms/cusers.pkg"::"dms/l/dhdms/ccomm.pkg"::nil;;
+var neededdmscli=
+ "dms/lib/stdlib.pkg"::"dms/lib/quicksort.pkg"::
+ "dms/l/dhdms/ccore.pkg"::"dms/l/dhdms/cloc.pkg"::"dms/l/dhdms/cdownload.pkg"::
+ "dms/l/dhdms/cmod.pkg"::"dms/l/dhdms/cdoc.pkg"::"dms/l/dhdms/cusers.pkg"::"dms/l/dhdms/ccomm.pkg"::
+ "dms/l/dhdms/cpredmi.pkg"::"dms/lib/hand.bmp"::"dms/lib/cross.bmp"::"dms/lib/handmac.bmp"::"dms/lib/crossmac.bmp"::nil;;
+
+var preDMIclient="dms/l/dhdms/cpredmi.pkg";;
+
+typeof packsusers=[[S S S] r1];;
+typeof scriptuser=S;;
+var versionuser=805;; /*848*/
+var scriptserver="_load \"dms/l/dhdms/filt.pkg\"\n_contact";;
+
+typeof http_fis=S;;
+
+/* modif 0102 */
+typeof DMSdownloadServer=[[S I] r1];; /*download servers list, [ip_adress, port number]*/
+
+/* choix au hasard d'un serveur de download */
+fun chooseDownloadServer()=
+nth_list DMSdownloadServer ((rand&255)*(sizelist DMSdownloadServer))>>8;;
+
+/* ajout d'un serveur de download supplémentaire */
+fun addDownloadServer2(l)= /* argument liste [S r1] alternant adresse et port */
+ if l==nil then nil else
+ [hd l atoi hd tl l]::addDownloadServer2 tl tl l;;
+
+fun addDownloadServer(l)= /* argument liste [S r1] alternant adresse et port */
+ set DMSdownloadServer = addDownloadServer2 l;;
+
+fun clibyx(c,x)= c.xCLI==x;;
+fun clientByLogin(p,name)=!strcmp p.loginCLI name;;
+fun clientByLoginI(p,name)=!strcmpi p.loginCLI name;;
+fun clientById(p,id)= p.userCLI.idU==id;;
+
+/* send function */
+fun _on_(c,m)=
+ if !c.httpCLI then _on c.chnCLI m
+ else let strcat "__" mkscript m-> s in
+ let strcat itoh8 strlen s s -> scom in
+ if c.conCLI==nil then
+ (set c.httppendCLI=strcat c.httppendCLI scom;0) /* blinder la taille */
+ else
+ (HTTPsend c.conCLI scom;
+  rflHTTPclose c.conCLI nil 0;
+  closeHTTPcon c.conCLI;
+  set c.conCLI=nil;
+  set c.httppendCLI=nil;
+  0);;
+
+/* create stdsrv struct */
+fun ldneeded(l)=
+ if l==nil then nil else let l->[a nxt] in
+  [a "" ""]::ldneeded nxt /*(getfileerr nil a;nil)*/
+ ;;
+
+fun checkfile(f)=
+ if strFindList neededdmscli f then _getlongname _getpack _checkpack f f "#"
+ else f;;
+ 
+fun mkscriptuser(l,r)=
+ if l==nil then r
+ else strcat mkscript Sload [checkfile hd l] mkscriptuser tl l r;;
+ 
+fun COMiniDirect(port)=
+ set packsusers=ldneeded neededdmscli;
+ set scriptuser=mkscriptuser srcpkgcli "main";
+ set preDMIclient=_getlongname _getpack _checkpack preDMIclient preDMIclient "#";
+ _setserver _envchannel _channel port "_load \"dms/l/dhdms/stdsrv2.pkg\"";;
+
+/* applet building */
+typeof appletheader=S;;
+
+fun mkappletscript(l)=
+ if l==nil then nil
+ else ("_load"::(strcat strcat "\"" checkfile hd l "\"")::nil)::mkappletscript tl l;;
+
+fun appletinit(l)=
+ if l==nil then ("script"::nil)::mkappletscript srcpkgcli
+ else let l->[[name cont sign] n] in
+ ((strcatn "http://"::_hostIP::":"::(itoa DMShttpport)::"/"::(itoh4 DMShttpport)::"?A"::(strtoweb name)::nil)::
+  name::(itoa strlen cont)::"2"::sign::nil)::appletinit n;;
+
+fun http_getapplet()=
+ strcatn appletheader::"mainHTTP \""::_hostIP::"\" "::(itoh DMShttpport)::"\n"::nil;;
+ 
+fun getfileapplet(l,url)=
+ if l==nil then ""
+ else let l->[a n] in let a->[name cont _] in
+ if !strcmp url name then strcat http_header cont
+ else getfileapplet n url;;
+ 
+/* communication via http */
+proto http_connex=fun[HTTPcon] S;;
+proto COMlogout=fun[CLIENT S] I;;
+typeof globHTTPcon=HTTPcon;;
+
+fun clibycon(c,con)= c.conCLI==con;;
+
+fun cbclose_http(con,b)=
+ let search_in_list DMSclients @clibycon con -> c in
+ if c==nil then nil
+ else COMlogout c "http main socket";;
+
+fun http_connex(con)=
+ HTTPsend con http_header;
+ set globHTTPcon=con; 
+ _openchannel nil "_load \"dms/l/dhdms/filthttp.pkg\"\n_contact" DMSenv; 
+ rflHTTPclose con @cbclose_http 0;
+ nil;;
+
+fun http_connex2(con,url)=
+ let htoi substr url 7 8 -> x in
+ if x==nil then ""
+ else let search_in_list DMSclients @clibyx x -> c in
+ if c==nil then ""
+ else let c.httppendCLI->pend in
+ if pend==nil then
+ (set c.conCLI=con;
+  HTTPsend con http_header;
+  rflHTTPclose con @cbclose_http 0;
+  nil)
+ else
+ (set c.conCLI=nil;
+  set c.httppendCLI=nil;
+  strcat http_header pend);;
+
+fun http_receive(url,cont)=
+ let htoi substr url 7 8 -> x in
+ if x==nil then ""
+ else let search_in_list DMSclients @clibyx x -> c in
+ if c==nil then ""
+ else let htoi substr url 15 4 -> n in
+ (if n==c.httpnumCLI then
+  (set c.httpnumCLI=c.httpnumCLI+1;
+   _scriptc c.chnCLI cont)  /* a approfondir (si plusieurs lignes)*/
+  else nil;
+  http_fis);;
+
+fun http_upload(con,url,content)=
+ let _DMSgetByHandle htoi substr url 15 4 -> d in
+ if d==nil then ""
+ else let htoi substr url 7 8 -> x in
+ if x==nil then ""
+ else let _DMSbyx x -> cli in
+ if cli==nil then ""
+ else let substr url 19 strlen url -> name in
+ (exec d.cbuploadDMI with [cli name content];
+  http_fis);;
+
+/* onrequest callback */
+fun http_onrequest(con,x,req)=
+ /*_fooS strcat ">>>>HTTP : " req;*/
+ let getHTTPclientIP con -> ip in /*test if ip is in black list*/
+ if _isIPbanned ip 1 then
+  (_logfile "rejected"::ip::"[via-http]"::nil;closeHTTPcon con;nil)
+ else
+	let hd strextr req -> l in
+	let l->[com [url _]] in
+	if (nth_char url 5)=='? then
+	if (!strcmpi com "GET") then
+	 let nth_char url 6 -> c in
+	 if c=='D then http_getfile con webtostr url
+	 else if c=='C then http_connex con
+	 else if c=='N then http_connex2 con url
+	 else if c=='X then http_getapplet
+	 else if c=='A then getfileapplet packsusers webtostr substr url 7 strlen url
+	 else ""
+	else if (!strcmpi com "POST") then
+	 let nth_char url 6 -> c in
+	 if c=='S then http_receive url (substr req (4+strfind "\13\10\13\10" req 0) strlen req)
+	 else if c=='U then http_upload con webtostr url (substr req (4+strfind "\13\10\13\10" req 0) strlen req)
+	 else ""
+	else ""
+	else "";;
+
+/* http initialization */
+fun fillpack(l)=
+ if l==nil then 0
+ else let l->[a n] in let a->[name _ _] in
+ let _getpack _checkpack name -> s in
+ (mutate a<-[if !strcmp substr name (strlen name)-4 4 ".pkg" then _getlongname s name "#" else name zip s _getlongname s "" "#"];
+  fillpack n);;
+
+fun COMiniHTTP(name,port)=
+ set DMShttpport=port;
+ fillpack packsusers;
+ set appletheader=strcat http_header strbuild ("versionmin"::(itoa versionuser)::nil)::appletinit packsusers;
+ set http_fis=strcat http_header "FIS";
+ 
+ startHTTPserver _channel port @http_onrequest nil;;
+
+
+/* client deconnection */
+fun COMlogout(cli,msg)=
+ _logfile "logout"::cli.ipCLI::(itoa cli.idCLI)::cli.loginCLI::(if cli.httpCLI then "[via-http]" else "[direct]")::msg::nil;
+ set DMSclients=remove_from_list DMSclients cli;
+ UdelGlobalUser cli.userCLI;
+ MODdelallclitag cli;
+ set cli.chnCLI=nil;
+ DMSdelete cli.activCLI cli;
+ DMSlogout _DMSrootModule cli;
+ _DMSevent _DMSrootModule cli "out" nil nil
+;;
+
+/* destroy client */
+fun COMdelClient(cli,msg)=
+ if cli==nil then nil else
+ (_killchannel cli.chnCLI;
+  closeHTTPcon cli.conCLI;
+  set cli.chnCLI=nil;  /* no other try */
+  set cli.conCLI=nil;
+  set cli.xCLI=nil;
+  COMlogout cli msg);;
+
+/* timeout system */
+fun sendping(cli,ping)=
+ MODdelclitagtimeout cli;
+ if cli.timeoutCLI then
+ (set cli.timeoutCLI=0;
+  _on_ cli ping)
+ else
+  COMdelClient cli "ping not received";;
+
+fun _clockE(a,b)=
+ apply_on_list DMSclients @sendping Cping [];;
+
+fun iniTimeout(i)=
+ if i==nil || i<=0 then nil
+ else _rfltimer _starttimer _channel i*1000 @_clockE 0;
+0;;
+
+
+/* resource system */
+fun DMSgetress(l,r)=switchstr l r;;
+
+fun DMSremress(l,r)=
+ if l==nil then nil
+ else let l->[v n] in
+ let v->[a b] in if !strcmp a r then n
+ else v::DMSremress n r;;
+
+/* API */
+
+/* start connection server  */
+fun _COMinit(public)=
+ iniTimeout DMStimeout;
+ if DMSport==nil then 0
+ else if (COMiniDirect DMSport)!=nil && (COMiniHTTP DMSname DMSport+1)!=nil
+ then if public then
+  (_on _masterchannel Cpublic [DMSname DMSport];
+   _on _masterchannel CpublicHTTP [DMSname DMSport+1];
+   0)
+  else 0
+ else let strcatn "Cannot launch the server : port "::(itoa DMSport)::" or "::(itoa DMSport+1)::" already used"::nil -> msg in
+ (if hidden_server then nil
+  else _DLGrflmessage _DLGMessageBox _channel DMSwin "Fatal Error" msg 0 @_endE 0;
+  _adderror msg;
+  1);;
+
+/* create a client : x=0 <=> direct connection */
+fun _COMlogon(x)=
+ let mkCLI[nil _channel nil nil nil  nil nil  nil nil nil nil
+  (rand<<16)+rand (if x then globHTTPcon else nil) 0 x nil nil nil nil] -> c in
+ (set c.ipCLI=if x then getHTTPclientIP globHTTPcon else _channelIP _channel;
+  set c.userCLI=UcreateUser c;
+  set c.idCLI=c.userCLI.idU;
+  set c.loginCLI=strcat "Guest " itoa c.userCLI.idU;
+  set DMSclients=c::DMSclients;
+  _logfile "login"::c.ipCLI::(itoa c.idCLI)::(if c.httpCLI then "[via-http]" else "[direct]")::nil;
+  _logfile "simult"::(itoa (sizelist DMSclients)+(sizelist SRVpending))::nil;
+/* modif 0102 */  
+  let chooseDownloadServer ->[download_name download_port] in
+    _on_ c Cinit [c.xCLI DMSnbDmi DMSname DMStimeout time _tickcount preDMIclient BARback BARfore BARtext download_name download_port];
+  _on_ c _GRAPHgetHookInactive;
+  c);;
+
+fun _COMlang(cli,lang)=
+ set cli.langCLI=lang;
+ set cli.loginCLI=strcat "Guest " itoa cli.userCLI.idU;
+ _DMScreateClientDMI _DMSrootModule cli nil;
+ _on_ cli Clogon [cli.loginCLI cli.userCLI.idU DMSfileCli];
+ 0;;
+
+fun _COMenter(cli,activeX,version,name,trace,enter)=
+ set cli.activeXCLI=activeX;
+ set cli.trCLI=trace;
+ set cli.versionCLI=version;
+ if version<versionmin then
+  _on_ cli CbadVersion [_locCli _DMSrootModule cli "BVTITLE" nil 
+   _locCli _DMSrootModule cli "BVTEXT" nil
+   _locCli _DMSrootModule cli "BVURL" nil]
+ else
+ (_DMSevent _DMSrootModule cli "in" nil nil;
+  _DMSevent _DMSrootModule cli "start" nil nil;
+  _DMSevent _DMSrootModule cli if enter==nil then "enter" else enter nil nil);;
+
+fun CtoU(c)=c.userCLI;;
+fun UtoC(u)=u.cliU;;
+fun _DMSgetLogin(c)=c.loginCLI;;
+fun _DMSsetLogin(c,l)=set c.loginCLI=l;;
+fun _DMSbyLogin(l)=search_in_list DMSclients @clientByLogin l;;
+fun _DMSbyLoginI(l)=search_in_list DMSclients @clientByLoginI l;;
+fun _DMSgetIP(c)= c.ipCLI;;
+fun _DMSclientAlive(c)=c.chnCLI!=nil;;
+fun _DMSbyx(x)=search_in_list DMSclients @clibyx x;;
+fun _DMSgetLanguage(cli)=cli.langCLI;;
+
+fun _DMSdelClient(cli)=COMdelClient cli "by application";;
+
+/* ascendant compatibility */
+fun _DMSgetId(c)=c.userCLI.idU;;
+fun _DMSbyId(i)=search_in_list DMSclients @clientById i;;
+fun _DMSgetress(m,r)=DMSgetress m.rsCLI r;;
+fun _DMSsetress(m,r,v)=
+ set m.rsCLI= if v==nil then DMSremress m.rsCLI r
+ else [r v]::DMSremress m.rsCLI r;
+ v;;
+fun _DMSaddItem(cli,i)=UaddItem cli.userCLI i;;
+fun _DMSsubItem(cli,ref,n)=UsubItem cli.userCLI ref n;;
+fun _DMSfindItem(cli,ref)=UfindItem cli.userCLI ref;;
+fun _DMSclearItem(cli)=UclearItem cli.userCLI;;
+
+fun main(file)=
+ srand time; 
+ set DMSserver=_channel; 
+ set DMSenv=_envchannel _channel; 
+ _DOCiniWindow 320 200;
+ _DEFinit file;
+/* _DEFinit "site/essai.scs";*/
+/* _DEFinit "House/house.scs";*/
+/* _DEFinit "WWscol/wwscol.scs";*/
+ _DEFget;
+ _DOCparse;
+ GRAPHstartRoot; 
+ let _DEFgetDef siteDef "def" -> def in
+ (_COMinit atoi getInfo def "public";
+  addDownloadServer getInfos def "download_servers");
+ if _stopiferror then nil
+ else
+ (_GRAPHinit;
+  _DOCregbitmaps;
+  _BLACKLISTpurgeInit; /*init black list purge timer*/
+  _logfile "******************** start ********************"::nil;
+  _stopiferror);
+ 0;;
+
+
