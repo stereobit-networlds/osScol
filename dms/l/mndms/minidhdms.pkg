@@ -103,11 +103,12 @@ fun strFindList(l,a)=
   
 / ********************************************************************************************* */
 
-fun _DMSrootModule()= switch DMSdmiOS 0;;
+//fun _DMSrootModule()= switch DMSdmiOS 0;;
 fun _DMSrootModuleOS()= switch DMSdmiOS 0;; /** OS alias **/
 
 
-fun _DMSgetByHandle(h)= switch DMSdmiOS h;;
+//fun _DMSgetByHandle(h)= switch DMSdmiOS h;;
+fun _DMSgetByHandleOS(h)= switch DMSdmiOS h;; /** OS alias **/
 
 
 fun _DMSremoveEvent(d, name)=
@@ -263,7 +264,7 @@ fun createDMI(id, name)=
     addDmiById id d;
     
     set DMSerror = @cbDebugConsol;
-    set this = _DMSrootModule;
+    set this = _DMSrootModuleOS; /* !!! */
 	set thisOS = _DMSrootModuleOS; /** OS alias **/
   );;
 
@@ -374,7 +375,7 @@ fun dmsReadParam(param, puser)=
   *
   *  \return 0
   **/
-fun _DMSevent(d, ev, param, repl)=
+fun _DMSeventOS(d, ev, param, repl)=
   let switchstr d.DMI_lEvents ev -> event in
   let event.DEVT_lLinks -> l in
   while (l != nil) do
@@ -431,9 +432,6 @@ fun _DMSevent(d, ev, param, repl)=
     set l = tl l;
   );
   0;;
-
-/*** alias ***/  
-fun _DMSeventOS(d, ev, param, repl)=  _DMSevent d ev param repl;;
 
 /* ********************************************************************************************* /
   C3dx definitions

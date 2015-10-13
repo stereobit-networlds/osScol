@@ -1,0 +1,450 @@
+/* <Scol Technologies License> */
+/* Copyright (c) 2003, organization : Scol Technologies Association, owner : Sylvain Huet */
+/* For conditions of distribution and use, see copyright notice in dms/l/license.txt */
+/* or on 'www.scol-technologies.org' */
+
+/* cDHDMS - mar 00 - by Sylvain HUET */
+/* module part */
+
+
+var preDMI="_load \"dms/l/dhdms/cpredmi.pkg\"";;
+
+var DMIok=0;;
+var DMIwait=1;;
+var DMIoff=2;;
+var DMIhook=3;;
+
+fun niltest(a,b)=if a==nil then b else a;;
+
+/* ulist management */
+fun getUlist(l)=
+ if l==nil then nil else let l->[u nxt] in
+ (itoa u.idU)::getUlist nxt;;
+ 
+fun getUliststring(l)=
+ if l==nil then nil
+ else strbuild (getUlist l)::nil;;
+
+fun extrUlist(l)=
+ if l==nil then nil
+ else let l->[[id [flag _]] nxt] in (UcreateGlobalUser atoi id atoi flag)::extrUlist nxt;;
+
+/* hook inactive management */
+typeof hookInactiveList=[[I [[S I] r1]] r1];;
+
+var newHookid=0;;
+
+fun _newHook()=set newHookid=newHookid+1;;
+
+fun MODhookInactive(l)=
+ if l==nil then 0
+ else let l->[[id [act _]] nxt] in
+ (let getSwitch hookInactiveList atoi id -> x in
+  if x==nil then set hookInactiveList=[atoi id [act 0]::nil]::hookInactiveList
+  else let x->[_ ll] in (mutate x<-[_ [act 0]::ll];nil);
+  MODhookInactive nxt);;
+ 
+
+/* tag management */
+
+struct InitialTag=[cbITag:fun [S [User r1]] I,modITag:DMI,timeoutITag:I]mkInitialTag;;
+struct ServerTag=[idSTag:I,flagSTag:I]mkServerTag;;
+
+typedef Tag=
+  localTag InitialTag
+ |serverTag ServerTag;;
+
+struct TagToServer=[baseTTS:Tag,idTTS:I,timeoutTTS:I]mkTagToServer;;
+typeof listSentTags=[TagToServer r1];;
+
+fun ttsbyid(t,id)=t.idTTS==id;;
+
+var tagnumber=0;;
+fun newtagnumber()=set tagnumber=tagnumber+1;;
+
+fun makeLocalTag(d,tag)=
+ if tag==nil then nil
+ else let tag->[cb timeout _] in localTag mkInitialTag [cb d time+timeout];;
+ 
+fun makeServerTag(d,idtag)=
+ if idtag==nil then nil
+ else serverTag mkServerTag [idtag 0];;
+
+fun _DMStagKeepAlive(t)=
+ match t with
+  (serverTag x -> set x.flagSTag=1);;
+
+/* tag management */
+
+fun sendServerTag(t)=
+ if t==nil then nil else 
+ match t with
+  (localTag x -> let newtagnumber -> id in
+   (set listSentTags=(mkTagToServer [t id x.timeoutITag])::listSentTags;
+    id));;
+
+fun testaliveTag(t)=
+ match t with
+ (serverTag x -> if x.flagSTag then nil
+   else _on_ nil Cdeltag [x.idSTag]);
+ 0;;
+
+fun tagclear(t)=
+ match t with
+ (serverTag x -> set x.flagSTag=0);;
+
+fun _DMStagForget(t)=
+ tagclear t;
+ testaliveTag t;;
+
+
+fun _DMSreplyTag(t,param,ulist,holdon)=
+ match t with
+  (localTag x -> execch x.modITag.chnDMI x.cbITag [param ulist])
+ |(serverTag x -> _on_ nil Cfiretag [x.idSTag param getUliststring ulist]);
+ if holdon!=1 then _DMStagForget t else _DMStagKeepAlive t;; 
+
+fun _deltag(i)=
+ let search_in_list listSentTags @ttsbyid i -> tts in
+ if tts==nil then nil
+ else
+ (set listSentTags=remove_from_list listSentTags tts;
+  _DMStagForget tts.baseTTS);;
+
+fun _firetag(i,param,ulist)=let search_in_list listSentTags @ttsbyid i -> tts in
+ _DMSreplyTag tts.baseTTS param extrUlist strextr ulist 1;;
+
+/* fire events */
+fun fireEvent2(d,args,k)=
+ if d==nil then nil
+ else if d.stateDMI!=DMIok || (k && d.fifoDMI!=nil) then
+ (set d.fifoDMI=addFifo args d.fifoDMI;
+  match args with (actionPending [_ _ _ _ _ tag] -> _DMStagKeepAlive tag);
+  0)
+ else
+  match args with
+  (actionPending [from act para repl ulist tag] -> 
+    if d.actionDMI==nil then execch d.chnDMI switchstr d.actionsDMI act [from act para ulist tag]
+    else execch d.chnDMI d.actionDMI [from act para repl])
+ |(msgPending c -> _scriptc d.chnDMI strcat "__" c)
+ |(_->nil);;
+
+fun fireEvent(i,args)=
+ let _DMSgetByHandle i -> d in
+ if d==nil then
+  match args with
+  (actionPending [from act _ _ _ tag] -> 
+    if 0==switchstr (switch hookInactiveList i) act
+    then let _newHook -> n in
+    (set d=mkDMI [i nil nil nil DMIhook
+      nil nil nil nil nil nil  nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil];
+     set DMSdmi.i=d;
+     set d.fifoDMI=addFifo hookPending n d.fifoDMI;
+     set d.fifoDMI=addFifo args d.fifoDMI;
+     _on_ nil Chook [from.numDMI i act n];
+     _DMStagKeepAlive tag;
+     nil)
+    else nil)
+ else fireEvent2 d args 1;;
+
+/* purge events */
+fun purgeEvents(d)=
+ if d.fifoDMI==nil then 0
+ else let getFifo d.fifoDMI ->[x newf] in
+ (set d.fifoDMI=newf;
+  match x with
+  (actionPending [_ _ _ _ _ tag] ->
+   (tagclear tag;
+    fireEvent2 d x 0;
+    testaliveTag tag))
+ |(_->(fireEvent2 d x 0;nil));
+  purgeEvents d);;
+
+/* purge hook */
+fun findHook(l,n)=
+ if l==nil then 0
+ else let match hd l with (hookPending j->j) ->i in
+ if i==n then 1
+ else findHook tl l n;;
+ 
+fun purgeHook2(d,n,flag)=
+ if d.fifoDMI==nil then 1
+ else let getFifo d.fifoDMI ->[x newf] in
+ match x with
+ (hookPending j -> if flag then 0
+   else
+   (set d.fifoDMI=newf;
+    purgeHook2 d n if n==j then 1 else flag))
+ |(actionPending [_ _ _ _ _ tag] ->
+   (set d.fifoDMI=newf;
+    _DMStagForget tag;
+    purgeHook2 d n flag))
+ |(_->(set d.fifoDMI=newf;
+      purgeHook2 d n flag));;
+
+fun purgeHook(i,n)=
+ let _DMSgetByHandle i -> d in
+ if d.stateDMI!=DMIhook then nil
+ else let d.fifoDMI->[l _] in
+ if findHook l n then
+  if purgeHook2 d n 0 then set DMSdmi.i=nil
+  else nil
+ else nil;;
+ 
+
+fun _DMSreceive(i,c)=
+ fireEvent i msgPending c;;
+
+fun _DMSaction(i,j,act,par,rep,ulist,tag)=
+ let makeServerTag j tag -> t in
+ (fireEvent j actionPending  [_DMSgetByHandle i act par rep extrUlist strextr ulist t];
+  testaliveTag t);;
+
+/* event system */
+fun DMSevent3(from,param,reply,ulist,tag,l,event)=
+ if l==nil then 0
+ else let l->[[ev num action param2 reply2] nxt] in
+ (if strcmp ev event then nil
+  else fireEvent num actionPending [from action niltest param param2 niltest reply reply2 ulist tag];
+  DMSevent3 from param reply ulist tag nxt event);;
+
+fun DMSevent2(d,ev,para,repl,ulist,tag)=
+ if strFindList d.eventsDMI ev then _on_ nil Cevent [d.numDMI ev para repl getUliststring ulist sendServerTag tag]
+ else nil;
+ DMSevent3 d para repl ulist tag d.linkDMI ev;;
+
+/* initialization */
+fun DMCloader(name)=strextr _getpack _checkpack name;;
+
+fun IniDMI(param)=0;;
+
+/* destruction */
+
+fun DMSdelete(l)=
+ if l==nil then 0
+ else let l->[d n] in
+ (DMSdelete d.sonsDMI;
+  UdeleteDMI d;
+  execch d.chnDMI d.beforecloseDMI [];
+  if d.numDMI==nil then nil
+  else
+  (set DMSdmi.(d.numDMI)=nil;
+   _on_ nil CcliDel [d.numDMI]);
+  set d.fatherDMI.sonsDMI=remove_from_list d.fatherDMI.sonsDMI d;
+  _DOCremoveDmiDoc d;
+  _RSCabortDMI d;
+  _killchannel d.chnDMI;
+  _setenv d.chnDMI nil; /* blindons, blindons, ...*/
+  set d.chnDMI=nil;
+  DMSdelete n);;
+
+/* server asked to destroy a client module */
+fun MODdelete(i)= 
+ let DMSdmi.i -> d in
+ (set DMSdmi.i=nil;
+  set d.numDMI=nil;
+  DMSdelete d::nil);;
+
+
+/* API */
+fun _DMSrootModule()=DMSdmi.0;;
+
+fun _DMSgetByHandle(h)=
+ if h<0 || h>=DMSnbDmi then nil else DMSdmi.h;;
+
+fun _DMSgetZones(d)=d.zonesDMI;;
+
+fun _DMSsend(d,c)=
+ _on_ nil Csend [d.numDMI mkscript c];;
+
+fun _DMSupload(d,name,content,cb)=
+ _upload_ d name content cb;;
+
+fun _DMSgetName(d)=d.nameDMI;;
+fun _DMSgetHandle(d)=d.numDMI;;
+
+fun _DMSdelete(d)=DMSdelete d::nil;;
+
+fun _DMSdefineActions(d,l)=
+ set d.actionsDMI=conc l d.actionsDMI;;
+
+fun _DMSremoveActions(d,l)=
+ if l==nil then 0
+ else let getSwitchStr d.actionsDMI hd l -> x in
+ (if x==nil then nil else set d.actionsDMI=remove_from_list d.actionsDMI x;
+  _DMSremoveActions d tl l);;
+
+fun _DMSeventTag(d,ev,param,ulist,tag)=
+ DMSevent2 d ev param nil ulist makeLocalTag d tag;;
+
+fun _DMSregister(d,fbeforeclose)=
+ set d.beforecloseDMI=fbeforeclose;
+ 0;;
+
+fun _DMSgetClass(d)=d.classDMI;;
+
+fun _DMSgetTheme(d)=d.thmDMI;;
+
+/* ascendant compatibility */
+typeof DMSthis=DMI;;
+typeof DMSfrom=DMI;;
+
+fun _DMSgetFullName(d)=
+ if d.fatherDMI==nil then "" else
+ strcat strcat _DMSgetFullName d.fatherDMI "." d.nameDMI;;
+
+fun _DMScreateChild(fath,from,name,scr,param)=
+ let mkDMI [nil nil name nil DMIwait
+  nil fath nil nil nil nil nil
+  nil nil nil nil nil nil nil
+  nil nil nil nil nil nil nil nil]->d in
+ (set fath.sonsDMI=d::fath.sonsDMI;
+  set d.chnDMI=_openchannel nil mkscript Sload [preDMI] _envchannel fath.chnDMI;
+  set DMSthis=d;
+  set DMSfrom=from;
+  _scriptc d.chnDMI mkscript Sregch [];
+  _scriptc d.chnDMI scr;
+  set d.stateDMI=DMIok;
+  _scriptc d.chnDMI mkscript SIniDMI [param];
+  0);;
+
+
+fun _DMSevent(d,ev,para,repl)= DMSevent2 d ev para repl nil nil;;
+
+fun _DMSreply(d,dest,act,para,repl)=
+ fireEvent2 dest actionPending [d act para repl nil nil] 1;;
+
+fun _DMSregisterDMI(d,faction,fbeforeclose)=
+ set d.actionDMI=faction;
+ _DMSregister d fbeforeclose;;
+
+/* external */
+fun getFileErr(f,name)=
+ if f==nil then
+  _fatalError _loc _DMSrootModule "NETERR" nil _loc _DMSrootModule "DOWNLD" name::nil
+ else nil;;
+
+fun getfileres(f,z)=
+ let z->[name d] in
+ if f==nil then
+ (getFileErr f name;
+  set d.numDMI=nil)
+ else
+ if !strcmp substr name 0 8 "thm/.thm" then
+ (set d.thmDMI=strextr _getpack _checkpack f;
+  nil)
+ else nil;;
+
+fun getfile(a,d)=
+ _RSCdownload d a a mkfun2 @getfileres [a d] 3;;
+
+fun create4(d)=
+ set d.stateDMI=DMIok;
+ _scriptc d.chnDMI mkscript SIniDMI [d.paramDMI];
+ set d.paramDMI=nil;
+ purgeEvents d;
+ 0;;
+
+fun create3(s,z)=
+ let z->[d scr] in
+ if d!=DMSdmi.(d.numDMI) then nil
+ else
+ (_scriptc d.chnDMI scr;
+  create4 d);;
+
+proto getloaddmc=fun[S [[S r1] DMI]] I;;
+
+fun getloaddmc(f,z)=
+ let z->[l d] in
+ if d!=DMSdmi.(d.numDMI) then nil
+ else if l==nil then create4 d
+ else if f==nil then getfileres f [hd l d]
+ else
+ (_scriptc d.chnDMI mkscript Sload [hd l];
+  let if !strcmp hd tl l "*" then
+   (_storepack "" hd l; tl tl l)
+  else tl l -> ll in _RSCdownload d hd ll hd ll mkfun2 @getloaddmc [ll d] 3;
+  nil);;
+
+fun create2(s,d)=
+ if d!=DMSdmi.(d.numDMI) then nil
+ else if s==nil then getFileErr s d.classDMI
+ else let DMCloader s -> dmc in
+ let _DMSgetpath s -> path in
+ (set d.chnDMI=_openchannel nil mkscript Sload [preDMI] DMSenv;
+  _fooS strcatn ".loading module "::d.nameDMI::" from class "::d.classDMI::nil;
+  _scriptc d.chnDMI mkscript Sreg [d.numDMI];  
+  apply_on_list _DMSrelativpath path conc getConcInfos dmc "clientNeededF" getConcInfos dmc "clientNeeded" @getfile d; /*seb ajout clientNeededF*/
+  apply_on_list _DMSrelativpath path d.neededDMI @getfile d;
+  let _DMSrelativpath path getConcInfos dmc "clientLoad" -> l in
+   if l==nil then
+    _RSCdownload d nil nil mknode @create3 [d getInfo dmc "clientScript"] 1
+   else
+    _RSCdownload d hd l hd l mkfun2 @getloaddmc [l d] 3;
+  0);;
+   
+
+fun run(d)=
+ if d.classDMI==nil
+ then (set d.stateDMI=DMIok;nil)
+ else _RSCdownload d d.classDMI d.classDMI mknode @create2 d 3;
+ 0;;
+
+fun langok(f,z)=
+ let z->[d f_end] in
+ (set d.langDMI=nil;
+  iniDMIloc d f;
+  exec f_end with [d]);;
+ 
+fun get_loc_and_go(i,f)=
+ let DMSdmi.i -> d in
+ if d==nil then nil
+ else if d.langDMI==nil then exec f with [d]
+ else (_RSCdownload d d.langDMI d.langDMI (mknode @langok [d f]) 3; nil);;
+
+fun __endgraph(i)=get_loc_and_go i @run;;
+
+fun reinitLoc(i)=get_loc_and_go i nil;;
+
+fun __create(ifath,name,i,class,param,zones,lang)=
+ let DMSdmi.i->old in
+ let DMSdmi.ifath->fath in
+ let mkDMI [i nil name class DMIwait
+  nil fath
+  nil nil
+  param
+  strextr zones
+  nil nil nil
+  old.fifoDMI
+  nil nil nil nil
+  nil nil nil
+  nil lang nil nil nil]->d in
+ (set fath.sonsDMI=d::fath.sonsDMI;
+  set DMSdmi.i=d);;
+
+fun __hookevent(i,ev)=
+ let DMSdmi.i -> d in set d.eventsDMI=hd strextr ev;;
+
+fun __loclink(i,ev,num,action,param,rep)=
+ let DMSdmi.i -> d in
+  set d.linkDMI=[ev num action param rep]::d.linkDMI;;
+
+fun __addlf(i,lf)=
+ let DMSdmi.i -> d in
+ if lf==nil then
+ (set d.controlDMI= strextr d.controlbufDMI;
+  set d.controlbufDMI=nil)
+ else (set d.controlbufDMI=strcat d.controlbufDMI lf);;
+
+fun __addlfneeded(i,lf)=
+ let DMSdmi.i -> d in
+ if lf==nil then
+ (set d.neededDMI= hd strextr d.neededbufDMI;
+  set d.neededbufDMI=nil)
+ else (set d.neededbufDMI=strcat d.neededbufDMI lf);;
+
+fun __catlf(i,name,sign,acces)=
+ let DMSdmi.i -> d in
+ if d==nil then nil
+ else set d.controlDMI=(name::sign::if acces==nil then nil else acces::nil)::d.controlDMI;;
+

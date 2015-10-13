@@ -6011,7 +6011,9 @@ fun crEdFrameWindowEx(chan, fatherstr, x, y, w, h, resize, themestr, title, mini
   *  \return EdWindow : new popup window structure
   **/
   
-//var winAX  = nil;; /** added because of winAX error !!! *************/
+/** added because of winAX error !!! *************/
+//Navigator window
+typeof winAX = ObjWin;;
   
 fun crEdMainWindow(chan, fatherwin, x, y, w, h, flags, title)=
   let if flags == nil then WN_NORMAL|WN_DRAGDROP|WN_NOSCOL else flags|WN_DRAGDROP|WN_NOSCOL -> flags in
@@ -6019,10 +6021,10 @@ fun crEdMainWindow(chan, fatherwin, x, y, w, h, flags, title)=
   (
     set winstr.EDW_channel = chan;
     
-    /*if winAX ==nil then 
-    (*/
+    if winAX ==nil then 
+    (
       set winstr.EDW_win = _CRwindow winstr.EDW_channel fatherwin x y w h flags title;
-    /*)
+    )
     else
     let _GETwindowPositionSize winAX -> [_ _ w h] in
     (
@@ -6034,7 +6036,7 @@ fun crEdMainWindow(chan, fatherwin, x, y, w, h, flags, title)=
       
       _CBwinSize winAX @cbEdWindowSize winstr.EDW_father;
       _CBwinDestroy winAX @cbEdWindowDestroy winstr.EDW_father;
-    );*/
+    );
     
     calcEdCoord winstr;
     

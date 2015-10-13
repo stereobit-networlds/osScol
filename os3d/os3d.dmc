@@ -6,9 +6,11 @@ serverLoad dms/lib/quicksort.pkg dms/lib/_mlistlib.pkg ./c3d3utils.pkg ./sanchor
 serverLoad dms/3d/os3dlib/tools.pkg dms/3d/os3dlib/xmlparser.pkg dms/3d/os3dlib/ogrematparser.pkg ./os3dloader2.pkg ./os3ds.pkg
 
 clientNeeded ./preplug.pkg Dms/3d/cam1.m3d Dms/3d/av.m3d logo.bmp ./os3dEngineExtension.pkg
-clientNeeded ./splash.png dms/3d/os3dlib/os3dpreplug.pkg dms/3d/os3dlib/keyblib.pkg dms/3d/os3dlib/ogrematparser.pkg dms/3d/os3dlib/v3dlib.pkg dms/3d/os3dlib/v3dlib_physics.pkg dms/3d/os3dlib/2dglib.pkg dms/3d/os3dlib/minidhdms.pkg dms/3d/os3dlib/mkapplet.pkg dms/3d/os3dlib/netcomlib.pkg dms/3d/os3dlib/os3dpaths.pkg dms/3d/os3dlib/os3dstruct.pkg dms/3d/os3dlib/os3dtypeconv.pkg dms/3d/os3dlib/os3dplugins.pkg dms/3d/os3dlib/os3dpluginscb.pkg dms/3d/os3dlib/os3dloader.pkg dms/3d/os3d/os3dversion.pkg dms/3d/os3d/os3dlogs.pkg dms/3d/os3d/os3dplayer.pkg 
+/*clientNeeded ./splash.png dms/3d/os3dlib/os3dpreplug.pkg dms/3d/os3dlib/keyblib.pkg dms/3d/os3dlib/ogrematparser.pkg dms/3d/os3dlib/v3dlib.pkg dms/3d/os3dlib/v3dlib_physics.pkg dms/3d/os3dlib/2dglib.pkg dms/3d/os3dlib/minidhdms.pkg dms/3d/os3dlib/mkapplet.pkg dms/3d/os3dlib/netcomlib.pkg dms/3d/os3dlib/os3dpaths.pkg dms/3d/os3dlib/os3dstruct.pkg dms/3d/os3dlib/os3dtypeconv.pkg dms/3d/os3dlib/os3dplugins.pkg dms/3d/os3dlib/os3dpluginscb.pkg dms/3d/os3dlib/os3dloader.pkg dms/3d/os3d/os3dversion.pkg dms/3d/os3d/os3dlogs.pkg dms/3d/os3d/os3dplayer.pkg */
+clientNeeded ./splash.png dms/3d/os3dlib/os3dpreplug.pkg dms/3d/os3dlib/keyblib.pkg dms/3d/os3dlib/ogrematparser.pkg dms/3d/os3dlib/netcomlib.pkg dms/3d/os3dlib/os3dpaths.pkg dms/3d/os3dlib/os3dstruct.pkg dms/3d/os3dlib/os3dtypeconv.pkg dms/3d/os3dlib/os3dplugins.pkg dms/3d/os3dlib/os3dpluginscb.pkg dms/3d/os3dlib/os3dloader.pkg dms/3d/os3d/os3dversion.pkg dms/3d/os3d/os3dlogs.pkg dms/3d/os3d/os3dplayer.pkg */
 clientNeeded dms/3d/os3dlib/res/def/azerty.def dms/3d/os3dlib/res/def/qwerty.def
-clientLoad dms/3d/os3dlib/tools.pkg dms/3d/os3dlib/xmlparser.pkg ./os3dload.pkg 
+/*clientLoad dms/3d/os3dlib/tools.pkg dms/3d/os3dlib/xmlparser.pkg ./os3dload.pkg */
+clientLoad ./os3dload.pkg 
 clientLoad dms/lib/_mlistlib.pkg ./os3dutils.pkg ./os3dwin3.pkg ./inbox.pkg ./canchor.pkg ./os3dloader.pkg ./c3d3plug.pkg
 clientLoad ./os3dinstance.pkg ./instpostrender.pkg ./c3d3smoothmove.pkg ./os3dc-1.2.pkg
 

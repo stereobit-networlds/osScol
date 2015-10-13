@@ -1,0 +1,1216 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*
+Network Communication Library
+Used with Scol Java server
+
+Bastien Bourineau - september 2009
+*/
+
+/*! @defgroup netAPI OpenSpace3D Network API
+ *  OpenSpace3D Network API
+ *  @{
+ */
+/** @} */
+
+defcom cMessage = message I S S S S;;
+
+struct NetComm= [
+  NC_channel                 : Chn,                               //!< Network channel
+  NC_serverName              : S,                                 //!< Server name
+  NC_serverPort              : I,                                 //!< Server port
+  NC_script                  : S,                                 //!< Connection script
+  NC_env                     : Env,                               //!< Network environment
+  NC_rsaPrivate              : S,                                 //!< RSA private key
+  NC_rsaPublic               : S,                                 //!< RSA public key
+  NC_rsaServerPublic         : S,                                 //!< RSA Server public key
+  NC_aesServerKey            : S,                                 //!< AES Server key
+  NC_roomName                : S,                                 //!< current room name
+  NC_lUsers                  : [[I NetUser] r1],                  //!< users list
+  NC_userId                  : I,                                 //!< user id
+  NC_status                  : I,                                 //!< current status
+  NC_messageBuffer           : S,                                 //!< buffer for message reception
+  NC_roomItems               : [[S S] r1],                        //!< list of the room item and value
+  
+  NC_cbConnected             : fun [NetComm] I,
+  NC_cbClosed                : fun [NetComm] I,
+  NC_cbSConnected            : fun [NetComm] I,
+  NC_cbSrvMessage            : fun [NetComm S S S] I,
+  NC_cbUserMessage           : fun [NetComm NetUser S S S] I,
+  NC_cbUserPrivateMessage    : fun [NetComm NetUser S S S] I,
+  NC_cbGetFile               : fun [NetComm NetUser S S S] I,
+  NC_cbUserGetItem           : fun [NetComm NetUser S S] I,
+  NC_cbRoomGetItem           : fun [NetComm S S] I,
+  NC_cbNewUser               : fun [NetComm NetUser] I,
+  NC_cbDelUser               : fun [NetComm NetUser] I,
+  NC_cbUserChangeLogin       : fun [NetComm NetUser S] I,
+  NC_cbNbUsers               : fun [NetComm I] I,
+  NC_cbRoomChanged           : fun [NetComm S] I
+  
+  ] mkNetComm ;;
+
+
+struct NetUser= [
+  NU_id                      : I,                                //!< user id
+  NU_login                   : S,                                //!< user login
+  NU_items                   : [[S S] r1],                       //!< list of user item and value
+  NU_status                  : I                                 //!< user status
+  
+  ] mkNetUser ;;
+
+
+typeof lNetCommInst = [[Chn NetComm] r1];;
+
+var iComFlagDefault     = 0;;
+var iComFlagRSA         = 1;;
+var iComFlagAES         = 2;;
+var iComFlagBroad       = 4;;
+var iComFlagMulti       = 8;;
+var iComFlagMultiEnd    = 16;;
+var iComFlagFile        = 32;;
+var iComFlagPrivate     = 64;;
+var iComFlagBroadOthers = 128;;
+
+var iStatusDisconnected = 0;;
+var iStatusConnected    = 1;;
+var iStatusSecurised    = 2;;
+
+var iMaxMessageSize = 16384;;
+
+
+proto netIsConnected = fun [NetComm] I;;
+
+
+fun isIP(s,i)=
+ if i>=strlen s then 1
+ else let nth_char s i-> a in
+ if a!='. && (a<'0 || a>'9) then 0
+ else isIP s i+1;;
+
+/* ********************************************************************************************* /
+  generate AppID    modify on of the app package or ressource will modify this AppID
+/ ********************************************************************************************* */
+
+typeof sAppId = S;;
+
+fun getAppId(scenepath)=
+  let mkAppletGetAppMd5 scenepath -> lmd5 in
+  let
+    let _envchannel _channel -> env in
+    let nil -> lenv in
+    (
+      while ((_envfirstname env) != nil) do
+      (
+        set lenv = (_envfirstname env)::lenv;
+        set env = _removepkg env;
+      );
+      lenv;
+    )
+  -> lenv in
+    set sAppId = strmd5 (listToString (lcat lenv lmd5));
+  0;;
+
+
+/* ********************************************************************************************* /
+  User management
+/ ********************************************************************************************* */
+
+/*!  @ingroup netAPI
+  *  \brief Get a user item value
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser S] S
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the user structure
+  *  \param S : the item name
+  *
+  *  \return S : the item value, or nil if not found
+  **/
+fun netUserGetItemValue(netstr, userstr, item)=
+  if userstr == nil then nil else
+    switchstr userstr.NU_items item
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Set a user item value
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the user structure
+  *  \param S : the item name
+  *  \param S : the new item value
+  *
+  *  \return 0
+  **/
+fun netUserSetItemValue(netstr, userstr, item, val)=
+  if userstr == nil then nil else
+  let switchstr userstr.NU_items item -> exist in
+  if (exist == nil) then
+  (
+    set userstr.NU_items = [item val]::userstr.NU_items;
+    0;
+  )
+  else  
+  let sizelist userstr.NU_items -> size in
+  let 0 -> i in
+  let nil -> fitem in
+  while (i < size) && (fitem == nil) do
+  (
+    let nth_list userstr.NU_items i -> titem in
+    let titem -> [name value] in
+    if (strcmpi item name) then nil else
+    (
+      mutate titem <- [_ val];
+      set fitem = titem;
+    );
+    
+    set i = i + 1;
+  );
+  exec netstr.NC_cbUserGetItem with [netstr userstr item val];
+  0;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get a room item value
+  *
+  *  <b>Prototype:</b> fun [NetComm S] S
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the item name
+  *
+  *  \return S : the item value, or nil if not found
+  **/
+fun netRoomGetItemValue(netstr, item)=
+  if netstr == nil then nil else
+    switchstr netstr.NC_roomItems item
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Set a room item value
+  *
+  *  <b>Prototype:</b> fun [NetComm S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the item name
+  *  \param S : the new item value
+  *
+  *  \return 0
+  **/
+fun netRoomSetItemValue(netstr, item, val)=
+  if netstr == nil then nil else
+  let switchstr netstr.NC_roomItems item -> exist in
+  if (exist == nil) then
+  (
+    set netstr.NC_roomItems = [item val]::netstr.NC_roomItems;
+    0;
+  )
+  else  
+  let sizelist netstr.NC_roomItems -> size in
+  let 0 -> i in
+  let nil -> fitem in
+  while (i < size) && (fitem == nil) do
+  (
+    let nth_list netstr.NC_roomItems i -> titem in
+    let titem -> [name value] in
+    if (strcmpi item name) then nil else
+    (
+      mutate titem <- [_ val];
+      set fitem = titem;
+    );
+    
+    set i = i + 1;
+  );
+  exec netstr.NC_cbRoomGetItem with [netstr item val];
+  0;;
+
+
+fun netAddUser(netstr, id, login)=
+  let switch netstr.NC_lUsers id -> userstr in
+  if userstr != nil then userstr else
+  let mkNetUser [id login ["Login" login]::nil 1] -> nuserstr in
+  (
+    exec netstr.NC_cbNbUsers with [netstr (sizelist netstr.NC_lUsers)];
+    set netstr.NC_lUsers = [id nuserstr]::netstr.NC_lUsers;
+    exec netstr.NC_cbNewUser with [netstr nuserstr];
+    nuserstr;
+  );;
+
+
+fun netDelUser(netstr, userstr)=
+  if userstr == nil then nil else
+  (
+    exec netstr.NC_cbNbUsers with [netstr (sizelist netstr.NC_lUsers)];
+    exec netstr.NC_cbDelUser with [netstr userstr];
+    set netstr.NC_lUsers = remove_idx_from_list netstr.NC_lUsers userstr.NU_id;
+  );
+  0;;
+
+
+fun netDelUserById(netstr, id)=
+  let switch netstr.NC_lUsers id -> userstr in
+  if userstr == nil then nil else
+  (
+    exec netstr.NC_cbNbUsers with [netstr (sizelist netstr.NC_lUsers)];
+    exec netstr.NC_cbDelUser with [netstr userstr];
+    set netstr.NC_lUsers = remove_idx_from_list netstr.NC_lUsers id;
+  );
+  0;;
+
+
+fun netUserSetLoginById(netstr, id, login)=
+  let switch netstr.NC_lUsers id -> userstr in
+  let if userstr == nil then (netAddUser netstr id login) else userstr -> userstr in
+  (
+    exec netstr.NC_cbUserChangeLogin with [netstr userstr login];
+    set userstr.NU_login = login;
+    netUserSetItemValue netstr userstr "Login" login;
+    userstr;
+  );;
+
+
+fun netUserSetLogin(netstr, userstr, login)=
+  if userstr == nil then nil else
+  (
+    exec netstr.NC_cbUserChangeLogin with [netstr userstr login];
+    set userstr.NU_login = login;
+    netUserSetItemValue netstr userstr "Login" login;
+    userstr;
+  );;
+
+
+fun netUserGetLoginById(netstr, id)=
+  let switch netstr.NC_lUsers id -> userstr in
+  if userstr == nil then nil else
+    userstr.NU_login
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get a user login
+  *
+  *  <b>Prototype:</b> fun [NetUser] S
+  *
+  *  \param NetUser : the user structure
+  *
+  *  \return S : the user login
+  **/
+fun netUserGetLogin(userstr)=
+  if userstr == nil then nil else
+    userstr.NU_login
+  ;;
+  
+
+/*!  @ingroup netAPI
+  *  \brief Get a user id
+  *
+  *  <b>Prototype:</b> fun [NetUser] I
+  *
+  *  \param NetUser : the user structure
+  *
+  *  \return I : the user id
+  **/
+fun netUserGetId(userstr)=
+  if userstr == nil then nil else
+    userstr.NU_id
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get a user by it's login
+  *
+  *  <b>Prototype:</b> fun [NetComm S] NetUser
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the user login
+  *
+  *  \return NetUser : the user structure or nil if not found
+  **/
+fun netGetUserByLogin(netstr, login)=
+  let nil -> user in
+  let sizelist netstr.NC_lUsers -> size in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list netstr.NC_lUsers i -> [_ iuser] in
+        if (!strcmp login iuser.NU_login) then
+          set user = iuser
+        else nil;
+      
+      set i = i + 1;
+    );
+    user;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get a user by it's id
+  *
+  *  <b>Prototype:</b> fun [NetComm I] NetUser
+  *
+  *  \param NetComm : the network structure
+  *  \param I : the user id
+  *
+  *  \return NetUser : the user structure or nil if not found
+  **/
+fun netGetUserById(netstr, id)= switch netstr.NC_lUsers id;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get the current client user id
+  *
+  *  <b>Prototype:</b> fun [NetComm] I
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return I : the client user id
+  **/
+fun netThisId(netstr)= netstr.NC_userId;;
+  
+
+/*!  @ingroup netAPI
+  *  \brief Get the current client user
+  *
+  *  <b>Prototype:</b> fun [NetComm] NetUser
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return NetUser : the user structure
+  **/
+fun netThisUser(netstr)= switch netstr.NC_lUsers netstr.NC_userId;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get the current client login
+  *
+  *  <b>Prototype:</b> fun [NetComm] S
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return S : the current user login
+  **/
+fun netThisLogin(netstr)= netUserGetLogin netThisUser netstr;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get the number of actual users
+  *
+  *  <b>Prototype:</b> fun [NetComm] I
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return I : the number of actual users
+  **/
+fun netGetNbUsers(netstr)= sizelist netstr.NC_lUsers;;
+
+
+/* ********************************************************************************************* /
+  Callback management
+/ ********************************************************************************************* */
+
+fun netSetCbConnected(netstr, cbfun)=
+  set netstr.NC_cbConnected = cbfun;
+  0;;
+
+
+fun netSetCbClosed(netstr, cbfun)=
+  set netstr.NC_cbClosed = cbfun;
+  0;;
+
+
+fun netSetCbSConnected(netstr, cbfun)=
+  set netstr.NC_cbSConnected = cbfun;
+  0;;
+
+
+fun netSetCbSrvMessage(netstr, cbfun)=
+  set netstr.NC_cbSrvMessage = cbfun;
+  0;;
+
+
+fun netSetCbUserMessage(netstr, cbfun)=
+  set netstr.NC_cbUserMessage = cbfun;
+  0;;
+
+
+fun netSetCbUserPrivateMessage(netstr, cbfun)=
+  set netstr.NC_cbUserPrivateMessage = cbfun;
+  0;;
+
+
+fun netSetCbGetFile(netstr, cbfun)=
+  set netstr.NC_cbGetFile = cbfun;
+  0;;
+
+
+fun netSetCbNewUser(netstr, cbfun)=
+  set netstr.NC_cbNewUser = cbfun;
+  0;;
+
+
+fun netSetCbDelUser(netstr, cbfun)=
+  set netstr.NC_cbDelUser = cbfun;
+  0;;
+
+
+fun netSetCbUserChangeLogin(netstr, cbfun)=
+  set netstr.NC_cbUserChangeLogin = cbfun;
+  0;;
+
+
+fun netSetCbUserGetItem(netstr, cbfun)=
+  set netstr.NC_cbUserGetItem = cbfun;
+  0;;
+
+
+fun netSetCbRoomGetItem(netstr, cbfun)=
+  set netstr.NC_cbRoomGetItem = cbfun;
+  0;;
+
+
+fun netSetCbNbUsers(netstr, cbfun)=
+  set netstr.NC_cbNbUsers = cbfun;
+  0;;
+  
+
+fun netSetCbRoomChanged(netstr, cbfun)=
+  set netstr.NC_cbRoomChanged = cbfun;
+  0;;
+  
+  
+/* ********************************************************************************************* /
+  Message management
+/ ********************************************************************************************* */
+
+fun netSendMultiPart(netstr, userstr, flag, cmd, message, arg, pos)=
+  let if flag == nil then iComFlagDefault else flag -> flag in
+  let strlen message -> len in
+  let substr message pos iMaxMessageSize -> part in
+  let if (pos + iMaxMessageSize) >= len then flag|iComFlagMultiEnd else flag|iComFlagMulti -> nflag in
+  (
+    _on netstr.NC_channel cMessage [nflag (itoa userstr.NU_id) cmd part arg];
+    if (pos + iMaxMessageSize) >= len then nil else
+      netSendMultiPart netstr userstr flag cmd message arg (pos + iMaxMessageSize);
+  );
+  0;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Send a file
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser I S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the user structure, this can be nil to send it to all users
+  *  \param I : message flags, nil for default
+  *  \param S : command
+  *  \param S : the file name to request
+  *
+  *  \return 0
+  **/
+fun netSendFile(netstr, userstr, flag, cmd, filename)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if flag == nil then iComFlagDefault else flag -> flag in
+    let strtoweb (_getpack _checkpack filename) -> data in
+    if (data == nil) then nil else
+    let if userstr == nil then flag|iComFlagBroad else flag|iComFlagPrivate -> flag in
+    let if (flag & iComFlagAES) then _AESencryptMessage data netstr.NC_aesServerKey else strtoweb data -> data in
+    let if (flag & iComFlagAES) then _AESencryptMessage filename netstr.NC_aesServerKey else filename -> filename in
+    if ((strlen data) > iMaxMessageSize) then
+      netSendMultiPart netstr userstr flag|iComFlagFile cmd data filename 0
+    else
+      _on netstr.NC_channel cMessage [flag|iComFlagFile (itoa userstr.NU_id) cmd data filename];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Request a file
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser I S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the user structure, this can be nil to request it from all users
+  *  \param I : message flags, nil for default
+  *  \param S : command
+  *  \param S : the file name to request
+  *
+  *  \return 0
+  **/
+fun netGetFile(netstr, userstr, flag, cmd, filename)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if flag == nil then iComFlagDefault else flag -> flag in
+    let if userstr == nil then flag|iComFlagBroadOthers else flag|iComFlagPrivate -> flag in
+    let if (flag & iComFlagAES) then _AESencryptMessage cmd netstr.NC_aesServerKey else strtoweb cmd -> cmd in
+    let if (flag & iComFlagAES) then _AESencryptMessage filename netstr.NC_aesServerKey else filename -> filename in
+      _on netstr.NC_channel cMessage [flag (itoa userstr.NU_id) "requestFile" cmd filename];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Send a message to the server with arguments
+  *
+  *  <b>Prototype:</b> fun [NetComm S S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : command
+  *  \param S : message
+  *  \param S : arguments
+  *
+  *  \return 0
+  **/
+fun netSendMessageExt(netstr, cmd, message, arg)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if (netstr.NC_status & iStatusSecurised) then iComFlagAES else iComFlagDefault -> flag in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage message netstr.NC_aesServerKey else strtoweb message -> message in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage arg netstr.NC_aesServerKey else arg -> arg in
+    if ((strlen message) > iMaxMessageSize) then
+      netSendMultiPart netstr nil flag cmd message arg 0
+    else
+      _on netstr.NC_channel cMessage [flag nil cmd message arg];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Send a message to the server
+  *
+  *  <b>Prototype:</b> fun [NetComm S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : command
+  *  \param S : message
+  *
+  *  \return 0
+  **/
+fun netSendMessage(netstr, cmd, message)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if (netstr.NC_status & iStatusSecurised) then iComFlagAES else iComFlagDefault -> flag in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage message netstr.NC_aesServerKey else strtoweb message -> message in
+    if ((strlen message) > iMaxMessageSize) then
+      netSendMultiPart netstr nil flag cmd message nil 0
+    else
+      _on netstr.NC_channel cMessage [flag nil cmd message nil];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Broad a secure message to all users connected in the same room
+  *
+  *  <b>Prototype:</b> fun [NetComm S S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : command
+  *  \param S : message
+  *  \param S : reply
+  *
+  *  \return 0
+  **/
+fun netSendBroadMessageSecure(netstr, cmd, message, reply)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if (netstr.NC_status & iStatusSecurised) then iComFlagAES else iComFlagDefault -> flag in
+    let flag|(if reply then iComFlagBroad else iComFlagBroadOthers) -> flag in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage message netstr.NC_aesServerKey else strtoweb message -> message in
+    if ((strlen message) > iMaxMessageSize) then
+      netSendMultiPart netstr nil flag cmd message nil 0
+    else
+      _on netstr.NC_channel cMessage [flag nil cmd message nil];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Broad a message to all users connected in the same room
+  *
+  *  <b>Prototype:</b> fun [NetComm S S I] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : command
+  *  \param S : message
+  *  \param I : 1 if the client must receive his hown sent message, 0 otherwise
+  *
+  *  \return 0
+  **/
+fun netSendBroadMessage(netstr, cmd, message, reply)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let iComFlagDefault -> flag in
+    let flag|(if reply then iComFlagBroad else iComFlagBroadOthers) -> flag in
+    let strtoweb message -> message in
+    if ((strlen message) > iMaxMessageSize) then
+      netSendMultiPart netstr nil flag cmd message nil 0
+    else
+      _on netstr.NC_channel cMessage [flag nil cmd message nil];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Set a client item value
+  *
+  *  <b>Prototype:</b> fun [NetComm S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the item name
+  *  \param S : the new item value
+  *
+  *  \return 0
+  **/
+fun netUpdateUserItem(netstr, item, val)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if (netstr.NC_status & iStatusSecurised) then iComFlagAES else iComFlagDefault -> flag in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage item netstr.NC_aesServerKey else item -> item in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage val netstr.NC_aesServerKey else strtoweb val -> val in
+    if ((strlen item) > iMaxMessageSize) then
+      netSendMultiPart netstr nil flag "setCliItem" item val 0
+    else
+      _on netstr.NC_channel cMessage [flag nil "setCliItem" item val];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Set a room item value
+  *
+  *  <b>Prototype:</b> fun [NetComm S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the item name
+  *  \param S : the new item value
+  *
+  *  \return 0
+  **/
+fun netUpdateRoomItem(netstr, item, val)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if (netstr.NC_status & iStatusSecurised) then iComFlagAES else iComFlagDefault -> flag in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage item netstr.NC_aesServerKey else item -> item in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage val netstr.NC_aesServerKey else strtoweb val -> val in
+    if ((strlen item) > iMaxMessageSize) then
+      netSendMultiPart netstr nil flag "setRoomItem" item val 0
+    else
+      _on netstr.NC_channel cMessage [flag nil "setRoomItem" item val];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Send a RSA encrypted message to the server
+  *
+  *  <b>Prototype:</b> fun [NetComm S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : command
+  *  \param S : message
+  *
+  *  \return 0
+  **/
+fun netSendRsaMessage(netstr, cmd, message)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let _RSAencryptMessage message netstr.NC_rsaServerPublic -> message in
+    if ((strlen message) > iMaxMessageSize) then
+      netSendMultiPart netstr nil iComFlagRSA cmd message nil 0
+    else
+      _on netstr.NC_channel cMessage [iComFlagRSA nil cmd message nil];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Send a secure private message to another user
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the destination user structure
+  *  \param S : command
+  *  \param S : message
+  *
+  *  \return 0
+  **/
+fun netSendPrivateMessageSecure(netstr, userstr, cmd, message)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let if (netstr.NC_status & iStatusSecurised) then iComFlagAES|iComFlagPrivate else iComFlagPrivate -> flag in
+    let if (netstr.NC_status & iStatusSecurised) then _AESencryptMessage message netstr.NC_aesServerKey else strtoweb message -> message in
+    if ((strlen message) > iMaxMessageSize) then
+      netSendMultiPart netstr userstr flag cmd message nil 0
+    else
+      _on netstr.NC_channel cMessage [flag (itoa userstr.NU_id) cmd message nil];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Send a private message to another user
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser S S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the destination user structure
+  *  \param S : command
+  *  \param S : message
+  *
+  *  \return 0
+  **/
+fun netSendPrivateMessage(netstr, userstr, cmd, message)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    let iComFlagPrivate -> flag in
+    let strtoweb message -> message in
+    if ((strlen message) > iMaxMessageSize) then
+      netSendMultiPart netstr userstr flag cmd message nil 0
+    else
+      _on netstr.NC_channel cMessage [flag (itoa userstr.NU_id) cmd message nil];
+    0;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Send a request to kick a user from the server. <br>The user will be kicked only if several other users send this request
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser] I
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the user structure to kick
+  *
+  *  \return 0
+  **/
+fun netKickUser(netstr, userstr)=
+  if (!netIsConnected netstr) then 1 else
+  (
+    _on netstr.NC_channel cMessage [iComFlagPrivate (itoa userstr.NU_id) "kickUser" nil nil];
+    0;
+  );;
+
+
+fun netCryptMessage(netstr, message, mode)=
+  if (mode & iComFlagRSA) then
+    _RSAencryptMessage message netstr.NC_rsaServerPublic
+  else
+    _AESencryptMessage message netstr.NC_aesServerKey
+  ;;
+
+
+fun netUnCryptMessage(netstr, message, mode)=
+  if (mode & iComFlagRSA) then
+    _RSAdecryptMessage message netstr.NC_rsaPrivate
+  else
+    _AESdecryptMessage message netstr.NC_aesServerKey
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Format a message and replace %itemname% by the user item values
+  *
+  *  <b>Prototype:</b> fun [NetComm NetUser S] S
+  *
+  *  \param NetComm : the network structure
+  *  \param NetUser : the user structure
+  *  \param S : the message to format
+  *
+  *  \return S : the formated message
+  **/
+fun netFormatMessage(netstr, userstr, message)=
+  let sizelist userstr.NU_items -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list userstr.NU_items i -> [item value] in
+      set message = strreplacei message (strcatn "%"::item::"%"::nil) value;
+      
+    set i = i + 1;
+  );
+  message;;
+
+
+fun netChannel(netstr)= netstr.NC_channel;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Get the connection state
+  *
+  *  <b>Prototype:</b> fun [NetComm] I
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return I : 1 if the connection is available, 0 if not
+  **/
+fun netIsConnected(netstr)= if netstr.NC_channel == nil then 0 else 1;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Disconnect from the server
+  *
+  *  <b>Prototype:</b> fun [NetComm] I
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return 0
+  **/
+fun netDisconnect(netstr)=
+  let netstr.NC_channel -> chan in
+  (
+    _killchannel chan;
+    set netstr.NC_channel = nil;
+    set netstr.NC_status = iStatusDisconnected;
+    set lNetCommInst = remove_idx_from_list lNetCommInst chan;
+    
+    //copy the user list
+    let netstr.NC_lUsers -> lusers in
+    while (lusers != nil) do
+    (
+      let hd lusers -> [_ ustr] in
+        netDelUser netstr ustr;
+      
+      set lusers = tl lusers;
+    );
+    
+    exec netstr.NC_cbClosed with [netstr];
+  );
+  0;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Create a network structure to prepare the connection to a server with advanced parameters
+  *
+  *  <b>Prototype:</b> fun [S I S Env] NetComm
+  *
+  *  \param S : the server name or ip address
+  *  \param I : the server port
+  *  \param S : the connection script
+  *  \param Env : the scol environment
+  *
+  *  \return NetComm : the new network structure
+  **/
+fun netCreateExt(server, port, script, env)=
+  let if env == nil then (_envchannel _channel) else env -> env in
+  let if (isIP server 0) then server else _gethostbyname server -> server in
+    mkNetComm[nil server port script env nil nil nil nil nil nil nil 0 nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Create a network structure to prepare the connection to a server
+  *
+  *  <b>Prototype:</b> fun [S I] NetComm
+  *
+  *  \param S : the server name or ip address
+  *  \param I : the server port
+  *
+  *  \return NetComm : the new network structure
+  **/
+fun netCreate(server, port)=
+  let _envchannel _channel -> env in
+  let if (isIP server 0) then server else _gethostbyname server -> server in
+    mkNetComm[nil server port nil env nil nil nil nil nil nil nil 0 nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Create an empty NetComm structure
+  *
+  *  <b>Prototype:</b> fun [] NetComm
+  *
+  *  \return NetComm : the new network structure
+  **/
+fun netCreateMinimum()=
+  let _envchannel _channel -> env in
+    mkNetComm[nil nil nil nil env nil nil nil nil nil nil nil 0 nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil]
+  ;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Connect to a server
+  *
+  *  <b>Prototype:</b> fun [NetComm] I
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return I : 1 if successful connected, 0 otherwise
+  **/
+fun netConnect(netstr)=
+  if (netstr == nil) || (netstr.NC_status & iStatusConnected) then 1 else
+  let 0 -> ret in
+  (
+    // remove existing users
+    set netstr.NC_lUsers = nil;
+    
+    set netstr.NC_channel = _openchannel strcatn netstr.NC_serverName::":"::(itoa netstr.NC_serverPort)::nil netstr.NC_script netstr.NC_env;
+    
+    if netstr.NC_channel == nil then nil else
+    (
+      set netstr.NC_status = iStatusConnected;
+      set lNetCommInst = [netstr.NC_channel netstr]::lNetCommInst;
+      set ret = 1;
+    );
+    ret;
+  );;
+
+
+/*!  @ingroup netAPI
+  *  \brief Force a server re connection
+  *
+  *  <b>Prototype:</b> fun [NetComm] I
+  *
+  *  \param NetComm : the network structure
+  *
+  *  \return I : 1 if successful connected, 0 otherwise
+  **/
+fun netReconnect(netstr)=
+  if netstr.NC_channel == nil then nil else
+    netDisconnect netstr;
+  netConnect netstr;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Set a server url and port
+  *
+  *  <b>Prototype:</b> fun [NetComm S I] NetComm
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the server name or ip address
+  *  \param I : the server port
+  *
+  *  \return NetComm : the same network structure
+  **/
+fun netSetServer(netstr, server, port)=
+  let if (isIP server 0) then server else _gethostbyname server -> server in
+  set netstr.NC_serverName = server;
+  set netstr.NC_serverPort = port;
+  if (netstr.NC_status & iStatusConnected) then
+    netReconnect netstr
+  else nil;
+  
+  netstr;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Change the current user login
+  *
+  *  <b>Prototype:</b> fun [NetComm S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the new requested login
+  *
+  *  \return 0
+  **/
+fun netChangeLogin(netstr, login)=
+  netSendMessage netstr "setLogin" addSlashes login;
+  0;;
+
+
+/*!  @ingroup netAPI
+  *  \brief Change the current room
+  *
+  *  <b>Prototype:</b> fun [NetComm S] I
+  *
+  *  \param NetComm : the network structure
+  *  \param S : the new requested room
+  *
+  *  \return 0
+  **/
+fun netChangeRoom(netstr, room)=
+  set netstr.NC_roomItems = nil;
+  netSendMessage netstr "setRoom" addSlashes room;
+  0;;
+
+
+/* ********************************************************************************************* /
+  Server responses
+/ ********************************************************************************************* */
+
+fun __connectedToServer(cid, clogin, srvpubkey)=
+  let switch lNetCommInst _channel -> netstr in
+  let _RSAgetKeyPair 1024 -> [priv pub] in
+  (
+    set netstr.NC_rsaServerPublic = srvpubkey;
+    set netstr.NC_rsaPrivate = priv;
+    set netstr.NC_rsaPublic = pub;
+    set netstr.NC_userId = atoi cid;
+    
+    netAddUser netstr atoi cid clogin;
+    
+    // send client public key to server
+    netSendMessageExt netstr "setCliSecure" pub (netCryptMessage netstr sAppId iComFlagRSA);
+  );
+  0;;
+
+
+fun __srvMessage(mode, cmd, message, arg)=
+  let switch lNetCommInst _channel -> netstr in
+  if (mode & iComFlagMulti) then
+  (
+    set netstr.NC_messageBuffer = strcat netstr.NC_messageBuffer message;
+    0;
+  )
+  else
+  let if (mode & iComFlagMultiEnd) then (strcat netstr.NC_messageBuffer message) else message -> message in
+  let if (mode & iComFlagRSA) then
+        _RSAdecryptMessage message netstr.NC_rsaPrivate
+      else if (mode & iComFlagAES) then
+        _AESdecryptMessage message netstr.NC_aesServerKey
+      else
+        webtostr message
+  -> message in
+  let if (mode & iComFlagRSA) then
+        _RSAdecryptMessage arg netstr.NC_rsaPrivate
+      else if (mode & iComFlagAES) then
+        _AESdecryptMessage arg netstr.NC_aesServerKey
+      else
+        webtostr arg
+  -> arg in
+  (
+    set netstr.NC_messageBuffer = nil;
+    if (!strcmp cmd "setCryptoAES") then
+    (
+      set netstr.NC_aesServerKey = message;
+      set netstr.NC_status = netstr.NC_status|iStatusSecurised;
+      exec netstr.NC_cbSConnected with [netstr];
+      0;
+    )
+    else if (!strcmp cmd "delUser") then
+    (
+      netDelUserById netstr atoi message;
+      0;
+    )
+    else if (!strcmp cmd "addUser") then
+    (
+      netAddUser netstr (atoi message) arg;
+      0;
+    )
+    else if (!strcmp cmd "getRoomItem") then
+    (
+      netRoomSetItemValue netstr message arg;
+      0;
+    )
+    else if (!strcmp cmd "getRoom") then
+    (
+      set netstr.NC_roomName = message;
+      exec netstr.NC_cbRoomChanged with [netstr message];
+      0;
+    )
+    else
+    (
+      exec netstr.NC_cbSrvMessage with [netstr cmd message arg];
+      0;
+    );
+  );
+  0;;
+
+
+fun __usrMessage(mode, from, cmd, message, arg)=
+  let switch lNetCommInst _channel -> netstr in
+  let switch netstr.NC_lUsers (atoi from) -> userstr in
+  if netstr == nil || userstr == nil then nil else
+  if (mode & iComFlagMulti) then
+  (
+    set netstr.NC_messageBuffer = strcat netstr.NC_messageBuffer message;
+    0;
+  )
+  else
+  let if (mode & iComFlagMultiEnd) then (strcat netstr.NC_messageBuffer message) else message -> message in
+  let if (mode & iComFlagRSA) then
+        _RSAdecryptMessage message netstr.NC_rsaPrivate
+      else if (mode & iComFlagAES) then
+        _AESdecryptMessage message netstr.NC_aesServerKey
+      else
+        webtostr message
+  -> message in
+  let if (mode & iComFlagRSA) then
+        _RSAdecryptMessage arg netstr.NC_rsaPrivate
+      else if (mode & iComFlagAES) then
+        _AESdecryptMessage arg netstr.NC_aesServerKey
+      else
+        webtostr arg
+  -> arg in
+  (
+    set netstr.NC_messageBuffer = nil;
+    
+    if (mode & iComFlagFile) then
+    (
+      if arg == nil then nil else
+      //  _storepack webtostr message arg;
+        exec netstr.NC_cbGetFile with [netstr userstr cmd (webtostr message) arg];
+      0;
+    )
+    else if (!strcmp cmd "loginChanged") then
+    (
+      netUserSetLogin netstr userstr message;
+      0;
+    )
+    else if (!strcmp cmd "getCliItem") then
+    (
+      netUserSetItemValue netstr userstr message arg;
+    )
+    else if (!strcmp cmd "requestFile") then
+    (
+      netSendFile netstr userstr mode message arg;
+      0;
+    )
+    else if (mode & iComFlagPrivate) then
+    (
+      exec netstr.NC_cbUserPrivateMessage with [netstr userstr cmd message arg];
+      0;
+    )
+    else
+    (
+      exec netstr.NC_cbUserMessage with [netstr userstr cmd message arg];
+      0;
+    );
+  );
+  0;;
+  
+
+/* ********************************************************************************************* /
+  Connection Channel management
+/ ********************************************************************************************* */
+
+fun _connected()=
+  let switch lNetCommInst _channel -> netstr in
+  (
+    exec netstr.NC_cbConnected with [netstr];
+  );
+  0;;
+
+
+fun _closed()=
+  let switch lNetCommInst _channel -> netstr in
+  (
+    netDisconnect netstr;
+  );
+  0;;

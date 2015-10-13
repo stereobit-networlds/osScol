@@ -524,6 +524,25 @@ fun mkAppletCpWebfiles(l, path)=
   );
   0;;
 
+  
+/*** alias of os3dload.pkg ***/
+fun getVoyagerVersionSS()=
+  let strextr _getpack _checkpack "locked/etc/version.txt" -> lver in
+  let sizelist lver -> size in
+  let nil -> curver in
+  let 0 -> i in
+  (
+    while (i < size) && (curver == nil) do
+    (
+      let nth_list lver i -> elem in
+      if strcmpi "version" hd elem then nil else
+        set curver = hd tl elem;
+      
+      set i = i + 1;
+    );
+    curver;
+  );;  
+  
 
 fun mkAppletPhpInc(ftpstr, filename, xmlpath)=
   let if ftpstr.AFTP_sAppDir == nil then sMkAppletTmpPath else strcatn sMkAppletTmpPath::ftpstr.AFTP_sAppDir::"/"::nil -> tmppath in
@@ -536,7 +555,7 @@ fun mkAppletPhpInc(ftpstr, filename, xmlpath)=
     mkAppletCpWebfiles lwebfiles tmppath;
     let strreplace strcatn "scol://applet?app="::ftpstr.AFTP_sUrl::filename::nil " " "%20" -> appurl in
     let strreplace strcatn "scol://applet:"::ftpstr.AFTP_sUrl::filename::nil " " "%20" -> oldappurl in
-    let getVoyagerVersionS -> svoyver in
+    let getVoyagerVersionSS -> svoyver in
     let _getpack _checkpack strcat sMkAppletPath "index.html" -> html in
     (
       set html = strreplace html "$BGCOLOR" (if bgcolor == 0 then "000000" else (itoh bgcolor));
