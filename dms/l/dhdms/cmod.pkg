@@ -309,7 +309,20 @@ fun _DMScreateChild(fath,from,name,scr,param)=
   0);;
 
 
-fun _DMSevent(d,ev,para,repl)= DMSevent2 d ev para repl nil nil;;
+//fun _DMSevent(d,ev,para,repl) = DMSevent2 d ev para repl nil nil;;  
+/***************************************
+  DMSevent use repl to define an OS event 
+  instead of standart SCS event
+***************************************/
+fun _DMSevent(d,ev,para,repl)= 
+  if (repl==nil) then 
+	DMSevent2 d ev para repl nil nil 
+  else 
+  (
+    _fooS "XXXXXXXXXXXXXXXXX";
+	_DMSeventOS _DMSrootModuleOS para nil;	
+	0
+  );;
 
 fun _DMSreply(d,dest,act,para,repl)=
  fireEvent2 dest actionPending [d act para repl nil nil] 1;;
