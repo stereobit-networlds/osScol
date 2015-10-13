@@ -1,0 +1,2568 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+
+/*! @defgroup plugITApi OpenSpace3D plugIT Api
+ *  OpenSpace3D plugIT Api
+ *  @{
+ */
+
+/** @} */
+
+// editor mode : 1
+// player mode : 0
+var iPluginMode = 0;;
+
+/*!  @ingroup plugITApi
+  *  \brief Add a log message in the OS3D log window
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the message to print in the log window
+  *
+  *  \return S : the same message
+  **/
+proto addLogMessage = fun [S] S;;
+
+/*!  @ingroup plugITApi
+  *  \brief Add a log message in the OS3D log window from a list
+  *
+  *  <b>Prototype:</b> fun [S [S r1]] I
+  *
+  *  \param S : the message prefix
+  *  \param [S r1] : a list of messages to print in the log window
+  *
+  *  \return 0
+  **/
+proto addLogMessageMulti = fun [S [S r1]] I;;
+
+/* plugins manager <<<<<<<<<< Plug renamed as PlugOS(compatibility issue)*/
+
+struct PlugOS=
+  [
+    PLUG_sFile                : S,                               //!< plugin definition file name
+    PLUG_sDir                 : S,                               //!< plugin directory
+    PLUG_channel              : Chn,                             //!< plugin execution channel
+    PLUG_sName                : S,                               //!< plugin name
+    PLUG_sDesc                : S,                               //!< plugin description
+    PLUG_sHelp                : S,                               //!< plugin help Url
+    PLUG_lAction              : [S r1],                          //!< action list
+    PLUG_lEvent               : [S r1],                          //!< event list
+    PLUG_cbAddInstance        : fun[PInstance] I,                //!< callback function for add new instance
+    PLUG_cbDelInstance        : fun[PInstance] I,                //!< callback function for deleted instance
+    PLUG_cbNewUser            : fun[UserI] I,                    //!< new user connected
+    PLUG_cbDelUser            : fun[UserI] I,                    //!< new user disconnected
+    PLUG_lParams              : [[S I] r1],                      //!< plugin general parameters
+    PLUG_iType                : I,                               //!< plugin type
+    PLUG_sType                : S,                               //!< plugin type name
+    PLUG_lInstances           : [[S PInstance] r1],              //!< instance list
+    PLUG_openEditor           : fun [EdWindow PInstance V3Dview] [fun [] [[S S] r1] fun [] I], //!< function to open the plugIT editor
+    
+    PLUG_bMultiInstance       : I                                //!< is multi instance
+    
+  ]mkPlug;;
+
+
+struct PInstance=
+  [
+    INST_sPluginClass         : S,                              //!< plugin class name
+    INST_sName                : S,                              //!< instance name
+    INST_lParams              : [[S S] r1],                     //!< instance parameters
+    INST_plugin               : PlugOS,                           //!< plugin structure
+    INST_groupstr             : Group,                          //!< group structure
+    INST_lAction              : [S r1],                         //!< actions list
+    INST_lEvent               : [S r1],                         //!< events list
+    
+    // Instance Callback
+    INST_cbDel                : fun [PInstance] I,
+    INST_cbGeneric            : fun [PInstance I S S] I,
+    INST_cbPreRenderEffects   : fun [PInstance V3Dview] I,
+    INST_cbPreRender          : fun [PInstance V3Dview] I,
+    INST_cbPostRender         : fun [PInstance V3Dview] I,
+    INST_cbScenePreRender     : fun [PInstance V3Dsession I] I,
+    INST_cbScenePreRender2    : fun [PInstance V3Dsession I] I,
+    INST_cbScenePreRenderPhysic : fun [PInstance V3Dsession I] I,
+    INST_cbScenePostRender    : fun [PInstance V3Dsession I] I,
+    INST_cbClick              : fun [PInstance V3Dview I I I] I,
+    INST_cbDbClick            : fun [PInstance V3Dview I I I] I,
+    INST_cbUnClick            : fun [PInstance V3Dview I I I] I,
+    INST_cbWheel              : fun [PInstance V3Dview I I I I] I,
+    INST_cbCursorMove         : fun [PInstance V3Dview I I I] I,
+    INST_cbKeyDown            : fun [PInstance V3Dview I I] I,
+    INST_cbKeyUp              : fun [PInstance V3Dview I] I,
+    INST_cbCameraChange       : fun [PInstance V3Dview V3Dsession SO3_OBJECT] I,
+    INST_cbResizeView         : fun [PInstance V3Dview I I] I,
+    INST_cbFocusView          : fun [PInstance V3Dview] I,
+    INST_cbKillFocusView      : fun [PInstance V3Dview] I,
+    
+    // Network Callback
+    INST_cbNetConnected       : fun [PInstance NetComm] I,
+    INST_cbNetClosed          : fun [PInstance NetComm] I,
+    INST_cbNetSConnected      : fun [PInstance NetComm] I,
+    INST_cbNetSrvMessage      : fun [PInstance NetComm S S S] I,
+    INST_cbNetUserMessage     : fun [PInstance NetComm NetUser S S S] I,
+    INST_cbNetUserPrivateMessage  : fun [PInstance NetComm NetUser S S S] I,
+    INST_cbNetUserChangeLogin : fun [PInstance NetComm NetUser S] I,
+    INST_cbNetNewUser         : fun [PInstance NetComm NetUser] I,
+    INST_cbNetDelUser         : fun [PInstance NetComm NetUser] I,
+    INST_cbNetGetFile         : fun [PInstance NetComm NetUser S S S] I,
+    INST_cbNetUserGetItem     : fun [PInstance NetComm NetUser S S] I,
+    INST_cbNetRoomGetItem     : fun [PInstance NetComm S S] I,
+    INST_cbNetNbUsers         : fun [PInstance NetComm I] I,
+    INST_cbNetRoomChanged     : fun [PInstance NetComm S] I,
+    
+    INST_iLoadState           : I                           //!< loaded state
+    
+  ]mkPInstance;;
+
+typeof lPlugins=[[S PlugOS] r1];;
+
+
+typeof lInstCbGeneric                 = [PInstance r1];;
+typeof lInstCbPreRenderEffects        = [PInstance r1];;
+typeof lInstCbPreRender               = [PInstance r1];;
+typeof lInstCbPostRender              = [PInstance r1];;
+typeof lInstCbScenePreRender          = [PInstance r1];;
+typeof lInstCbScenePreRender2         = [PInstance r1];;
+typeof lInstCbScenePreRenderPhysic    = [PInstance r1];;
+typeof lInstCbScenePostRender         = [PInstance r1];;
+typeof lInstCbClick                   = [PInstance r1];;
+typeof lInstCbDbClick                 = [PInstance r1];;
+typeof lInstCbUnClick                 = [PInstance r1];;
+typeof lInstCbWheel                   = [PInstance r1];;
+typeof lInstCbCursorMove              = [PInstance r1];;
+typeof lInstCbKeyDown                 = [PInstance r1];;
+typeof lInstCbKeyUp                   = [PInstance r1];;
+typeof lInstCbCameraChange            = [PInstance r1];;
+typeof lInstCbResizeView              = [PInstance r1];;
+typeof lInstCbFocusView               = [PInstance r1];;
+typeof lInstCbKillFocusView           = [PInstance r1];;
+
+typeof lInstCbNetConnected            = [PInstance r1];;
+typeof lInstCbNetClosed               = [PInstance r1];;
+typeof lInstCbNetSConnected           = [PInstance r1];;
+typeof lInstCbNetSrvMessage           = [PInstance r1];;
+typeof lInstCbNetUserMessage          = [PInstance r1];;
+typeof lInstCbNetUserPrivateMessage   = [PInstance r1];;
+typeof lInstCbNetUserChangeLogin      = [PInstance r1];;
+typeof lInstCbNetNewUser              = [PInstance r1];;
+typeof lInstCbNetDelUser              = [PInstance r1];;
+typeof lInstCbNetGetFile              = [PInstance r1];;
+typeof lInstCbNetUserGetItem          = [PInstance r1];;
+typeof lInstCbNetRoomGetItem          = [PInstance r1];;
+typeof lInstCbNetNbUsers              = [PInstance r1];;
+typeof lInstCbNetRoomChanged          = [PInstance r1];;
+
+
+/* plugin informations values */
+var PLUGIN_OBJECT         = 2;;
+var PLUGIN_MATERIAL       = 4;;
+var PLUGIN_RESERVED       = 8;;
+var PLUGIN_NOTRESERVED    = 16;;
+
+var bPluginsLoaded        = 0;;
+
+typeof cbPluginLoadInfo = fun [S] I;;
+
+defcom SIniPlug=IniPlug S;;
+
+var preplugPkg="dms/3d/os3dlib/os3dpreplug.pkg";; /*<< path changed (loaded into .dmc)**/
+
+
+fun plugbyfile(a,c)=let a -> [_ plug] in !strcmpi plug.PLUG_sFile c;;
+fun plugbych(a,c)=let a -> [_ plug] in plug.PLUG_channel==c;;
+fun plugbyclass(a,c)=let a -> [_ plug] in!strcmpi plug.PLUG_sName c;;
+
+
+fun removeInstCallBacks(inst)=
+  set lInstCbGeneric                 = remove_from_list lInstCbGeneric inst;
+  set lInstCbPreRenderEffects        = remove_from_list lInstCbPreRenderEffects inst;
+  set lInstCbPreRender               = remove_from_list lInstCbPreRender inst;
+  set lInstCbPostRender              = remove_from_list lInstCbPostRender inst;
+  set lInstCbScenePreRender          = remove_from_list lInstCbScenePreRender inst;
+  set lInstCbScenePreRender2         = remove_from_list lInstCbScenePreRender2 inst;
+  set lInstCbScenePreRenderPhysic    = remove_from_list lInstCbScenePreRenderPhysic inst;
+  set lInstCbScenePostRender         = remove_from_list lInstCbScenePostRender inst;
+  set lInstCbClick                   = remove_from_list lInstCbClick inst;
+  set lInstCbDbClick                 = remove_from_list lInstCbDbClick inst;
+  set lInstCbUnClick                 = remove_from_list lInstCbUnClick inst;
+  set lInstCbWheel                   = remove_from_list lInstCbWheel inst;
+  set lInstCbCursorMove              = remove_from_list lInstCbCursorMove inst;
+  set lInstCbKeyDown                 = remove_from_list lInstCbKeyDown inst;
+  set lInstCbKeyUp                   = remove_from_list lInstCbKeyUp inst;
+  set lInstCbCameraChange            = remove_from_list lInstCbCameraChange inst;
+  set lInstCbResizeView              = remove_from_list lInstCbResizeView inst;
+  set lInstCbFocusView               = remove_from_list lInstCbFocusView inst;
+  set lInstCbKillFocusView           = remove_from_list lInstCbKillFocusView inst;
+  
+  set lInstCbNetConnected            = remove_from_list lInstCbNetConnected inst;
+  set lInstCbNetClosed               = remove_from_list lInstCbNetClosed inst;
+  set lInstCbNetSConnected           = remove_from_list lInstCbNetSConnected inst;
+  set lInstCbNetSrvMessage           = remove_from_list lInstCbNetSrvMessage inst;
+  set lInstCbNetUserMessage          = remove_from_list lInstCbNetUserMessage inst;
+  set lInstCbNetUserPrivateMessage   = remove_from_list lInstCbNetUserPrivateMessage inst;
+  set lInstCbNetUserChangeLogin      = remove_from_list lInstCbNetUserChangeLogin inst;
+  set lInstCbNetNewUser              = remove_from_list lInstCbNetNewUser inst;
+  set lInstCbNetDelUser              = remove_from_list lInstCbNetDelUser inst;
+  set lInstCbNetGetFile              = remove_from_list lInstCbNetGetFile inst;
+  set lInstCbNetUserGetItem          = remove_from_list lInstCbNetUserGetItem inst;
+  set lInstCbNetRoomGetItem          = remove_from_list lInstCbNetRoomGetItem inst;
+  set lInstCbNetNbUsers              = remove_from_list lInstCbNetNbUsers inst;
+  set lInstCbNetRoomChanged          = remove_from_list lInstCbNetRoomChanged inst;
+  
+  let sizelist inst.INST_plugin.PLUG_lAction -> size in
+  let 0 -> i in
+  while (i < size) do
+  (
+    let nth_list inst.INST_plugin.PLUG_lAction i -> action in
+    (
+      _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
+    );
+    set i = i + 1;
+  );
+  
+  let sizelist inst.INST_lAction -> size in
+  let 0 -> i in
+  while (i < size) do
+  (
+    let nth_list inst.INST_lAction i -> action in
+    (
+      _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
+    );
+    set i = i + 1;
+  );
+  0;;
+
+
+fun resetInstCallBacks()=
+  set lInstCbGeneric                 = nil;
+  set lInstCbPreRenderEffects        = nil;
+  set lInstCbPreRender               = nil;
+  set lInstCbPostRender              = nil;
+  set lInstCbScenePreRender          = nil;
+  set lInstCbScenePreRender2         = nil;
+  set lInstCbScenePreRenderPhysic    = nil;
+  set lInstCbScenePostRender         = nil;
+  set lInstCbClick                   = nil;
+  set lInstCbDbClick                 = nil;
+  set lInstCbUnClick                 = nil;
+  set lInstCbWheel                   = nil;
+  set lInstCbCursorMove              = nil;
+  set lInstCbKeyDown                 = nil;
+  set lInstCbKeyUp                   = nil;
+  set lInstCbCameraChange            = nil;
+  set lInstCbResizeView              = nil;
+  set lInstCbFocusView               = nil;
+  set lInstCbKillFocusView           = nil;
+  
+  set lInstCbNetConnected            = nil;
+  set lInstCbNetClosed               = nil;
+  set lInstCbNetSConnected           = nil;
+  set lInstCbNetSrvMessage           = nil;
+  set lInstCbNetUserMessage          = nil;
+  set lInstCbNetUserPrivateMessage   = nil;
+  set lInstCbNetUserChangeLogin      = nil;
+  set lInstCbNetNewUser              = nil;
+  set lInstCbNetDelUser              = nil;
+  set lInstCbNetGetFile              = nil;
+  set lInstCbNetUserGetItem          = nil;
+  set lInstCbNetRoomGetItem          = nil;
+  set lInstCbNetNbUsers              = nil;
+  set lInstCbNetRoomChanged          = nil;
+  0;;
+
+
+fun deletePluginInstance(plug, instancename, dellinks)=
+  let switchstr plug.PLUG_lInstances instancename -> inst in
+  if inst == nil then nil else
+  (
+    if (!inst.INST_iLoadState) then nil else
+    (
+      removeInstCallBacks inst;
+    
+      // Instance Callback
+      set inst.INST_cbGeneric = nil;
+      set inst.INST_cbPreRenderEffects = nil;
+      set inst.INST_cbPreRender = nil;
+      set inst.INST_cbPostRender = nil;
+      set inst.INST_cbScenePreRender = nil;
+      set inst.INST_cbScenePreRender2 = nil;
+      set inst.INST_cbScenePreRenderPhysic = nil;
+      set inst.INST_cbScenePostRender = nil;
+      set inst.INST_cbClick = nil;
+      set inst.INST_cbDbClick = nil;
+      set inst.INST_cbUnClick = nil;
+      set inst.INST_cbWheel = nil;
+      set inst.INST_cbCursorMove = nil;
+      set inst.INST_cbKeyDown = nil;
+      set inst.INST_cbKeyUp = nil;
+      set inst.INST_cbCameraChange = nil;
+      set inst.INST_cbResizeView = nil;
+      set inst.INST_cbFocusView = nil;
+      set inst.INST_cbKillFocusView = nil;
+
+      // Network Callback
+      set inst.INST_cbNetConnected = nil;     
+      set inst.INST_cbNetClosed = nil;
+      set inst.INST_cbNetSConnected = nil;
+      set inst.INST_cbNetSrvMessage = nil;
+      set inst.INST_cbNetUserMessage = nil;
+      set inst.INST_cbNetUserPrivateMessage = nil;
+      set inst.INST_cbNetUserChangeLogin = nil;
+      set inst.INST_cbNetNewUser = nil;
+      set inst.INST_cbNetDelUser = nil;
+      set inst.INST_cbNetGetFile = nil;
+      set inst.INST_cbNetUserGetItem = nil;
+      set inst.INST_cbNetRoomGetItem = nil;
+      set inst.INST_cbNetNbUsers = nil;
+      set inst.INST_cbNetRoomChanged = nil;
+
+      exec inst.INST_cbDel with [inst];
+      set inst.INST_cbDel = nil;
+      
+      exec plug.PLUG_cbDelInstance with [inst];
+    );
+    
+    if (!dellinks) then nil else
+    (
+      _DMSremoveActionStartedByName _DMSrootModuleOS strcat instancename ".";
+      _DMSremoveEventStartedByName _DMSrootModuleOS strcat instancename ".";
+    );
+    
+    set plug.PLUG_lInstances = remove_from_list plug.PLUG_lInstances (getSwitchStr plug.PLUG_lInstances instancename);
+  );
+  0;;
+
+
+fun removeAllPluginInstanceFromGroup(groupstr)=
+  let lPlugins -> l in
+  while (l != nil) do
+  (
+    let hd l -> [_ plug] in
+    let plug.PLUG_lInstances -> linst in
+    while (linst != nil) do
+    (
+      let hd linst -> [_ inst] in
+      if (inst.INST_groupstr != groupstr) then nil else
+        deletePluginInstance plug inst.INST_sName 1;
+      
+      set linst = tl linst;
+    );
+    
+    set l = tl l;
+  );
+  0;;
+
+
+fun createPluginInstance(groupstr, plug, instancename, params, laction, levent, load)=
+  deletePluginInstance plug instancename 0;
+  
+  let mkPInstance[nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0] -> inst in
+  (
+    set inst.INST_plugin = plug;
+    set inst.INST_groupstr = groupstr;
+    set inst.INST_sPluginClass = plug.PLUG_sName;
+    set inst.INST_sName = instancename;
+    set inst.INST_iLoadState = load;
+    set inst.INST_lAction = laction;
+    set inst.INST_lEvent = levent;
+    
+    if params == nil then nil else
+      set inst.INST_lParams = params;
+    
+    set plug.PLUG_lInstances = lcat plug.PLUG_lInstances [instancename inst]::nil;    
+    
+    if (!inst.INST_iLoadState) then nil else
+      exec plug.PLUG_cbAddInstance with [inst];
+    
+    inst;
+  );;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT instance user actions
+  *
+  *  <b>Prototype:</b> fun [PInstance]  [S r1]
+  *
+  *  \param PInstance : the plugIT instance
+  *
+  *  \return  [S r1] : the list of user actions
+  **/
+fun getPluginInstanceUserActions(inst)= inst.INST_lAction;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT instance user events
+  *
+  *  <b>Prototype:</b> fun [PInstance]  [S r1]
+  *
+  *  \param PInstance : the plugIT instance
+  *
+  *  \return  [S r1] : the list of user events
+  **/
+fun getPluginInstanceUserEvents(inst)= inst.INST_lEvent;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT instance param value
+  *
+  *  <b>Prototype:</b> fun [PInstance S] S
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param S : param name
+  *
+  *  \return S : the param value
+  **/
+fun getPluginInstanceParam(inst, param)= switchstr inst.INST_lParams param;;
+
+
+fun getPluginParam(plug, param)=
+  let switchstr plug.PLUG_lParams param -> type in
+  if type != nil then type else
+  (
+    // look in params named with "_" at the end
+    let nil -> lfilter in
+    (
+      let plug.PLUG_lParams -> l in
+      while (l != nil) do
+      (
+        let hd l -> [fname ftype] in
+        if (!strcmp "_" (substr fname ((strlen fname) - 1) 1)) then
+        (
+          set lfilter = [(substr fname 0 ((strlen fname) - 1)) ftype]::lfilter;
+        )
+        else nil;
+        
+        set l = tl l;
+      );
+      
+      if (lfilter == nil) then nil else
+      let lfilter -> l in
+      while ((l != nil) && (type == nil)) do
+      (
+        let hd l -> [fname ftype] in
+        if (!strcmp fname (substr param 0 (strlen fname))) then
+          set type = ftype
+        else nil;
+        
+        set l = tl l;
+      );
+    );
+    type;
+  );;
+
+fun getPluginByName(name)= switchstr lPlugins name;;
+
+fun getPluginByFile(file)= let search_in_list lPlugins @plugbyfile file -> [_ plug] in plug;;
+
+fun getPluginInstanceByName(plug, instancename)= switchstr plug.PLUG_lInstances instancename;;
+
+fun getInstanceByName(instancename)=
+  let nil -> inststr in
+  (
+    let lPlugins -> l in
+    while (l != nil) && (inststr == nil) do
+    (
+      let hd l -> [_ plug] in
+        set inststr = getPluginInstanceByName plug instancename;
+      
+      set l = tl l;
+    );
+    inststr;
+  );;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT instance group name
+  *
+  *  <b>Prototype:</b> fun [PInstance] S
+  *
+  *  \param PInstance : the plugIT instance
+  *
+  *  \return S : the group name
+  **/
+fun getPluginInstanceGroupName(inst)= inst.INST_groupstr.GRP_sName;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT instance name
+  *
+  *  <b>Prototype:</b> fun [PInstance] S
+  *
+  *  \param PInstance : the plugIT instance
+  *
+  *  \return S : the instance name
+  **/
+fun getPluginInstanceName(inst)= inst.INST_sName;;
+
+fun setPluginInstanceParams(inst, lparam)= set inst.INST_lParams = lparam;;
+
+fun setPluginInstanceUserActions(inst, lparam)= set inst.INST_lAction = lparam;;
+
+fun setPluginInstanceUserEvents(inst, lparam)= set inst.INST_lEvent = lparam;;
+
+
+// Instances callback
+/*!  @ingroup plugITApi
+  *  \brief Define a generic plugIT instance callback that can be triggered by calling cbPlugGeneric with an unique id
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance I S S] u0] fun [PInstance I S S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance I S S] u0 : the callback function called event
+  *  \param - PInstance : the plugIT instance
+  *  \param - I : an unique event id
+  *  \param - S : the event value
+  *  \param - S : the event param
+  *
+  *  \return 0
+  **/
+fun setPluginInstanceCbGeneric(inst, cbfun)=
+  set lInstCbGeneric = remove_from_list lInstCbGeneric inst;
+  if (cbfun == nil) then nil else
+    set lInstCbGeneric = inst::lInstCbGeneric;
+  set inst.INST_cbGeneric = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on delete event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance] u0] fun [PInstance] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance] u0 : the callback function called on del event
+  *  \param - PInstance : the plugIT instance
+  *
+  *  \return 0
+  **/
+fun setPluginInstanceCbDel(inst, cbfun)= set inst.INST_cbDel = cbfun;;
+
+
+// not used
+fun setPluginInstanceCbPreRenderEffects(inst, cbfun)=
+  set lInstCbPreRenderEffects = remove_from_list lInstCbPreRenderEffects inst;
+  if (cbfun == nil) then nil else
+    set lInstCbPreRenderEffects = inst::lInstCbPreRenderEffects;
+  set inst.INST_cbPreRenderEffects = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on preRender event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview] u0] fun [PInstance V3Dview] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview] u0 : the callback function called on preRender event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *
+  *  \return fun [PInstance] u0 : the same callback
+  **/
+fun setPluginInstanceCbPreRender(inst, cbfun)=
+  set lInstCbPreRender = remove_from_list lInstCbPreRender inst;
+  if (cbfun == nil) then nil else
+    set lInstCbPreRender = inst::lInstCbPreRender;
+  set inst.INST_cbPreRender = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on postRender event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview] u0] fun [PInstance V3Dview] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview] u0 : the callback function called on postRender event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *
+  *  \return fun [PInstance V3Dview] u0 : the same callback
+  **/
+fun setPluginInstanceCbPostRender(inst, cbfun)=
+  set lInstCbPostRender = remove_from_list lInstCbPostRender inst;
+  if (cbfun == nil) then nil else
+    set lInstCbPostRender = inst::lInstCbPostRender;
+  set inst.INST_cbPostRender = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on Scene preRender event, this one is called before the animations and physics updates
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dsession I] u0] fun [PInstance V3Dsession I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dsession I] u0 : the callback function called on Scene preRender event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dsession : the scene 3d session structure
+  *  \param - I : the time passed since last frame in milli second
+  *
+  *  \return fun [PInstance V3Dsession I] u0 : the same callback
+  **/
+fun setPluginInstanceCbScenePreRender(inst, cbfun)=
+  set lInstCbScenePreRender = remove_from_list lInstCbScenePreRender inst;
+  if (cbfun == nil) then nil else
+    set lInstCbScenePreRender = inst::lInstCbScenePreRender;
+  set inst.INST_cbScenePreRender = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on Scene preRender2 event, this one is called after the animations and physics updates
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dsession I] u0] fun [PInstance V3Dsession I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dsession I] u0 : the callback function called on Scene preRender2 event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dsession : the scene 3d session structure
+  *  \param - I : the time passed since last frame in milli second
+  *
+  *  \return fun [PInstance V3Dsession I] u0 : the same callback
+  **/
+fun setPluginInstanceCbScenePreRender2(inst, cbfun)=
+  set lInstCbScenePreRender2 = remove_from_list lInstCbScenePreRender2 inst;
+  if (cbfun == nil) then nil else
+    set lInstCbScenePreRender2 = inst::lInstCbScenePreRender2;
+  set inst.INST_cbScenePreRender2 = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on Scene preRenderPhysic event, this one is called after the animations and before physics updates
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dsession I] u0] fun [PInstance V3Dsession I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dsession I] u0 : the callback function called on Scene preRender2 event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dsession : the scene 3d session structure
+  *  \param - I : the time passed since last frame in milli second
+  *
+  *  \return fun [PInstance V3Dsession I] u0 : the same callback
+  **/
+fun setPluginInstanceCbScenePreRenderPhysic(inst, cbfun)=
+  set lInstCbScenePreRenderPhysic = remove_from_list lInstCbScenePreRenderPhysic inst;
+  if (cbfun == nil) then nil else
+    set lInstCbScenePreRenderPhysic = inst::lInstCbScenePreRenderPhysic;
+  set inst.INST_cbScenePreRenderPhysic = cbfun;;
+  
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on Scene postRender event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dsession I] u0] fun [PInstance V3Dsession I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dsession I] u0 : the callback function called on Scene postRender event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dsession : the scene 3d session structure
+  *  \param - I : the time passed since last frame in milli second
+  *
+  *  \return fun [PInstance V3Dsession I] u0 : the same callback
+  **/
+fun setPluginInstanceCbScenePostRender(inst, cbfun)=
+  set lInstCbScenePostRender = remove_from_list lInstCbScenePostRender inst;
+  if (cbfun == nil) then nil else
+    set lInstCbScenePostRender = inst::lInstCbScenePostRender;
+  set inst.INST_cbScenePostRender = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on mouse click event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I I I] u0] fun [PInstance V3Dview I I I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I I I] u0 : the callback function called on mouse click event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : click position on X
+  *  \param - I : click position on Y
+  *  \param - I : mouse button, 1 for left, 2 for right, 16 for middle button
+  *
+  *  \return fun [PInstance V3Dview I I I] u0 : the same callback
+  **/
+fun setPluginInstanceCbClick(inst, cbfun)=
+  set lInstCbClick = remove_from_list lInstCbClick inst;
+  if (cbfun == nil) then nil else
+    set lInstCbClick = inst::lInstCbClick;
+  set inst.INST_cbClick = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on mouse double click event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I I I] u0] fun [PInstance V3Dview I I I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I I I] u0 : the callback function called on mouse double click event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : click position on X
+  *  \param - I : click position on Y
+  *  \param - I : mouse button, 1 for left, 2 for right, 16 for middle button
+  *
+  *  \return fun [PInstance V3Dview I I I] u0 : the same callback
+  **/
+fun setPluginInstanceCbDbClick(inst, cbfun)=
+  set lInstCbDbClick = remove_from_list lInstCbDbClick inst;
+  if (cbfun == nil) then nil else
+    set lInstCbDbClick = inst::lInstCbDbClick;
+  set inst.INST_cbDbClick = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on mouse unclick event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I I I] u0] fun [PInstance V3Dview I I I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I I I] u0 : the callback function called on mouse unclick event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : click position on X
+  *  \param - I : click position on Y
+  *  \param - I : mouse button, 1 for left, 2 for right, 16 for middle button
+  *
+  *  \return fun [PInstance V3Dview I I I] u0 : the same callback
+  **/
+fun setPluginInstanceCbUnClick(inst, cbfun)=
+  set lInstCbUnClick = remove_from_list lInstCbUnClick inst;
+  if (cbfun == nil) then nil else
+    set lInstCbUnClick = inst::lInstCbUnClick;
+  set inst.INST_cbUnClick = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on mouse wheel event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I I I I] u0] fun [PInstance V3Dview I I I I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I I I I] u0 : the callback function called on mouse wheel event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : click position on X
+  *  \param - I : click position on Y
+  *  \param - I : wheel delta
+  *  \param - I : mouse button, 1 for left, 2 for right, 16 for middle button
+  *
+  *  \return fun [PInstance V3Dview I I I I] u0 : the same callback
+  **/
+fun setPluginInstanceCbWheel(inst, cbfun)=
+  set lInstCbWheel = remove_from_list lInstCbWheel inst;
+  if (cbfun == nil) then nil else
+    set lInstCbWheel = inst::lInstCbWheel;
+  set inst.INST_cbWheel = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on mouse move event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I I I] u0] fun [PInstance V3Dview I I I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I I I] u0 : the callback function called on mouse move event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : click position on X
+  *  \param - I : click position on Y
+  *  \param - I : mouse button, 1 for left, 2 for right, 16 for middle button
+  *
+  *  \return fun [PInstance V3Dview I I I] u0 : the same callback
+  **/
+fun setPluginInstanceCbCursorMove(inst, cbfun)=
+  set lInstCbCursorMove = remove_from_list lInstCbCursorMove inst;
+  if (cbfun == nil) then nil else
+    set lInstCbCursorMove = inst::lInstCbCursorMove;
+  set inst.INST_cbCursorMove = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on keyboard key down event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I I] u0] fun [PInstance V3Dview I I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I I] u0 : the callback function called on keyboard key down event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : key scancode
+  *  \param - I : key ascii code
+  *
+  *  \return fun [PInstance V3Dview I I] u0 : the same callback
+  **/
+fun setPluginInstanceCbKeyDown(inst, cbfun)=
+  set lInstCbKeyDown = remove_from_list lInstCbKeyDown inst;
+  if (cbfun == nil) then nil else
+    set lInstCbKeyDown = inst::lInstCbKeyDown;
+  set inst.INST_cbKeyDown = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on keyboard key up event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I] u0] fun [PInstance V3Dview I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I] u0 : the callback function called on keyboard key up event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : key scancode
+  *
+  *  \return fun [PInstance V3Dview I] u0 : the same callback
+  **/
+fun setPluginInstanceCbKeyUp(inst, cbfun)=
+  set lInstCbKeyUp = remove_from_list lInstCbKeyUp inst;
+  if (cbfun == nil) then nil else
+    set lInstCbKeyUp = inst::lInstCbKeyUp;
+  set inst.INST_cbKeyUp = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on default camera change
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview V3Dsession SO3Object] u0] fun [PInstance V3Dview V3Dsession SO3Object] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview V3Dsession SO3Object] u0 : the callback function called on default camera change
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - V3Dsession : the scene 3d session structure
+  *  \param - SO3Object : the new default camera
+  *
+  *  \return fun [PInstance V3Dview V3Dsession SO3Object] u0 : the same callback
+  **/
+fun setPluginInstanceCbCameraChange(inst, cbfun)=
+  set lInstCbCameraChange = remove_from_list lInstCbCameraChange inst;
+  if (cbfun == nil) then nil else
+    set lInstCbCameraChange = inst::lInstCbCameraChange;
+  set inst.INST_cbCameraChange = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on 3d view resize event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview I I] u0] fun [PInstance V3Dview I I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview I I] u0 : the callback function called on 3d view resize event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - I : the new width of the 3d view
+  *  \param - I : the new height of the 3d view
+  *
+  *  \return fun [PInstance V3Dview I I] u0 : the same callback
+  **/
+fun setPluginInstanceCbResizeView(inst, cbfun)=
+  set lInstCbResizeView = remove_from_list lInstCbResizeView inst;
+  if (cbfun == nil) then nil else
+    set lInstCbResizeView = inst::lInstCbResizeView;
+  set inst.INST_cbResizeView = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on 3d view get focus event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview] u0] fun [PInstance V3Dview] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview] u0 : the callback function called on 3d view get focus event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *
+  *  \return fun [PInstance V3Dview] u0 : the same callback
+  **/
+fun setPluginInstanceCbFocusView(inst, cbfun)=
+  set lInstCbFocusView = remove_from_list lInstCbFocusView inst;
+  if (cbfun == nil) then nil else
+    set lInstCbFocusView = inst::lInstCbFocusView;
+  set inst.INST_cbFocusView = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on 3d view lost focus event
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance V3Dview] u0] fun [PInstance V3Dview] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance V3Dview] u0 : the callback function called on 3d view lost focus event
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *
+  *  \return fun [PInstance V3Dview] u0 : the same callback
+  **/
+fun setPluginInstanceCbKillFocusView(inst, cbfun)=
+  set lInstCbKillFocusView = remove_from_list lInstCbKillFocusView inst;
+  if (cbfun == nil) then nil else
+    set lInstCbKillFocusView = inst::lInstCbKillFocusView;
+  set inst.INST_cbKillFocusView = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network server connection
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm] u0] fun [PInstance NetComm] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm] u0 : the callback function called on network server connection
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *
+  *  \return fun [PInstance NetComm] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetConnected(inst, cbfun)=
+  set lInstCbNetConnected = remove_from_list lInstCbNetConnected inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetConnected = inst::lInstCbNetConnected;
+  set inst.INST_cbNetConnected = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network server connection lost
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm] u0] fun [PInstance NetComm] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm] u0 : the callback function called on network server connection lost
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *
+  *  \return fun [PInstance NetComm] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetClosed(inst, cbfun)=
+  set lInstCbNetClosed = remove_from_list lInstCbNetClosed inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetClosed = inst::lInstCbNetClosed;
+  set inst.INST_cbNetClosed = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network server secure connection
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm] u0] fun [PInstance NetComm] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm] u0 : the callback function called on network server secure connection
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *
+  *  \return fun [PInstance NetComm] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetSConnected(inst, cbfun)=
+  set lInstCbNetSConnected = remove_from_list lInstCbNetSConnected inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetSConnected = inst::lInstCbNetSConnected;
+  set inst.INST_cbNetSConnected = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network incoming server message
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm S S S] u0] fun [PInstance NetComm S S S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm S S S] u0 : the callback function called on network incoming server message
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - S : command
+  *  \param - S : message
+  *  \param - S : parameters
+  *
+  *  \return fun [PInstance NetComm S S S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetSrvMessage(inst, cbfun)=
+  set lInstCbNetSrvMessage = remove_from_list lInstCbNetSrvMessage inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetSrvMessage = inst::lInstCbNetSrvMessage;
+  set inst.INST_cbNetSrvMessage = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network incoming user message
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm NetUser S S S] u0] fun [PInstance NetComm NetUser S S S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm NetUser S S S] u0 : the callback function called on network incoming user message
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - NetUser : the user structure who sent the message
+  *  \param - S : command
+  *  \param - S : message
+  *  \param - S : parameters
+  *
+  *  \return fun [PInstance NetComm NetUser S S S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetUserMessage(inst, cbfun)=
+  set lInstCbNetUserMessage = remove_from_list lInstCbNetUserMessage inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetUserMessage = inst::lInstCbNetUserMessage;
+  set inst.INST_cbNetUserMessage = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network incoming user private message
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm NetUser S S S] u0] fun [PInstance NetComm NetUser S S S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm NetUser S S S] u0 : the callback function called on network incoming user private message
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - NetUser : the user structure who sent the message
+  *  \param - S : command
+  *  \param - S : message
+  *  \param - S : parameters
+  *
+  *  \return fun [PInstance NetComm NetUser S S S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetUserPrivateMessage(inst, cbfun)=
+  set lInstCbNetUserPrivateMessage = remove_from_list lInstCbNetUserPrivateMessage inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetUserPrivateMessage = inst::lInstCbNetUserPrivateMessage;
+  set inst.INST_cbNetUserPrivateMessage = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network incoming user file
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm NetUser S S S] u0] fun [PInstance NetComm NetUser S S S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm NetUser S S S] u0 : the callback function called on network incoming user file
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - NetUser : the user structure who sent the file
+  *  \param - S : command
+  *  \param - S : file data
+  *  \param - S : file name
+  *
+  *  \return fun [PInstance NetComm NetUser S S S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetGetFile(inst, cbfun)=
+  set lInstCbNetGetFile = remove_from_list lInstCbNetGetFile inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetGetFile = inst::lInstCbNetGetFile;
+  set inst.INST_cbNetGetFile = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network user item value change
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm NetUser S S] u0] fun [PInstance NetComm NetUser S S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm NetUser S S] u0 : the callback function called on network user item value change
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - NetUser : the user structure
+  *  \param - S : item name
+  *  \param - S : item value
+  *
+  *  \return fun [PInstance NetComm NetUser S S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetUserGetItem(inst, cbfun)=
+  set lInstCbNetUserGetItem = remove_from_list lInstCbNetUserGetItem inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetUserGetItem = inst::lInstCbNetUserGetItem;
+  set inst.INST_cbNetUserGetItem = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network room item value change
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm S S] u0] fun [PInstance NetComm S S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm S S] u0 : the callback function called on network room item value change
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - S : item name
+  *  \param - S : item value
+  *
+  *  \return fun [PInstance NetComm S S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetRoomGetItem(inst, cbfun)=
+  set lInstCbNetRoomGetItem = remove_from_list lInstCbNetRoomGetItem inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetRoomGetItem = inst::lInstCbNetRoomGetItem;
+  set inst.INST_cbNetRoomGetItem = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network new user connected
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm NetUser] u0] fun [PInstance NetComm NetUser] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm NetUser] u0 : the callback function called on network new user connected
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - NetUser : the new user structure
+  *
+  *  \return fun [PInstance NetComm NetUser] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetNewUser(inst, cbfun)=
+  set lInstCbNetNewUser = remove_from_list lInstCbNetNewUser inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetNewUser = inst::lInstCbNetNewUser;
+  set inst.INST_cbNetNewUser = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network user is disconnected
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm NetUser] u0] fun [PInstance NetComm NetUser] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm NetUser] u0 : the callback function called on network user is disconnected
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - NetUser : the disconnected user structure
+  *
+  *  \return fun [PInstance NetComm NetUser] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetDelUser(inst, cbfun)=
+  set lInstCbNetDelUser = remove_from_list lInstCbNetDelUser inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetDelUser = inst::lInstCbNetDelUser;
+  set inst.INST_cbNetDelUser = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network user change his login
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm NetUser S] u0] fun [PInstance NetComm NetUser S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm NetUser S] u0 : the callback function called on network user change his login
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - NetUser : the user structure
+  *  \param - S : the new user login
+  *
+  *  \return fun [PInstance NetComm NetUser S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetUserChangeLogin(inst, cbfun)=
+  set lInstCbNetUserChangeLogin = remove_from_list lInstCbNetUserChangeLogin inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetUserChangeLogin = inst::lInstCbNetUserChangeLogin;
+  set inst.INST_cbNetUserChangeLogin = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network number of users change
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm I] u0] fun [PInstance NetComm I] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm I] u0 : the callback function called on network number of users change
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - I : the new number of users
+  *
+  *  \return fun [PInstance NetComm I] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetNbUsers(inst, cbfun)=
+  set lInstCbNetNbUsers = remove_from_list lInstCbNetNbUsers inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetNbUsers = inst::lInstCbNetNbUsers;
+  set inst.INST_cbNetNbUsers = cbfun;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on network room change
+  *
+  *  <b>Prototype:</b> fun [PInstance fun [PInstance NetComm S] u0] fun [PInstance NetComm S] u0
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [PInstance NetComm S] u0 : the callback function called on network room change
+  *  \param - PInstance : the plugIT instance
+  *  \param - NetComm : the network structure
+  *  \param - S : the new room value
+  *
+  *  \return fun [PInstance NetComm S] u0 : the same callback
+  **/
+fun setPluginInstanceCbNetRoomChanged(inst, cbfun)=
+  set lInstCbNetRoomChanged = remove_from_list lInstCbNetRoomChanged inst;
+  if (cbfun == nil) then nil else
+    set lInstCbNetRoomChanged = inst::lInstCbNetRoomChanged;
+  set inst.INST_cbNetRoomChanged = cbfun;;
+
+
+fun initPluginInstance(plug, instancename)=
+  let switchstr plug.PLUG_lInstances instancename -> inst in
+    exec plug.PLUG_cbAddInstance with [inst];
+  0;;
+
+
+fun stopPluginInstance(plug, instancename, dellinks)=
+  let switchstr plug.PLUG_lInstances instancename -> inst in
+  (    
+    // Instance Callback
+    removeInstCallBacks inst;
+    
+    set inst.INST_cbGeneric = nil;
+    set inst.INST_cbPreRenderEffects = nil;
+    set inst.INST_cbPreRender = nil;
+    set inst.INST_cbPostRender = nil;
+    set inst.INST_cbScenePreRender = nil;
+    set inst.INST_cbScenePreRender2 = nil;
+    set inst.INST_cbScenePreRenderPhysic = nil;
+    set inst.INST_cbScenePostRender = nil;
+    set inst.INST_cbClick = nil;
+    set inst.INST_cbDbClick = nil;
+    set inst.INST_cbUnClick = nil;
+    set inst.INST_cbWheel = nil;
+    set inst.INST_cbCursorMove = nil;
+    set inst.INST_cbKeyDown = nil;
+    set inst.INST_cbKeyUp = nil;
+    set inst.INST_cbCameraChange = nil;
+    set inst.INST_cbResizeView = nil;
+    set inst.INST_cbFocusView = nil;
+    set inst.INST_cbKillFocusView = nil;
+
+    // Network Callback
+    set inst.INST_cbNetConnected = nil;
+    set inst.INST_cbNetClosed = nil;
+    set inst.INST_cbNetSConnected = nil;
+    set inst.INST_cbNetSrvMessage = nil;
+    set inst.INST_cbNetUserMessage = nil;
+    set inst.INST_cbNetUserPrivateMessage = nil;
+    set inst.INST_cbNetUserChangeLogin = nil;
+    set inst.INST_cbNetNewUser = nil;
+    set inst.INST_cbNetDelUser = nil;
+    set inst.INST_cbNetGetFile = nil;
+    set inst.INST_cbNetUserGetItem = nil;
+    set inst.INST_cbNetRoomGetItem = nil;
+    set inst.INST_cbNetNbUsers = nil;
+    set inst.INST_cbNetRoomChanged = nil;
+
+    exec inst.INST_cbDel with [inst];
+    set inst.INST_cbDel = nil;
+    
+    exec plug.PLUG_cbDelInstance with [inst];
+  
+    if (!dellinks) then nil else
+    (
+      _DMSremoveActionStartedByName _DMSrootModuleOS instancename;
+      _DMSremoveEventStartedByName _DMSrootModuleOS instancename;
+    );
+  );
+  0;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Get the plugIT structure from an instance
+  *
+  *  <b>Prototype:</b> fun [PInstance] Plug
+  *
+  *  \param PInstance : the plugIT instance
+  *
+  *  \return Plug : the instance plugIT structure
+  **/
+fun getInstancePlugin(inst) = inst.INST_plugin;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT file name
+  *
+  *  <b>Prototype:</b> fun [Plug] S
+  *
+  *  \param Plug : the plugIT structure
+  *
+  *  \return S : the file name
+  **/
+fun getPluginFile(p) = p.PLUG_sFile;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT directory
+  *
+  *  <b>Prototype:</b> fun [Plug] S
+  *
+  *  \param Plug : the plugIT structure
+  *
+  *  \return S : the directory
+  **/
+fun getPluginDirectory(p) = p.PLUG_sDir;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT class
+  *
+  *  <b>Prototype:</b> fun [Plug] S
+  *
+  *  \param Plug : the plugIT structure
+  *
+  *  \return S : the class
+  **/
+fun getPluginClass(p) = p.PLUG_sName;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT general parameters
+  *
+  *  <b>Prototype:</b> fun [Plug] [[S I] r1]
+  *
+  *  \param Plug : the plugIT structure
+  *
+  *  \return [[S I] r1] : the plugIT general parameters
+  **/
+fun getPluginParams(p) = p.PLUG_lParams;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT type
+  *
+  *  <b>Prototype:</b> fun [Plug] I
+  *
+  *  \param Plug : the plugIT structure
+  *
+  *  \return I : the plugIT type
+  **/
+fun getPluginType(p) = p.PLUG_iType;;
+
+/*!  @ingroup plugITApi
+  *  \brief Set a plugIT type
+  *
+  *  <b>Prototype:</b> fun [Plug I] I
+  *
+  *  \param Plug : the plugIT structure
+  *  \param I : the new plugIT type
+  *
+  *  \return I : the new type
+  **/
+fun setPluginType(p, x) = set p.PLUG_iType = x;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT type name
+  *
+  *  <b>Prototype:</b> fun [Plug] S
+  *
+  *  \param Plug : the plugIT structure
+  *
+  *  \return S : the plugIT type name
+  **/
+fun getPluginTypeName(p) = p.PLUG_sType;;
+
+/*!  @ingroup plugITApi
+  *  \brief Set a plugIT type name
+  *
+  *  <b>Prototype:</b> fun [Plug S] S
+  *
+  *  \param Plug : the plugIT structure
+  *  \param S : the new plugIT type name
+  *
+  *  \return S : the new type name
+  **/
+fun setPluginTypeName(p, x) = set p.PLUG_sType= x;;
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT path
+  *
+  *  <b>Prototype:</b> fun [Plug] S
+  *
+  *  \param Plug : the plugIT structure
+  *
+  *  \return S : the plugIT path
+  **/
+fun getPluginPath(p)= let getPathFile p.PLUG_sFile nil -> [path _ ] in path;;
+
+/*!  @ingroup plugITApi
+  *  \brief Define a plugIT editor function, this must be called in the plugIT client
+  *
+  *  <b>Prototype:</b> fun [fun [EdWindow PInstance V3Dview] [fun [] [[S S] r1] fun [] I]] I
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param fun [EdWindow PInstance V3Dview] [fun [] [[S S] r1] fun [] I] : the callback function of the editor
+  *  \param - EdWindow : the editor window
+  *  \param - PInstance : the plugIT instance
+  *  \param - V3Dview : the 3d view structure
+  *  \param - return [fun [] [[S S] r1] fun [] I] : the editor close callback and the editor destroy callback
+  *
+  *  \return 0
+  **/
+fun setPluginEditor(edtfun)=
+  let search_in_list lPlugins @plugbych _channel -> [_ plug] in
+    if plug==nil then
+      nil
+    else
+    (
+      set plug.PLUG_openEditor=edtfun;
+    );
+  0;;
+
+
+fun PlugDefine()= let search_in_list lPlugins @plugbych _channel -> [_ plug] in plug;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define a plugIT new and close callback for instances
+  *
+  *  <b>Prototype:</b> fun [fun [PInstance] I fun [PInstance] I]] I
+  *
+  *  \param fun [PInstance] I : the callback function on new instance
+  *  \param fun [PInstance] I : the callback function on close instance
+  *
+  *  \return 0
+  **/
+fun PlugRegister(new,close)=
+  let search_in_list lPlugins @plugbych _channel -> [_ plug] in
+    if plug==nil then
+      nil
+    else
+    (
+      set plug.PLUG_cbAddInstance=new;
+      set plug.PLUG_cbDelInstance=close;
+    );
+  0;;
+
+
+fun PlugRegisterClients(new,close)=
+  let search_in_list lPlugins @plugbych _channel -> [_ plug] in
+    if plug==nil then
+      nil
+    else
+    (
+      set plug.PLUG_cbNewUser=new;
+      set plug.PLUG_cbDelUser=close;
+    );
+  0;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Get a plugIT instance event name
+  *
+  *  <b>Prototype:</b> fun [PInstance S] S
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param S : the event name
+  *
+  *  \return S : the complete instance event name
+  **/
+fun getPluginInstanceEvent(inst, event)= strcatn inst.INST_sName::"."::event::nil;;
+
+
+fun startPluginInstances(plugstr)=
+  if plugstr.PLUG_channel == nil then nil else
+  let plugstr.PLUG_lInstances -> l in
+  while (l != nil) do
+  (
+    let hd l -> [_ inst] in
+    (
+      if inst.INST_iLoadState then nil else
+        exec plugstr.PLUG_cbAddInstance with [inst];
+      
+      set inst.INST_iLoadState = 1;
+    );
+    
+    set l = tl l;
+  );
+  0;;
+
+
+fun startAllPluginInstances()=
+  let lPlugins -> l in
+  while l != nil do
+  (
+    let hd l -> [_ plugstr] in
+      startPluginInstances plugstr; 
+    
+    set l = tl l;
+  );
+
+  set bPluginsLoaded = 1;
+  0;;
+
+
+fun stopPluginInstances(plugstr, dellinks)=
+  let plugstr.PLUG_lInstances -> l in
+  while (l != nil) do
+  (
+    let hd l -> [_ inst] in
+    (
+      stopPluginInstance plugstr inst.INST_sName dellinks;
+
+      set inst.INST_iLoadState = 0;
+    );
+    
+    set l = tl l;
+  );
+  0;;
+
+
+fun stopAllPluginInstances()=
+  let lPlugins -> l in
+  let 0 -> i in
+  while (l != nil) do
+  (
+    let hd l -> [_ plugstr] in
+      stopPluginInstances plugstr 0;
+    
+    set l = tl l;
+  );
+  set bPluginsLoaded = 0;
+  0;;
+
+
+fun destroyPluginInstances(plugstr)=
+  let plugstr.PLUG_lInstances -> l in
+  while (l != nil) do
+  (
+    let hd l -> tinst in
+    let tinst -> [_ inst] in
+    (
+      stopPluginInstance plugstr inst.INST_sName 1;
+      set plugstr.PLUG_lInstances = remove_from_list plugstr.PLUG_lInstances tinst;
+    );
+    
+    set l = tl l;
+  );
+  0;;
+
+
+fun destroyAllPluginInstances()=
+  let lPlugins -> l in
+  while (l != nil) do
+  (
+    let hd l -> [_ plugstr] in
+      destroyPluginInstances plugstr;
+      
+    set l = tl l;
+  );
+  set bPluginsLoaded = 0;
+  0;;
+
+
+fun unloadPlugin(plugstr)=
+  destroyPluginInstances plugstr;
+  _killchannel plugstr.PLUG_channel;
+  set plugstr.PLUG_channel = nil;
+  set plugstr.PLUG_openEditor = nil;
+  set lPlugins = remove_from_list lPlugins (getSwitchStr lPlugins plugstr.PLUG_sName);
+  0;;
+
+
+fun unloadPlugins()=
+  resetInstCallBacks;
+  
+  let lPlugins -> l in
+  while (l != nil) do
+  (
+    let hd l -> [_ pluginstr] in
+      unloadPlugin pluginstr;
+    set l = tl l;
+  );
+  set bPluginsLoaded = 0;
+  0;;
+
+
+fun loadPlugin(file)=
+  //_fooS strcatn "Loading plugin:"::file::"\n"::nil; /** <<<<<<<<<< **/
+  if (_checkpack file) == nil then nil else
+  (
+    let getPathFile file "" -> [dir _] in
+    let XMLload file -> xmlpluginstr in
+    let XMLgetMarkByValue xmlpluginstr "PLUGIN" -> pluginmark in
+    let XMLgetParam pluginmark "name" -> plugname in
+    let XMLgetParam pluginmark "type" -> plugtype in
+    let XMLgetData (XMLgetMarkByValueFromMark pluginmark "DESCRIPTION") -> plugdesc in
+    let XMLgetData (XMLgetMarkByValueFromMark pluginmark "HELP") -> help in
+    let XMLgetMarkByValueFromMark pluginmark "EDITOR" -> editormark in
+    let XMLgetMarksByValueFromMark editormark "SCRIPT" -> lescriptmarks in
+    let XMLgetMarkByValueFromMark pluginmark "CLIENT" -> clientmark in
+    let XMLgetMarksByValueFromMark clientmark "SCRIPT" -> lcscriptmarks in
+    let XMLgetMarksByValueFromMarkSons clientmark "ACTION" -> actiondefmarks in
+    let XMLgetMarksByValueFromMarkSons clientmark "EVENT" -> eventdefmarks in
+  
+    let XMLgetMarksByValueFromMarkSons editormark "PARAM" -> lplugparams in
+    
+    let getPluginByFile file -> plugexist in
+    if pluginmark == nil || plugexist != nil then nil else
+    let mkPlug[nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0] -> newplug in
+    (
+      exec cbPluginLoadInfo with [plugname];
+      set newplug.PLUG_sDir = getDirectoryWithoutLastSlash dir;
+      set newplug.PLUG_sName = plugname;
+      set newplug.PLUG_sFile = file;
+      set newplug.PLUG_sDesc = plugdesc;
+      set newplug.PLUG_sType = plugtype;
+      set newplug.PLUG_sHelp = help;
+      
+      let nil -> lpparam in
+      (
+        while (lplugparams != nil) do
+        (
+          let hd lplugparams -> ppmark in
+          let XMLgetParam ppmark "name" -> ppname in
+          let XMLgetParam ppmark "type" -> pptype in
+            set lpparam = [ppname (getOS3DResourceTypeByName pptype)]::lpparam;
+            
+          set lplugparams = tl lplugparams;
+        );
+        
+        set newplug.PLUG_lParams = lpparam;
+      );
+      
+      // add instance def actions
+      while (actiondefmarks != nil) do
+      (
+        let hd actiondefmarks -> actiondefmark in
+        let XMLgetParam actiondefmark "name" -> actname in
+          set newplug.PLUG_lAction = actname::newplug.PLUG_lAction;
+        
+        set actiondefmarks = tl actiondefmarks;
+      );
+      
+      // add instance def events
+      while (eventdefmarks != nil) do
+      (
+        let hd eventdefmarks -> eventdefmark in
+        let XMLgetParam eventdefmark "name" -> evtname in
+          set newplug.PLUG_lEvent = evtname::newplug.PLUG_lEvent;
+        
+        set eventdefmarks = tl eventdefmarks;
+      );
+      
+      let _openchannel nil nil _envchannel mainChn -> ch in
+        set newplug.PLUG_channel = ch;
+      
+      if newplug.PLUG_channel == nil then nil else
+      (
+        execch newplug.PLUG_channel @_load [preplugPkg];
+        
+        if !strcmpi plugtype "navigation" then
+          set lPlugins = lcat lPlugins [plugname newplug]::nil
+        else
+          set lPlugins = [plugname newplug]::lPlugins;
+        
+        _scriptc newplug.PLUG_channel "reg";
+        
+        // Only in editor
+        if !iPluginMode then nil else
+        while (lescriptmarks != nil) do
+        (
+          let hd lescriptmarks -> escriptmark in
+          let getRelativePath newplug.PLUG_sDir (XMLgetParam escriptmark "path") -> nfile in
+          let (execch newplug.PLUG_channel @_testpak [nfile]) -> rettest in
+          if rettest == nil then
+          (
+            execch newplug.PLUG_channel @_load [nfile];
+            0;
+          )
+          else
+          (
+            addLogMessage strcatn "Error : PlugIT "::plugname::" in file :"::nfile::"\n"::rettest::nil;
+            exec cbPluginLoadInfo with [strcat "Error in " plugname];
+            //_DLGMessageBox _channel nil strcat "Error in " nfile rettest 0;
+            unloadPlugin newplug;
+            set newplug = nil;
+            0;
+          );
+          
+          set lescriptmarks = tl lescriptmarks;
+        );
+                                                                            
+        if newplug == nil then nil else
+        while (lcscriptmarks != nil) do
+        (
+          let hd lcscriptmarks -> cscriptmark in
+          let getRelativePath newplug.PLUG_sDir (XMLgetParam cscriptmark "path") -> nfile in
+          let (execch newplug.PLUG_channel @_testpak [nfile]) -> rettest in
+          if rettest == nil then
+          (
+            execch newplug.PLUG_channel @_load [nfile];
+            0;
+          )
+          else
+          (
+            addLogMessage strcatn "Error : PlugIT "::plugname::" in file :"::nfile::"\n"::rettest::nil;
+            //_DLGMessageBox _channel nil strcat "Error in " nfile rettest 0;
+            exec cbPluginLoadInfo with [strcat "Error in " plugname];
+            unloadPlugin newplug;
+            set newplug = nil;
+            0;
+          );
+          
+          set lcscriptmarks = tl lcscriptmarks;
+        );
+        
+        if newplug == nil then nil else
+          _scriptc newplug.PLUG_channel mkscript SIniPlug [file];
+      );
+      newplug;
+    );
+  );;
+
+
+fun loadPluginsFromDir(srcdir)=
+  // only for editor
+  let _listofsubdir srcdir -> ldir in
+  while (ldir != nil) do
+  (
+    let hd ldir -> dir in
+    let getlastPathDir dir -> name in
+    let strcatn dir::"/"::name::".xml"::nil -> file in
+    if (_checkpack file) != nil then
+    (
+      loadPlugin file;
+      0;
+    )
+    else
+    (
+      loadPluginsFromDir dir;
+      0;
+    );
+    
+    set ldir = tl ldir;
+  );
+  0;;
+
+
+fun reloadPluginsFromDir(srcdir)=
+  unloadPlugins;
+  loadPluginsFromDir srcdir;
+  0;;
+
+
+fun loadPlugins(pluginpath)=
+  //_fooS strcatn "Loading plugins:"::pluginpath::"\n"::nil; /** <<<<<<<<<< **/
+  createDMI 0 "root";
+  
+  // Only for editor
+  if !iPluginMode then nil else
+    loadPluginsFromDir pluginpath;
+  0;;
+
+
+fun getPluginAndLoad(file)=
+  let getPluginByFile file -> plugstr in
+  if plugstr == nil then
+    loadPlugin file
+  else plugstr;;
+
+
+fun loadPluginInstance(groupstr, instancemark, start)=
+  if instancemark == nil then nil else
+  let XMLgetParam groupstr.GRP_xmlMark "id" -> groupid in
+  let XMLgetParam groupstr.GRP_xmlMark "name" -> groupname in
+  let if (groupname == nil) || (groupid == nil) then
+        if (groupstr.GRP_project.PRJ_bMode != 2) then "Scene" else strcat groupstr.GRP_project.PRJ_sName ".Scene" 
+      else if (groupstr.GRP_project.PRJ_bMode != 2) then strcatn groupid::"."::groupname::nil else strcatn groupstr.GRP_project.PRJ_sName::"."::groupid::"."::groupname::nil
+  -> groupname in
+  let strcatn groupname::"."::(XMLgetParam instancemark "name")::nil -> instname in
+  let XMLgetParam instancemark.XMLfather "name" -> plugname in
+  let getPluginByName plugname -> plugstr in
+  let nil -> lparams in
+  let nil -> laction in
+  let nil -> levent in
+  (
+    let XMLgetMarksByValueFromMark instancemark "PARAM" -> lparammarks in
+    while (lparammarks != nil) do
+    (
+      let hd lparammarks -> parammark in
+      let XMLgetParam parammark "name" -> paramname in  
+      let XMLgetData parammark -> value in
+      let getPluginParam plugstr paramname -> paramtype in
+      let if (groupstr.GRP_project.PRJ_bMode != 2) then
+            value
+          else
+            if ((value != nil) && (strcmp value "") && (paramtype == iTypeScene ||
+                 paramtype == iTypeNode ||
+                 paramtype == iTypeLight ||
+                 paramtype == iTypeCamera ||
+                 paramtype == iTypeEntity ||
+                 paramtype == iTypeAnim ||
+                 paramtype == iTypeBone ||
+                 paramtype == iTypeParticle ||
+                 paramtype == iTypeCubeMap ||
+                 paramtype == iTypeReflectionMap ||
+                 paramtype == iTypeGroup)
+                 && (strcmpi value "Current camera") && (strcmpi value "Current camera shell"))
+            then
+              strcatn groupstr.GRP_project.PRJ_sName::"."::value::nil
+            else
+              value
+      -> value in
+        set lparams = lcat lparams [paramname value]::nil;
+
+      set lparammarks = tl lparammarks;
+    );
+    
+    let XMLgetMarksByValueFromMark instancemark "ACTION" -> lactionmarks in
+    while (lactionmarks != nil) do
+    (
+      let hd lactionmarks -> actionmark in
+      let XMLgetParam actionmark "name" -> actionname in
+        set laction = actionname::laction;
+
+      set lactionmarks = tl lactionmarks;
+    );
+    
+    set laction = revertlist laction;
+    
+    let XMLgetMarksByValueFromMark instancemark "EVENT" -> leventmarks in
+    while (leventmarks != nil) do
+    (
+      let hd leventmarks -> eventmark in
+      let XMLgetParam eventmark "name" -> eventname in
+        set levent = eventname::levent;
+
+      set leventmarks = tl leventmarks;
+    );
+    
+    set levent = revertlist levent;
+    
+    let XMLgetMarksByValueFromMark instancemark "LINK" -> llinkmarks in
+    while (llinkmarks != nil) do
+    (
+      let hd llinkmarks -> linkmark in
+      let XMLgetParam linkmark "event" -> event in
+      let XMLgetParam linkmark "group" -> destgroup in
+      let if (groupstr.GRP_project.PRJ_bMode != 2) then
+            destgroup
+          else
+            strcatn groupstr.GRP_project.PRJ_sName::"."::destgroup::nil
+      -> destgroup in
+      
+      let XMLgetParam linkmark "instance" -> destinst in
+      let XMLgetParam linkmark "action" -> action in
+      let XMLgetData linkmark -> value in
+      let if (!strcmpi value "") || value == nil then "_" else value -> value in
+        setModLink this nil strbuild ((strcatn instname::"."::event::nil)::(strcatn destgroup::"."::destinst::"."::action::nil)::value::"_"::"_"::nil)::nil;
+      
+      set llinkmarks = tl llinkmarks;
+    );
+    createPluginInstance groupstr plugstr instname lparams laction levent start;
+  );
+  0;;
+
+
+fun loadPluginInstances(groupstr, start)=
+  let XMLgetParam groupstr.GRP_xmlMark "id" -> groupid in
+  let XMLgetParam groupstr.GRP_xmlMark "name" -> groupname in
+  let if (groupname == nil) || (groupid == nil) then
+        if (groupstr.GRP_project.PRJ_bMode != 2) then "Scene" else strcat groupstr.GRP_project.PRJ_sName ".Scene" 
+      else if (groupstr.GRP_project.PRJ_bMode != 2) then strcatn groupid::"."::groupname::nil else strcatn groupstr.GRP_project.PRJ_sName::"."::groupid::"."::groupname::nil
+  -> groupname in
+  
+  let XMLgetMarkByValueFromMarkSons groupstr.GRP_xmlMark "PLUGINS" -> pluginsmark in
+  if pluginsmark == nil then nil else
+  (
+    let XMLgetMarksByValueFromMarkSons pluginsmark "PLUGIN" -> lpluginmarks in
+    while (lpluginmarks != nil) do
+    (
+      let hd lpluginmarks -> pluginmark in
+      let XMLgetParam pluginmark "name" -> plugname in
+      let XMLgetParam pluginmark "source" -> plugfile in
+      let getPluginAndLoad strcatn sPLUGINSPATH::"/"::plugfile::nil -> plugstr in
+      
+      if plugstr == nil then nil else
+      (
+        let XMLgetMarksByValueFromMark pluginmark "INSTANCE" -> linstancemarks in
+        while (linstancemarks != nil) do
+        (
+          let hd linstancemarks -> instancemark in
+          let strcatn groupname::"."::(XMLgetParam instancemark "name")::nil -> instname in
+          let nil -> lparams in
+          let nil -> laction in
+          let nil -> levent in
+          (
+            let XMLgetMarksByValueFromMark instancemark "PARAM" -> lparammarks in
+            while (lparammarks != nil) do
+            (
+              let hd lparammarks -> parammark in
+              let XMLgetParam parammark "name" -> paramname in  
+              let XMLgetData parammark -> value in
+              let getPluginParam plugstr paramname -> paramtype in
+              let if (groupstr.GRP_project.PRJ_bMode != 2) then
+                    value
+                  else
+                    if ((value != nil) && (strcmp value "") && (paramtype == iTypeScene ||
+                         paramtype == iTypeNode ||
+                         paramtype == iTypeLight ||
+                         paramtype == iTypeCamera ||
+                         paramtype == iTypeEntity ||
+                         paramtype == iTypeAnim ||
+                         paramtype == iTypeBone ||
+                         paramtype == iTypeParticle ||
+                         paramtype == iTypeCubeMap ||
+                         paramtype == iTypeReflectionMap ||
+                         paramtype == iTypeGroup)
+                         && (strcmpi value "Current camera") && (strcmpi value "Current camera shell"))
+                    then
+                      strcatn groupstr.GRP_project.PRJ_sName::"."::value::nil
+                    else
+                      value
+              -> value in
+                set lparams = lcat lparams [paramname value]::nil;
+
+              set lparammarks = tl lparammarks;
+            );
+            
+            let XMLgetMarksByValueFromMark instancemark "ACTION" -> lactionmarks in
+            while (lactionmarks != nil) do
+            (
+              let hd lactionmarks -> actionmark in
+              let XMLgetParam actionmark "name" -> actionname in  
+                set laction = actionname::laction;
+
+              set lactionmarks = tl lactionmarks;
+            );
+            
+            set laction = revertlist laction;
+            
+            let XMLgetMarksByValueFromMark instancemark "EVENT" -> leventmarks in
+            while (leventmarks != nil) do
+            (
+              let hd leventmarks -> eventmark in
+              let XMLgetParam eventmark "name" -> eventname in  
+                set levent = eventname::levent;
+
+              set leventmarks = tl leventmarks;
+            );
+            
+            set levent = revertlist levent;
+            
+            let XMLgetMarksByValueFromMark instancemark "LINK" -> llinkmarks in
+            while (llinkmarks != nil) do
+            (
+              let hd llinkmarks -> linkmark in
+              let XMLgetParam linkmark "event" -> event in
+              let XMLgetParam linkmark "group" -> destgroup in
+              let if (groupstr.GRP_project.PRJ_bMode != 2) then
+                    destgroup
+                  else
+                    strcatn groupstr.GRP_project.PRJ_sName::"."::destgroup::nil
+              -> destgroup in
+              
+              let XMLgetParam linkmark "instance" -> destinst in
+              let XMLgetParam linkmark "action" -> action in
+              let XMLgetData linkmark -> value in
+              let if (!strcmpi value "") || value == nil then "_" else value -> value in
+                setModLink this nil strbuild ((strcatn instname::"."::event::nil)::(strcatn destgroup::"."::destinst::"."::action::nil)::value::"_"::"_"::nil)::nil;
+              
+              set llinkmarks = tl llinkmarks;
+            );
+            
+            createPluginInstance groupstr plugstr instname lparams laction levent start;
+          );
+          
+          set linstancemarks = tl linstancemarks;
+        );
+      );
+      set lpluginmarks = tl lpluginmarks;
+    );
+  );
+  0;;
+
+
+fun cbPluginAction(from, action, param, ulist, tag, z)=
+  let z->[inst f] in
+    exec f with [inst from action param tag]
+  ;;
+
+
+fun cbEventOnLoad(trm, p)=
+  if bPluginsLoaded then
+  let p -> [inst event param reply] in
+  (
+    _deltimer trm;
+    _DMSevent this (getPluginInstanceEvent inst event) param reply;
+    0;
+  )
+  else nil;
+  0;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Send an event to another plugITs
+  *
+  *  <b>Prototype:</b> fun [PInstance S S S] I
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param S : event name
+  *  \param S : event param
+  *  \param S : event reply param
+  *
+  *  \return 0
+  **/
+fun SendPluginEvent(inst, event, param, reply)=
+  if bPluginsLoaded then
+  (
+    _DMSevent this (getPluginInstanceEvent inst event) param reply;
+    0;
+  )
+  else
+  (
+    _rfltimer _starttimer _channel 100 @cbEventOnLoad [inst event param reply];
+    0;
+  );  
+  0;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Define the instance callback on an action call
+  *
+  *  <b>Prototype:</b> fun [PInstance S fun [PInstance DMI S S S] u0] I
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param S : the action name
+  *  \param fun [PInstance DMI S S S] u0 : the callback function
+  *  \param - PInstance : the plugIT instance
+  *  \param - DMI : the sender module (ignore this for OS3D)
+  *  \param - S : action name
+  *  \param - S : param
+  *  \param - S : reply param
+  *
+  *  \return 0
+  **/
+fun PluginRegisterAction(inst, action, f)=
+  _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) (mkfun6 @cbPluginAction [inst f]);
+  0;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Remove the instance callback on an action call
+  *
+  *  <b>Prototype:</b> fun [PInstance S] I
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param S : the action name
+  *
+  *  \return 0
+  **/
+fun PluginUnRegisterAction(inst, action)=
+  _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
+  0;;
+
+
+fun fillGroupTreeGraph(ctrltree, mask, groupstr, nodemark, treefather, mode)=
+  if !mode then
+  (
+    // SHELL
+    let XMLgetMarksByValueFromMarkSons nodemark "shell" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeNode sTreeBitmapNode -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // ENTITY
+    let XMLgetMarksByValueFromMarkSons nodemark "mesh" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeEntity sTreeBitmapEntity -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+      
+      set lnodexml = tl lnodexml;
+    );
+  
+    // BONE
+    let XMLgetMarksByValueFromMarkSons nodemark "bone" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeBone sTreeBitmapBone -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+      
+      set lnodexml = tl lnodexml;
+    );
+  
+    // LIGHT
+    let XMLgetMarksByValueFromMarkSons nodemark "light" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeLight sTreeBitmapLight -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+  
+      set lnodexml = tl lnodexml;
+    );
+  
+    // CAMERA
+    let XMLgetMarksByValueFromMarkSons nodemark "camera" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeCamera sTreeBitmapCamera -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // PARTICLE
+    let XMLgetMarksByValueFromMarkSons nodemark "particle" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeParticle sTreeBitmapParticle -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // CUBEMAP
+    let XMLgetMarksByValueFromMarkSons nodemark "cubemap" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeCubeMap sTreeBitmapCubeMap -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // REFLECTIONMAP
+    let XMLgetMarksByValueFromMarkSons nodemark "reflectionmap" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+      let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeReflectionMap sTreeBitmapReflectionMap -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr nodexml treenode mode;
+      
+      set lnodexml = tl lnodexml;
+    );
+    
+    // ANIMS
+    if mask & iTypeAnim then
+    let XMLgetMarkByValueFromMarkSons nodemark "animations" -> animsmark in
+    let if animsmark == nil then nodemark else animsmark -> animsmark in
+    let XMLgetMarksByValueFromMarkSons animsmark "animation" -> lanimmarks in
+    while (lanimmarks != nil) do
+    (
+      let hd lanimmarks -> animmark in
+      let XMLgetParam animmark "id" -> id in
+      let XMLgetParam animmark "name" -> name in
+      let XMLgetParam animmark "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeAnim sTreeBitmapAnim;
+      
+      set lanimmarks = tl lanimmarks;
+    )
+    else nil;
+  )
+  else
+  (
+    // SHELL
+    if (mask & iTypeNode) then
+    let XMLgetMarksByValueFromMark nodemark "shell" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeNode sTreeBitmapNode;
+      
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+    
+    // ENTITY
+    if (mask & iTypeEntity) then
+    let XMLgetMarksByValueFromMark nodemark "mesh" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeEntity sTreeBitmapEntity;
+      
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+  
+    // BONE
+    if (mask & iTypeBone) then
+    let XMLgetMarksByValueFromMark nodemark "bone" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeBone sTreeBitmapBone;
+      
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+  
+    // LIGHT
+    if (mask & iTypeLight) then
+    let XMLgetMarksByValueFromMark nodemark "light" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeLight sTreeBitmapLight;
+  
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+  
+    // CAMERA
+    if (mask & iTypeCamera) then
+    let XMLgetMarksByValueFromMark nodemark "camera" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeCamera sTreeBitmapCamera;
+      
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+    
+    // PARTICLE
+    if (mask & iTypeParticle) then
+    let XMLgetMarksByValueFromMark nodemark "particle" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeParticle sTreeBitmapParticle;
+      
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+    
+    // CUBEMAP
+    if (mask & iTypeCubeMap) then
+    let XMLgetMarksByValueFromMark nodemark "cubemap" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeCubeMap sTreeBitmapCubeMap;
+      
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+    
+    // REFLECTIONMAP
+    if (mask & iTypeReflectionMap) then
+    let XMLgetMarksByValueFromMark nodemark "reflectionmap" -> lnodexml in
+    while (lnodexml != nil) do
+    (
+      let hd lnodexml -> nodexml in
+      let XMLgetParam nodexml "id" -> id in
+      let XMLgetParam nodexml "name" -> name in
+      let XMLgetParam nodexml "alias" -> alias in
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeReflectionMap sTreeBitmapReflectionMap;
+      
+      set lnodexml = tl lnodexml;
+    )
+    else nil;
+    
+    // ANIMS
+    if (mask & iTypeAnim) then 
+    let XMLgetMarksByValueFromMark nodemark "animation" -> lanimmarks in
+    while (lanimmarks != nil) do
+    (
+      let hd lanimmarks -> animmark in
+      let XMLgetParam animmark "id" -> id in
+      let XMLgetParam animmark "name" -> name in
+      let XMLgetParam animmark "alias" -> alias in
+      let getEdCtrlTreeItemByValue ctrltree (strcatn id::"."::name::nil) -> exist in
+      if exist != nil then nil else
+        addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeAnim sTreeBitmapAnim;
+      
+      set lanimmarks = tl lanimmarks;
+    )
+    else nil;
+  );
+  0;;
+
+
+fun fillSonsGroupTree(ctrltree, mask, groupstr, nodemark, treefather, mode)=
+  let XMLgetMarksByValueFromMarkSons nodemark "group" -> lgroupmarks in
+  while(lgroupmarks != nil) do
+  (
+    let hd lgroupmarks -> groupmark in
+    let XMLgetMarkByValueFromMarkSons groupmark "graph" -> graphmark in
+    let XMLgetParam groupmark "id" -> id in
+    let XMLgetParam groupmark "name" -> name in
+    let XMLgetParam groupmark "alias" -> alias in
+    let addEdCtrlTreeItem ctrltree treefather (if (alias == nil) || (!strcmp alias "") then (strcatn name::" #"::id::nil) else (strcatn alias::" ("::name::" #"::id::")"::nil)) (strcatn id::"."::name::nil) iTypeAnim sTreeBitmapGroup -> treenode in
+    (
+      if (mask & iTypeAnim) then
+      (
+        let XMLgetMarkByValueFromMarkSons groupmark "cinematics" -> cinematicsmark in
+        if (cinematicsmark == nil) then nil else
+        let addEdCtrlTreeItem ctrltree treenode "cinematics" "cinematics" iTypeCinematics sTreeBitmapAnim -> treenode in
+          fillGroupTreeGraph ctrltree mask groupstr cinematicsmark treenode mode;
+      )
+      else nil;
+      
+      fillGroupTreeGraph ctrltree mask groupstr graphmark treenode mode;
+      fillSonsGroupTree ctrltree mask groupstr groupmark treenode mode;
+    );
+    
+    set lgroupmarks = tl lgroupmarks;
+  );
+  0;;
+
+
+fun fillGroupTree(ctrltree, groupstr, mask, value, mode)=
+  let XMLgetParam groupstr.GRP_xmlMark "id" -> grpid in
+  let XMLgetParam groupstr.GRP_xmlMark "name" -> grpname in
+  let if grpname == nil then "Scene" else (strcatn grpid::"."::grpname::nil) -> grpname in
+  let addEdCtrlTreeItem ctrltree nil grpname grpname iTypeGroup sTreeBitmapGroup -> treenode in
+  (
+    if (mask & iTypeNode) then
+    (
+      let addEdCtrlTreeItem ctrltree treenode "Current camera shell" "Current camera shell" iTypeNode sTreeBitmapNode -> camshellnode in
+      if (mask & iTypeCamera) then
+        addEdCtrlTreeItem ctrltree camshellnode "Current camera" "Current camera" iTypeCamera sTreeBitmapCamera
+      else nil;
+    )
+    else if (mask &iTypeCamera) then
+      addEdCtrlTreeItem ctrltree nil "Current camera" "Current camera" iTypeCamera sTreeBitmapCamera
+    else nil;
+    
+    if (strcmp grpname "Scene") || !(mask & iTypeCompositor) then nil else
+    (
+      let XMLgetMarksByValueFromMark groupstr.GRP_xmlMark "compositor" -> lcompmarks in
+      while (lcompmarks != nil) do
+      (
+        let hd lcompmarks -> compmmark in
+        let XMLgetParam compmmark "name" -> compname in
+        let XMLgetParam compmmark "alias" -> alias in
+        let getEdCtrlTreeItemByValue ctrltree if (alias == nil) || (!strcmp alias "") then (strcatn "Compositor \""::compname::"\""::nil) else (strcatn alias::" (Compositor \""::compname::"\")"::nil) -> exist in
+        if exist != nil then nil else
+          addEdCtrlTreeItem ctrltree treenode if (alias == nil) || (!strcmp alias "") then (strcatn "Compositor \""::compname::"\""::nil) else (strcatn alias::" (Compositor \""::compname::"\")"::nil) compname iTypeCompositor sTreeBitmapCompositor;
+        
+        set lcompmarks = tl lcompmarks;
+      );
+    );
+    
+    if (mask & iTypeAnim) then
+    (
+      let XMLgetMarkByValueFromMarkSons groupstr.GRP_xmlMark "cinematics" -> cinematicsmark in
+      if (cinematicsmark == nil) then nil else
+      let addEdCtrlTreeItem ctrltree treenode "cinematics" "cinematics" iTypeCinematics sTreeBitmapAnim -> treenode in
+        fillGroupTreeGraph ctrltree mask groupstr cinematicsmark treenode mode;
+    )
+    else nil;
+    
+    let XMLgetMarkByValueFromMarkSons groupstr.GRP_xmlMark "graph" -> graphmark in
+      fillGroupTreeGraph ctrltree mask groupstr graphmark treenode mode;
+    
+    //if (mask & iTypeGroup) then
+      fillSonsGroupTree ctrltree mask groupstr groupstr.GRP_xmlMark treenode mode
+    //else nil;
+  );  
+  setEdCtrlTreeExpandAll ctrltree 1;
+  
+  if value == nil then
+    selEdCtrlTreeItem ctrltree getEdCtrlTreeRootItem ctrltree
+  else
+    selEdCtrlTreeItemByValue ctrltree value;
+  0;;
+
+
+fun cbBtnPluginInstanceResourceOk(btnstr, p)=
+  let p -> [winstr ctrltree mask cbend] in
+  let getEdCtrlTreeSelectedItem ctrltree -> item in
+  let getEdCtrlTreeFullValuesByItem ctrltree item -> [father val type] in
+  if type & mask then
+  (
+    exec cbend with [val type];
+    dsEdWindow winstr;
+  )
+  else nil;
+  0;;
+
+
+fun cbBtnPluginInstanceResourceCancel(btnstr, winstr)=
+  dsEdWindow winstr;
+  0;;
+
+
+fun cbTreePluginInstanceDbClick(ctrl, father, item, val, type, x, y, p)=
+  let p -> [winstr ctrltree mask cbend] in
+  if type & mask then
+  (
+    exec cbend with [val type];
+    dsEdWindow winstr;
+  )
+  else nil;
+  0;;
+
+
+fun cbWinPluginInstanceDestroy(winstr, cbclose)=
+  exec cbclose with [];
+  0;;
+
+
+fun cbTreePluginInstanceSelect(ctrl, father, item, val, type, p)=
+  let p -> [mask okbtn] in
+  let if type & mask then 1 else 0 -> state in
+    setEdCtrlButtonEnable okbtn state;
+  0;;
+  
+
+fun cbChangePluginSelectMode(tbstr, check, btn, mask, state, p)=
+  let p -> [ctrltree groupstr mask] in
+  let getEdCtrlTreeValueByItem ctrltree (getEdCtrlTreeSelectedItem ctrltree) -> [value _] in
+  (
+    resetEdCtrlTree ctrltree;
+    fillGroupTree ctrltree groupstr mask value state;
+  );
+  0;;
+
+
+/*!  @ingroup plugITApi
+  *  \brief Show a dialog window to choose a resource in the editor
+  *
+  *  <b>Prototype:</b> fun [PInstance EdWindow I S fun [S I] I fun [] I I] I
+  *
+  *  \param PInstance : the plugIT instance
+  *  \param EdWindow : the parent window
+  *  \param I : the resources types iTypeEntity|iTypeNode|iTypeLight|iTypeBone|iTypeCamera|iTypeParticle|iTypeCubeMap|iTypeAnim
+  *  \param fun [S I] I : the callback function on selection
+  *  \param - S : selected value
+  *  \param - I : selected type
+  *  \param fun [] I : the callback function on close
+  *  \param I : 1 for a filtered list, 0 for the resource tree
+  *
+  *  \return 0
+  **/
+fun dlgSelectPluginInstanceResource(inst, winfather, mask, value, cbend, cbclose, defmode)=
+  let _GETscreenSize -> [sw sh] in
+  let [320 240] -> [iw ih] in
+  let if mask == nil then "Select resource" else "Select " -> title in
+  let if mask & iTypeNode then strcat title "Shell " else title -> title in
+  let if mask & iTypeLight then strcat title "Light " else title -> title in
+  let if mask & iTypeCamera then strcat title "Camera " else title -> title in
+  let if mask & iTypeEntity then strcat title "Mesh " else title -> title in
+  let if mask & iTypeAnim then strcat title "Animation " else title -> title in
+  let if mask & iTypeCompositor then strcat title "Compositor " else title -> title in
+  let if mask & iTypeBone then strcat title "Bones " else title -> title in
+  let if mask & iTypeParticle then strcat title "Particle " else title -> title in
+  let if mask & iTypeCubeMap then strcat title "Cube map " else title -> title in
+  let if mask & iTypeReflectionMap then strcat title "Reflection map " else title -> title in
+  
+  let if mask == nil then iTypeNode|iTypeLight|iTypeCamera|iTypeEntity|iTypeAnim|iTypeSkeleton|iTypeSkyBox|iTypeSkyDome|iTypeSkyPlane|iTypeCompositor|iTypeBone|iTypeParticle|iTypeCubeMap|iTypeReflectionMap else mask -> mask in
+  
+  let setEdWindowIcon (crEdWindow winfather.EDW_channel winfather ((sw / 2) - (iw / 2)) ((sh / 2) - (ih / 2)) iw ih WN_NOSCOL|WN_MENU|WN_SIZEBOX nil nil title) sWinDlgIcon -> winstr in
+  let crEdWindowToolBar winstr 0 0 iw 28 5 1 0x373737 ETB_HORIZONTAL -> tbstr in
+  let crEdCtrlTree winstr 5 33 (iw - 10) (ih - 73) EDWIN_RESIZE_MW|EDWIN_RESIZE_MH -> ctrltree in
+  let crEdCtrlButton winstr 10 (ih - 30) 90 20 "Ok" EDWIN_RESIZE_LH|EDWIN_RESIZE_RW -> okbtn in
+  let crEdCtrlButton winstr (iw - 100) (ih - 30) 90 20 "Cancel" EDWIN_RESIZE_LH|EDWIN_RESIZE_LW -> cancelbtn in
+  let _LDalphaBitmap _channel _checkpack "tools/os3deditor/res/tb_list_tree.png" -> apng in
+  let crEdToolBarCheck tbstr apng ETB_ALIGN_LEFT "List mode / Tree mode" nil -> ctrlmode in
+  (
+    setEdToolBarCheckState tbstr ctrlmode defmode;
+    setEdToolBarCheckCbClick tbstr ctrlmode mkfun6 @cbChangePluginSelectMode [ctrltree inst.INST_groupstr mask];
+    setEdCtrlButtonCb okbtn mkfun2 @cbBtnPluginInstanceResourceOk [winstr ctrltree mask cbend];
+    setEdCtrlButtonCb cancelbtn mkfun2 @cbBtnPluginInstanceResourceCancel winstr;
+    
+    fillGroupTree ctrltree inst.INST_groupstr mask value defmode;
+    
+    setEdwindowCbDestroy winstr mkfun2 @cbWinPluginInstanceDestroy cbclose;
+    setEdCtrlTreeCbDbClick ctrltree mkfun8 @cbTreePluginInstanceDbClick [winstr ctrltree mask cbend];
+    setEdCtrlTreeCbSelect ctrltree mkfun6 @cbTreePluginInstanceSelect [mask okbtn];
+    
+    let getEdCtrlTreeValueByItem ctrltree (getEdCtrlTreeSelectedItem ctrltree) -> [sval _] in
+    if (!strcmp value sval) && (value != nil) then nil else
+      setEdCtrlButtonEnable okbtn defmode;
+    
+    paintEdToolBar tbstr;
+  );
+  0;;
+  
+ 
+ fun dlgSelectPluginResource(groupstr, winfather, mask, value, cbend, cbclose, defmode)=
+  let _GETscreenSize -> [sw sh] in
+  let [320 240] -> [iw ih] in
+  let if mask == nil then "Select resource" else "Select " -> title in
+  let if mask & iTypeNode then strcat title "Shell " else title -> title in
+  let if mask & iTypeLight then strcat title "Light " else title -> title in
+  let if mask & iTypeCamera then strcat title "Camera " else title -> title in
+  let if mask & iTypeEntity then strcat title "Mesh " else title -> title in
+  let if mask & iTypeAnim then strcat title "Animation " else title -> title in
+  let if mask & iTypeCompositor then strcat title "Compositor " else title -> title in
+  let if mask & iTypeBone then strcat title "Bones " else title -> title in
+  let if mask & iTypeParticle then strcat title "Particle " else title -> title in
+  let if mask & iTypeCubeMap then strcat title "Cube map " else title -> title in
+  let if mask & iTypeReflectionMap then strcat title "Reflection map " else title -> title in
+  
+  let if mask == nil then iTypeNode|iTypeLight|iTypeCamera|iTypeEntity|iTypeAnim|iTypeSkeleton|iTypeSkyBox|iTypeSkyDome|iTypeSkyPlane|iTypeCompositor|iTypeBone|iTypeParticle|iTypeCubeMap|iTypeReflectionMap else mask -> mask in
+  
+  let setEdWindowIcon (crEdWindow winfather.EDW_channel winfather ((sw / 2) - (iw / 2)) ((sh / 2) - (ih / 2)) iw ih WN_NOSCOL|WN_MENU|WN_SIZEBOX nil nil title) sWinDlgIcon -> winstr in
+  let crEdWindowToolBar winstr 0 0 iw 28 5 1 0x373737 ETB_HORIZONTAL -> tbstr in
+  let crEdCtrlTree winstr 5 33 (iw - 10) (ih - 73) EDWIN_RESIZE_MW|EDWIN_RESIZE_MH -> ctrltree in
+  let crEdCtrlButton winstr 10 (ih - 30) 90 20 "Ok" EDWIN_RESIZE_LH|EDWIN_RESIZE_RW -> okbtn in
+  let crEdCtrlButton winstr (iw - 100) (ih - 30) 90 20 "Cancel" EDWIN_RESIZE_LH|EDWIN_RESIZE_LW -> cancelbtn in
+  let _LDalphaBitmap _channel _checkpack "tools/os3deditor/res/tb_list_tree.png" -> apng in
+  let crEdToolBarCheck tbstr apng ETB_ALIGN_LEFT "List mode / Tree mode" nil -> ctrlmode in
+  (
+    setEdToolBarCheckState tbstr ctrlmode defmode;
+    setEdToolBarCheckCbClick tbstr ctrlmode mkfun6 @cbChangePluginSelectMode [ctrltree groupstr mask];
+    setEdCtrlButtonCb okbtn mkfun2 @cbBtnPluginInstanceResourceOk [winstr ctrltree mask cbend];
+    setEdCtrlButtonCb cancelbtn mkfun2 @cbBtnPluginInstanceResourceCancel winstr;
+    
+    fillGroupTree ctrltree groupstr mask value defmode;
+    
+    setEdwindowCbDestroy winstr mkfun2 @cbWinPluginInstanceDestroy cbclose;
+    setEdCtrlTreeCbDbClick ctrltree mkfun8 @cbTreePluginInstanceDbClick [winstr ctrltree mask cbend];
+    setEdCtrlTreeCbSelect ctrltree mkfun6 @cbTreePluginInstanceSelect [mask okbtn];
+    
+    let getEdCtrlTreeValueByItem ctrltree (getEdCtrlTreeSelectedItem ctrltree) -> [sval _] in
+    if (!strcmp value sval) && (value != nil) then nil else
+      setEdCtrlButtonEnable okbtn defmode;
+    
+    paintEdToolBar tbstr;
+  );
+  0;;
+  

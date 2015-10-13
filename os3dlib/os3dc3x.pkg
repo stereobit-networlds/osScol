@@ -1,0 +1,20 @@
+/* ********************************************************************************************* /
+  C3dx definitions
+/ ********************************************************************************************* */
+
+typeof s3dMainSession = V3Dsession;; //!< the default 3D session structure
+typeof v3dMain = V3Dview;;           //!< the default 3D view structure
+
+/*! @ingroup plugITApi
+ *  @defgroup pmainvar Common global variables
+ *  Common global variables
+ *  @{
+ */
+fun c3dXsession()= s3dMainSession;;  //!< the default 3D session structure
+fun c3dXview()= v3dMain;;            //!< the default 3D view structure
+fun c3dXwin()= v3dMain.V3D_win;;     //!< the default 3D window
+fun DMSwin()= v3dMain.V3D_win;;      //!< the default 3D window (alias)
+
+// used for AR plugITs, this value can be changed by the camera input plugIT
+var c3dxCameraSize = [640 480];;    //!< the default web cam size, this can be changed by AR plugIT for example
+var c3dxCameraFlip = 0;;            //!< the default web cam flip state, this can be changed by AR plugIT for example
