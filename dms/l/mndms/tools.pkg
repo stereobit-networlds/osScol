@@ -1,0 +1,2569 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*! \mainpage OpenSpace3D high level libraries API
+ *
+ * \section intro_sec Introduction
+ * This API provide an high level method to easily develop OpenSpace3D applications and PlugITs
+ * 
+ */
+
+/*! @defgroup toolslib OpenSpace3D high level Tools
+ *  OpenSpace3D high level Tools
+ *  @{
+ */
+ 
+/*! @defgroup toolslist List tools
+ *  List tools
+ *  @{
+ */
+/** @} */
+/*! @defgroup toolsstr String tools
+ *  String tools
+ *  @{
+ */
+/** @} */
+/*! @defgroup toolscommon Common tools
+ *  Common tools
+ *  @{
+ */
+/** @} */
+/*! @defgroup toolsfile File tools
+ *  File tools
+ *  @{
+ */
+/** @} */
+/*! @defgroup toolsdl Network requests and download tools
+ *  Network requests and download tools
+ *  @{
+ */
+/** @} */
+/*! @defgroup toolsvec Vector tools
+ *  Vector tools
+ *  @{
+ */
+/** @} */
+/*! @defgroup toolsdate Date tools
+ *  Date tools
+ *  @{
+ */
+/** @} */
+
+/** @} */
+
+/*!  @ingroup toolslist
+  *  \brief Concat two list to one
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] [u0 r1]] [u0 r1]
+  *
+  *  \param [u0 r1] : first list to concat
+  *  \param [u0 r1] : second list to concat
+  *
+  *  \return [u0 r1] : concatened list
+  **/
+fun lcat(p, q)=
+  if p==nil then
+    q
+  else
+    (hd p)::lcat (tl p) q;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Split a list in two list at given position
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] I] [[u0 r1] [u0 r1]]
+  *
+  *  \param [u0 r1] : list to split
+  *  \param I : position (start at 0), use a negative value for a position from the list end
+  *
+  *  \return [[u0 r1] [u0 r1]] : splited list
+  **/
+fun splitList(l, pos)=
+  let if pos < 0 then ((sizelist l) + (pos + 1)) else pos -> pos in
+  if (((pos + 1) > (sizelist l)) || (pos == 0)) then [nil l] else
+  let nil -> l1 in
+  let nil -> l2 in
+  (
+    let sizelist l -> size in
+    let size - 1 -> i in
+    while (i >= 0) do
+    (
+      let nth_list l i -> elt in
+      if (i < pos) then
+        set l1 = elt::l1
+      else
+        set l2 = elt::l2;
+      
+      set i = i - 1;
+    );
+    
+    [l1 l2];
+  );;
+
+
+/*!  @ingroup toolslist
+  *  \brief move an elements in a list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] I I] [u0 r1]
+  *
+  *  \param [u0 r1] : list to split
+  *  \param I : position to get the element
+  *  \param I : position to move the element
+  *
+  *  \return [u0 r1] : new list
+  **/
+fun moveListElement(l, pos, to)=
+  if (to < 0) || (to >= (sizelist l)) || (pos < 0) || (pos >= (sizelist l)) then l else
+  let nil -> newlist in
+  (
+    let (sizelist l) - 1 -> i in
+    while i >= 0 do
+    (
+      let nth_list l i -> elt in
+      if (i == pos) then
+        set newlist = (nth_list l to)::newlist
+      else if (i == to) then
+        set newlist = (nth_list l pos)::newlist
+      else
+        set newlist = elt::newlist;
+      
+      set i = i - 1;
+    );
+    newlist;
+  );;
+
+
+/*!  \brief Divide list
+  *
+  *  <b>Prototype:</b> fun [u0 [u0 r1] [u0 r1] [u0 r1] fun [u0 u0] I] [u0 r1]
+  *
+  *  Private
+  *
+  *  \return [[u0 r1] [u0 r1]]
+  **/
+fun divideList(x,p,r1,r2,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let exec f with [a x] -> r in
+  if r==0 then divideList x n r1 r2 f
+  else if r<0 then divideList x n a::r1 r2 f
+  else divideList x n r1 a::r2 f;;
+
+
+/*!  \brief Divide string list
+  *
+  *  <b>Prototype:</b> fun [[S r1] [[S r1] r1] [[S r1] r1] [[S r1] r1] fun [[S r1] [S r1]] I] [[S r1] r1]
+  *
+  *  Private
+  *
+  *  \return [[[S r1] r1] [[S r1] r1]]
+  **/
+fun divideListString(x,p,r1,r2,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let exec f with [strcatn a strcatn x] -> r in
+  if r==0 then divideListString x n r1 r2 f
+  else if r<0 then divideListString x n a::r1 r2 f
+  else divideListString x n r1 a::r2 f;;
+
+
+/*!  \brief Divide list by position
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] [[u0 r1] r1] [[u0 r1] r1] [[u0 r1] r1] I fun [[u0 r1] [u0 r1]] I] [[u0 r1] r1]
+  *
+  *  Private
+  *
+  *  \return [[[u0 r1] r1] [[u0 r1] r1]]
+  **/
+fun divideListPos(x,p,r1,r2,pos,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let exec f with [(nth_list a pos) (nth_list x pos)] -> r in
+  if r==0 then divideListPos x n r1 r2 pos f
+  else if r<0 then divideListPos x n a::r1 r2 pos f
+  else divideListPos x n r1 a::r2 pos f;;
+
+
+/*!  \brief Divide list by position
+  *
+  *  <b>Prototype:</b> fun [[[S u0] r1] [[[S u0] r1] r1] [[[S u0] r1] r1] [[[S u0] r1] r1] I fun [[[S u0] r1] [[S u0] r1]] I] [[[S u0] r1] r1]
+  *
+  *  Private
+  *
+  *  \return [[[[S u0] r1] r1] [[[S u0] r1] r1]]
+  **/
+fun divideList3(x,p,r1,r2,f)=
+  if p==nil then [r1 r2]
+  else let p->[a n] in
+  let a->[aa _] in
+  let x->[xx _] in
+  let exec f with [aa xx] -> r in
+  if r==0 then divideList3 x n r1 r2 f
+  else if r<0 then divideList3 x n a::r1 r2 f
+  else divideList3 x n r1 a::r2 f;;
+
+
+/*!  \brief Extract list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] u0 fun [u0 u0] I] [u0 r1]
+  *
+  *  Private
+  *
+  *  \return [[u0 r1] [u0 r1]]
+  **/
+fun extractList(l, e, f) =
+  if l == nil then [nil nil] else
+    let l -> [head tail] in
+    let extractList tail e f -> [left right] in
+    if exec f with [head e] then
+      [head::left right]
+    else
+      [left head::right];;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Test if a string is smaller than an another string
+  *
+  *  Use with quicksort function
+  *
+  *  <b>Prototype:</b> fun [S S] I
+  *
+  *  \param S : first string to test
+  *  \param S : second string to test
+  *
+  *  \return I : 1 if smaller 0 otherwise
+  **/
+fun isSmaller(s, t)= ((strcmp s t) < 0);;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Test if a string is larger than an another string
+  *
+  *  Use with quicksort function
+  0
+  *  <b>Prototype:</b> fun [S S] I
+  *
+  *  \param S : first string to test
+  *  \param S : second string to test
+  *
+  *  \return I : superior to 0 if larger
+  **/
+fun isLarger(s, t)= ((strcmp s t) > 0);;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Test if a string is equal to an another string
+  *
+  *  Use with quicksort function
+  *
+  *  <b>Prototype:</b> fun [S S] I
+  *
+  *  \param S : first string to test
+  *  \param S : second string to test
+  *
+  *  \return I : different to 0 if not equal
+  **/
+fun suppDoublon(s1, s2)= strcmpi s1 s2;;
+
+
+/*!  @ingroup toolscommon
+  *  \brief Test if a value is equal to an another value
+  *
+  *  Use with quicksort function
+  *
+  *  <b>Prototype:</b> fun [u0 u0] I
+  *
+  *  \param u0 : first value to test
+  *  \param u0 : second value to test
+  *
+  *  \return I : 1 if not equal 0 otherwise
+  **/
+fun suppDoublon2(s1, s2)= s1!=s2;;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Test if a string is equal to an another string case sensivity
+  *
+  *  Use with quicksort function
+  *
+  *  <b>Prototype:</b> fun [S S] I
+  *
+  *  \param S : first string to test
+  *  \param S : second string to test
+  *
+  *  \return I : different to 0 if not equal
+  **/
+fun suppDoublonCaseSenvivity(s1, s2)= strcmp s1 s2;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Sort a list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] fun [u0 u0] I] [u0 r1]
+  *
+  *  \param [u0 r1] : list to sort
+  *  \param fun [u0 u0] I : function for sort test (suppDoublon for example)
+  *
+  *  \return [u0 r1] : sorted list
+  **/
+fun quicksort(l,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideList vl nl nil nil f->[va na] in
+  lcat quicksort va f vl::quicksort na f;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Sort a list by position
+  *
+  *  <b>Prototype:</b> fun [[[u0 r1] r1] I fun [u0 u0] I] [[u0 r1] r1]
+  *
+  *  \param [u0 r1] : list to sort
+  *  \param fun [u0 u0] I : function for sort test (suppDoublon for example)
+  *
+  *  \return [[u0 r1] r1] : sorted list
+  **/
+fun quicksortByPos(l,pos,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideListPos vl nl nil nil pos f->[va na] in
+  lcat quicksortByPos va pos f vl::quicksortByPos na pos f;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Sort a string list
+  *
+  *  <b>Prototype:</b> fun [[S r1] fun [S S] I] [S r1]
+  *
+  *  \param [S r1] : list to sort
+  *  \param fun [S S] I : function for sort test (suppDoublon for example)
+  *
+  *  \return [S r1] : sorted list
+  **/
+fun quicksortList(l,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideListString vl nl nil nil f->[va na] in
+  lcat quicksortList va f vl::quicksortList na f;;
+  
+
+/*!  @ingroup toolslist
+  *  \brief Sort a string list
+  *
+  *  <b>Prototype:</b> fun [[[[S u0] r1] r1]] fun [S S] I] [[[S u0] r1] r1]]
+  *
+  *  \param [S r1] : list to sort
+  *  \param fun [S S] I : function for sort test (suppDoublon for example)
+  *
+  *  \return [[[S u0] r1] r1]] : sorted list
+  **/
+fun quicksort3(l,f)=
+  if l==nil then nil
+  else let l->[vl nl] in
+  let divideList3 vl nl nil nil f->[va na] in
+  lcat quicksort3 va f vl::quicksort3 na f;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Sort a list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] fun [u0 u0] I] [u0 r1]
+  *
+  *  \param [u0 r1] : list to sort
+  *  \param fun [u0 u0] I : function for sort test (suppDoublon for example)
+  *
+  *  \return [u0 r1] : sorted list
+  **/
+fun sortlist(l,f)=
+  if l == nil then nil else
+    let l -> [head tail] in
+    let extractList tail head f -> [left right] in
+    lcat (sortlist left f) head::(sortlist right f);;
+
+
+/*!  @ingroup toolslist
+  *  \brief Reverse a list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1]] I
+  *
+  *  \param [u0 r1] : list to revert
+  *
+  *  \return [u0 r1] : reversed list
+  **/
+fun revertlist(list)=
+  if list==nil then nil else
+  let list -> [first next] in
+    lcat revertlist next first::nil;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if a string exist in a list
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] I
+  *
+  *  \param [S r1] : list
+  *  \param S : string to search
+  *
+  *  \return I : 1 if the string exist in the list 0 otherwise
+  **/
+fun isStringInList(l, string)=
+  (l!=nil)&&((!strcmp string hd l)||(isStringInList tl l string));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if a string exist in a list case insensitivity
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] I
+  *
+  *  \param [S r1] : list
+  *  \param S : string to search
+  *
+  *  \return I : 1 if the string exist in the list 0 otherwise
+  **/
+fun isStringInListi(l, string)=
+  (l!=nil)&&((!strcmpi string hd l)||(isStringInListi tl l string));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if a string exist in a list case insensitivity
+  *
+  *  <b>Prototype:</b> fun [[S r1] S I I] I
+  *
+  *  \param [S r1] : list
+  *  \param S : string to search
+  *  \param I : position
+  *  \param I : length
+  *
+  *  \return I : 1 if the string exist in the list 0 otherwise
+  **/
+fun isStringInListiPos(l, string, pos, length)=
+  (l!=nil)&&((!strcmpi string (substr (hd l) pos length))||(isStringInListiPos tl l string pos length));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Add a string element as unique
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] [S r1]
+  *
+  *  \param [S r1] : list
+  *  \param S : unique element
+  *
+  *  \return [S r1] : new list
+  **/
+fun addUniqueStr(l, str)=
+  if (isStringInList l str) then
+    l
+  else
+    str::l;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Add a string element as unique, case insensitivity
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] [S r1]
+  *
+  *  \param [S r1] : list
+  *  \param S : unique element
+  *
+  *  \return [S r1] : new list
+  **/
+fun addUniqueStri(l, str)=
+  if (isStringInListi l str) then
+    l
+  else
+    str::l;;
+
+
+/*!  @ingroup toolslist
+  *  \brief get a string position in a list
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] I
+  *
+  *  \param [S r1] : list
+  *  \param S : string to search
+  *
+  *  \return I : string position or nil if not found
+  **/
+fun getStringPosInList(l, string)=
+  if !(isStringInList l string) then nil else
+  let 0 -> i in
+  (
+    while ((l != nil) && (strcmp string hd l)) do
+    (
+      set i = i + 1;
+      set l = tl l;
+    );
+    i;
+  );;
+
+
+/*!  @ingroup toolslist
+  *  \brief get a string position in a list case insensitivity
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] I
+  *
+  *  \param [S r1] : list
+  *  \param S : string to search
+  *
+  *  \return I : string position or nil if not found
+  **/
+fun getStringPosInListi(l, string)=
+  if !(isStringInListi l string) then nil else
+  let 0 -> i in
+  (
+    while ((l != nil) && (strcmpi string hd l)) do
+    (
+      set i = i + 1;
+      set l = tl l;
+    );
+    i;
+  );;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if a string exist in a list as the first word of the string
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] I
+  *
+  *  \param [S r1] : list
+  *  \param S : string to search
+  *
+  *  \return I : 1 if the string exist in the list 0 otherwise
+  **/
+fun isFirstWordInList(l, string)=
+  (l!=nil)&&((!strcmp (hd hd (strextr string)) (hd l))||(isFirstWordInList tl l string));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if a string exist in a list as the first word of the string case insensitivity
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] I
+  *
+  *  \param [S r1] : list
+  *  \param S : string to search
+  *
+  *  \return I : 1 if the string exist in the list 0 otherwise
+  **/
+fun isFirstWordInListi(l, string)=
+  (l!=nil)&&((!strcmpi (hd hd (strextr string)) (hd l))||(isFirstWordInListi tl l string));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if the first string of a list match to a word
+  *
+  *  <b>Prototype:</b> fun [[[S r1] r1] S] I
+  *
+  *  \param [[S r1] r1] : list
+  *  \param S : string to compare
+  *
+  *  \return I : 1 if the string exist in the list 0 otherwise
+  **/
+fun isFirstStringInList(l, string)=
+  let hd hd l -> tstr in
+  (l!=nil)&&((!strcmp string tstr)||(isFirstStringInList tl l string));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if the first tuple value in list is present
+  *
+  *  <b>Prototype:</b> fun [[[u0 u1] r1] u0] I
+  *
+  *  \param [[I u0] r1] : list
+  *  \param u0 : value to compare
+  *
+  *  \return I : 1 if the value exist in the list 0 otherwise
+  **/
+fun isT1InList(l, val)=
+  let hd l -> [cval _] in
+  (l!=nil)&&((cval == val)||(isT1InList tl l val));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Test if the second tuple value in list is present
+  *
+  *  <b>Prototype:</b> fun [[[u0 u1] r1] u1] I
+  *
+  *  \param [[I u0] r1] : list
+  *  \param u1 : value to compare
+  *
+  *  \return I : 1 if the value exist in the list 0 otherwise
+  **/
+fun isT2InList(l, val)=
+  let hd l -> [_ cval] in
+  (l!=nil)&&((cval == val)||(isT2InList tl l val));;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Get a file path and file name from a path
+  *
+  *  <b>Prototype:</b> fun [S S] [S S]
+  *
+  *  \param S : the path
+  *  \param S : set to nil
+  *
+  *  \return [S S] : the path and the filename
+  **/
+fun getPathFile(longfile, file)=
+  if (longfile==nil) || (strlen longfile)==0 || (nth_char longfile ((strlen longfile)-1)) == '/ then
+  (
+    if (strfind "." file 0) != nil then
+      [longfile file]
+    else if file != nil then
+      [strcatn longfile::file::"/"::nil nil]
+    else
+      [longfile nil];
+  )
+  else
+    getPathFile
+      substr longfile 0 (strlen longfile)-1
+      strcat
+        substr longfile ((strlen longfile)-1) 1
+        file;;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Get the last directory from a path
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the path
+  *
+  *  \return S : the last directory
+  **/
+fun getlastPathDir(path)=
+  while ((strfind "/" path 0) != nil) do
+    set path = substr path ((strfind "/" path 0) + 1) 2048;
+  path;;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Get file extension from a path
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the path
+  *
+  *  \return S : the file extension
+  **/
+fun getFileExt(file)=
+  let getPathFile file "" -> [_ file2] in
+  let 0 -> pos in
+  (
+    while (strfind "." file2 pos + 1) != nil do
+    (
+      set pos = strfind "." file2 pos + 1;
+    );
+    if pos == 0 then nil else
+      substr file2 (pos + 1) 1024;
+  );;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Get file path without the file extension
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the path
+  *
+  *  \return S : the file path without the file extension
+  **/
+fun getFilePathWithoutExt(file)=
+  substr file 0 (strfind "." file 0);;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Get path without the file name
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the path
+  *
+  *  \return S : the path without the file
+  **/
+fun getFileDirectory(file)=
+  let getPathFile file "" -> [dir _] in
+    dir;;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Get the file name without Path and Extension
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the path
+  *
+  *  \return S : the file name
+  **/
+fun getFileNameWithoutExt(file)=
+  let getPathFile file "" -> [_ file2] in
+    substr file2 0 (strfind "." file2 0);;
+  
+ 
+/*!  @ingroup toolsfile
+  *  \brief Manage relative paths (relativ files should start with ./)
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the path to add
+  *  \param S : the relative file path
+  *
+  *  \return S : the complete path
+  **/
+fun getRelativePath(path, file)=
+  if !strcmp substr file 0 2 "./" then
+    strcatn path::"/"::(substr file 2 strlen file)::nil
+  else file;;
+
+
+
+fun cutDotName(name)= [(substr name 0 (strfind "." name 0)) (substr name ((strfind "." name 0) + 1) 1024)];;
+
+
+fun makeDotName(id, name)= strcatn id::"."::name::nil;;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Get the files list from a directory, with a file extension mask
+  *
+  *  <b>Prototype:</b> fun [S [S r1]] [S r1]
+  *
+  *  \param S : the path to list
+  *  \param [S r1] : a list of string mask (ex : "pkg"::"bmp"::nil)
+  *
+  *  \return [S r1] : a list of found files
+  **/
+fun getFilesFromDir(dir, mask)=
+  let _listoffiles dir -> files in
+  let nil -> lfiles in
+  let sizelist files -> size in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list files i -> file in
+      let getFileExt file -> ext in
+      if (mask != nil) && !(isStringInListi mask ext) then nil else
+        set lfiles = lcat lfiles file::nil;
+      
+      set i = i + 1;
+    );
+    lfiles;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Get the boolean value of a string
+  *
+  *  <b>Prototype:</b> fun [S] I
+  *
+  *  \param S : the boolean value "enable" "1" "on" "true" "yes"
+  *
+  *  \return I : 1 if the boolean value is correct, 0 otherwise
+  **/
+fun getBooleanFromString(str)= if (!strcmpi strtrim str "enable") || (!strcmpi strtrim str "ON") || (!strcmpi strtrim str "true") || (!strcmpi strtrim str "yes") || ((atoi str) == 1) then 1 else 0;;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Compare the last word of a string
+  *
+  *  <b>Prototype:</b> fun [S S] I
+  *
+  *  \param S : the word to compare
+  *  \param S : the full string
+  *
+  *  \return I : 1 if the word is at the end of the string, 0 otherwise
+  **/
+fun isLastWordfromString(word, string)= !strcmpi word (substr string ((strlen string) - (strlen word)) (strlen word));;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Compare the first word of a string
+  *
+  *  <b>Prototype:</b> fun [S S] I
+  *
+  *  \param S : the word to compare
+  *  \param S : the full string
+  *
+  *  \return I : 1 if the word is at the beginning of the string, 0 otherwise
+  **/
+fun isFirstWordfromString(word, string)= !strcmpi word (substr string 0 (strlen word));;
+
+
+/*!  @ingroup toolslist
+  *  \brief Transform a string list to lowercase
+  *
+  *  <b>Prototype:</b> fun [[S r1]] [S r1]
+  *
+  *  \param [S r1] : the string list
+  *
+  *  \return [S r1] : the same string list with lowercase values
+  **/
+fun listLowercase(l)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+        set ndata = lcat ndata (strlowercase elem)::nil;
+      
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+/*!  @ingroup toolsfile
+  *  \brief List the directories of a path
+  *
+  *  <b>Prototype:</b> fun [S] [S r1]
+  *
+  *  \param S : the path directory
+  *
+  *  \return [S r1] : a list of directories
+  **/
+fun getDirListFromPath(path)=
+  let nil -> lpaths in
+  (
+    let _listofsubdir path -> ldirs in
+    let sizelist ldirs -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list ldirs i -> dir in
+        set lpaths = lcat lpaths dir::(getDirListFromPath dir);
+      
+      set i = i + 1;
+    );
+    lpaths
+  );;
+
+
+/*!  @ingroup toolsfile
+  *  \brief List the files from a directory path recursively
+  *
+  *  <b>Prototype:</b> fun [S] [S r1]
+  *
+  *  \param S : the path directory
+  *
+  *  \return [S r1] : a list of files
+  **/
+fun getFilesFromDirRecursive(dir)=
+  if (isLastWordfromString ".svn" dir) then nil else
+  let _listoffiles dir -> lfiles in
+  let _listofsubdir dir -> lsubdirs in
+  (
+    let sizelist lsubdirs -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lsubdirs i -> elem in
+        set lfiles = lcat lfiles (getFilesFromDirRecursive elem);
+      set i = i + 1;
+    );
+    
+    lfiles;
+  );;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Delete all the files of a directory
+  *
+  *  <b>Prototype:</b> fun [S] I
+  *
+  *  \param S : the path directory
+  *
+  *  \return 0
+  **/
+fun cleanDirectory(dir)=
+  let _listoffiles dir -> lfiles in
+  let _listofsubdir dir -> lsubdirs in
+  (
+    let sizelist lsubdirs -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lsubdirs i -> elem in
+        cleanDirectory elem;
+      set i = i + 1;
+    );
+    
+    let sizelist lfiles -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lfiles i -> elem in
+        _deletepack _checkpack elem;
+      set i = i + 1;
+    );
+  );
+  0;;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Remove the last '/' from a directory path
+  *
+  *  <b>Prototype:</b> fun [S] I
+  *
+  *  \param S : the directory path
+  *
+  *  \return S : the directory path without the last slash
+  **/
+fun getDirectoryWithoutLastSlash(dir)=
+  if isLastWordfromString "/" dir then
+    substr dir 0 ((strlen dir) - 1)
+  else
+    dir;;
+
+
+/*!  @ingroup toolsfile
+  *  \brief Remove the first '/' from a directory path
+  *
+  *  <b>Prototype:</b> fun [S] I
+  *
+  *  \param S : the directory path
+  *
+  *  \return S : the directory path without the first slash
+  **/
+fun getDirectoryWithoutFirstSlash(dir)=
+  if isFirstWordfromString "/" dir then
+    substr dir 1 ((strlen dir) - 1)
+  else
+    dir;;
+
+
+/*!  @ingroup toolslist
+  *  \brief apply a function to a list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] fun [u0 u1] u0 u1] [u0 r1]
+  *
+  *  \param [u0 r1] : the list
+  *  \param fun [u0 u1] u0 : the function to call for each list element
+  *  \param u1 : a user parameter
+  *
+  *  \return [u0 r1] : the new list
+  **/
+fun apply_on_list(l,f,x)=
+ if l==nil then 0
+ else let l -> [a nxt] in
+  (exec f with [a x];
+   apply_on_list nxt f x);;
+
+
+/*!  @ingroup toolslist
+  *  \brief apply a function to a list reserved
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] fun [u0 u1] u0 u1] [u0 r1]
+  *
+  *  \param [u0 r1] : the list
+  *  \param fun [u0 u1] u0 : the function to call for each list element
+  *  \param u1 : a user parameter
+  *
+  *  \return [u0 r1] : the new list
+  **/
+fun rev_apply_on_list(l,f,x)=
+ if l==nil then 0
+ else let l -> [a nxt] in
+  (rev_apply_on_list nxt f x;
+   exec f with [a x];0);;
+
+
+/*!  @ingroup toolslist
+  *  \brief Search an element in a list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] fun [u0 u1] I u1] u0
+  *
+  *  \param [u0 r1] : the list
+  *  \param fun [u0 u1] I : the function to call for each list element to compare
+  *  \param u1 : a user parameter
+  *
+  *  \return u0 : the element found or nil
+  **/
+fun search_in_list(l,f,x)=
+ if l==nil then nil
+ else let l -> [a nxt] in
+  if exec f with [a x] then a
+  else search_in_list nxt f x;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Remove an element in a list
+  *
+  *  <b>Prototype:</b> fun [[u0 r1] u0] [u0 r1]
+  *
+  *  \param [u0 r1] : the list
+  *  \param u0 : the list element to remove
+  *
+  *  \return [u0 r1] : the list without the element
+  **/
+fun remove_from_list(l,p)=
+ if l==nil then nil
+ else let l -> [a nxt] in
+  if a==p then nxt
+  else a::remove_from_list nxt p;;
+
+
+fun tlr2(l, n)=
+  let sizelist l -> size in
+  let 0 -> i in
+  let 0 -> nn in
+  let nil -> nl in
+  (
+    while i < size do
+    (
+      let nth_list l i -> lelt in
+      (
+        while (nn < n) do
+        (
+          set lelt = tl lelt;
+          set nn = nn + 1;
+        );
+        set nl = lcat nl lelt::nil;
+      );
+      set i = i + 1;
+    );
+    nl;
+  );;
+
+
+/*!  @ingroup toolslist
+  *  \brief Remove an string in a list
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] [S r1]
+  *
+  *  \param [S r1] : the list
+  *  \param S : the list element to remove
+  *
+  *  \return [S r1] : the list without the element
+  **/
+fun remove_string_from_list(l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> elm in
+    if !strcmpi elm elt then
+      tl l
+    else
+      (hd l)::remove_string_from_list tl l elt;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Remove an indexed element in a list
+  *
+  *  <b>Prototype:</b> fun [[[u0 u1] r1] u0] [[u0 u1] r1]
+  *
+  *  \param [[u0 u1] r1] : the list
+  *  \param u0 : the index to remove
+  *
+  *  \return [[u0 u1] r1] : the list without the element
+  **/
+fun remove_idx_from_list(l, idx)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [id _] in
+    if id == idx then
+      tl l
+    else
+      (hd l)::remove_idx_from_list tl l idx;;
+
+
+/*!  @ingroup toolslist
+  *  \brief Remove a string indexed element in a list
+  *
+  *  <b>Prototype:</b> fun [[[S u0] r1] S] [[S u0] r1]
+  *
+  *  \param [[S u0] r1] : the list
+  *  \param S : the index to remove
+  *
+  *  \return [[S u0] r1] : the list without the element
+  **/
+fun remove_sid_from_list(l, sid)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [id _] in
+    if (!strcmp id sid) then
+      tl l
+    else
+      (hd l)::remove_sid_from_list tl l sid;;
+
+
+fun remove_first_string_from_list(l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    let hd hd l -> elm in
+    if !strcmpi elm elt then
+      tl l
+    else
+      (hd l)::remove_first_string_from_list tl l elt;;
+
+
+fun remove_all_first_string_from_list(l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    let hd hd l -> elm in
+    if !strcmpi elm elt then
+      remove_all_first_string_from_list tl l elt
+    else
+      (hd l)::remove_all_first_string_from_list tl l elt;;
+
+
+fun remove_first_and_second_string_from_list(l, elt1, elt2)=
+  if l==nil
+  then
+    nil
+  else
+    let hd hd l -> elm1 in
+    let hd tl hd l -> elm2 in
+    if (!strcmpi elm1 elt1) && (!strcmpi elm2 elt2) then
+      tl l
+    else
+      (hd l)::remove_first_and_second_string_from_list tl l elt1 elt2;;
+
+
+fun remove_all_first_string_from_second_elem_list(l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [_ nl] in
+    let hd nl -> elm in
+    if !strcmpi elm elt then
+      remove_all_first_string_from_second_elem_list tl l elt
+    else
+      (hd l)::remove_all_first_string_from_second_elem_list tl l elt;;
+
+
+fun remove_first_and_second_string_from_second_elem_list(l, elt1, elt2)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [_ nl] in
+    let hd nl -> elm1 in
+    let hd tl nl -> elm2 in
+    if (!strcmpi elm1 elt1) && (!strcmpi elm2 elt2) then
+      tl l
+    else
+      (hd l)::remove_first_and_second_string_from_list tl l elt1 elt2;;
+
+
+fun remove_first_string_from_list_start_with(l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    let hd hd l -> elm in
+    if !strcmpi (substr elm 0 (strlen elt)) elt then
+      remove_first_string_from_list_start_with tl l elt
+    else
+      (hd l)::remove_first_string_from_list_start_with tl l elt;;
+
+
+fun remove_first_string_from_second_element_list_start_with(l, elt)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [_ nl] in
+    let hd nl -> elm in
+    if !strcmpi (substr elm 0 (strlen elt)) elt then
+      remove_first_string_from_list_start_with tl l elt
+    else
+      (hd l)::remove_first_string_from_list_start_with tl l elt;;
+      
+
+fun pos_in_list(l,p,n)=
+ if l==nil then nil
+ else let l -> [a nxt] in
+  if a==p then n
+  else pos_in_list nxt p n+1;;
+
+
+fun create_tab(n,f,x)=
+ let mktab n nil -> t in
+ (let 0->i in while i<n do
+  (set t.i=exec f with [i x];
+   set i=i+1);
+  t);;
+
+
+fun addFifo(x,f)=
+ let x::nil -> l in
+  if f==nil then [l l]
+  else let f->[a b] in
+  (mutate b<-[_ l]; [a l]);;
+
+
+fun getFifo(f)=
+ if f==nil then [nil nil]
+ else let f->[a b] in
+  if a==b then [hd a nil]
+  else [hd a [tl a b]];;
+
+
+fun sizeFifo(f)=
+ if f==nil then 0
+ else let f->[a _] in sizelist a;;
+
+
+fun concFifo(f,g)=
+ if f==nil then g
+ else if g==nil then f
+ else let f->[a b] in let g->[c d] in
+  (mutate b<-[_ c]; [a d]);;
+  
+  
+fun hexListToBignumList(l)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elt in
+      set ndata = lcat ndata (BigFromAsc elt)::nil;
+      
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Replace a string in an another string
+  *
+  *  <b>Prototype:</b> fun [S S S] S
+  *
+  *  \param S : the string to change
+  *  \param S : the string to find
+  *  \param S : the string to replace with
+  *
+  *  \return S : the new string
+  **/
+fun strreplace(s, from, to)=
+  let 0 -> pos in
+  let strlen from -> fsize in
+  let strlen to -> tsize in
+  if ((fsize <= 0) || (tsize <= 0)) then nil else
+  while ((set pos = strfind from s pos) != nil) do
+  (
+    set s = strcatn (substr s 0 pos)::to::(substr s (pos + fsize) ((strlen s) - pos))::nil;
+    set pos = pos + tsize;
+  );
+  s;;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Replace a string in an another string, case insensivity
+  *
+  *  <b>Prototype:</b> fun [S S S] S
+  *
+  *  \param S : the string to change
+  *  \param S : the string to find
+  *  \param S : the string to replace with
+  *
+  *  \return S : the new string
+  **/
+fun strreplacei(s, from, to)=
+  let 0 -> pos in
+  let strlen from -> fsize in
+  let strlen to -> tsize in
+  if ((fsize <= 0) || (tsize <= 0)) then s else
+  while ((set pos = strfindi from s pos) != nil) do
+    set s = strcatn (substr s 0 pos)::to::(substr s (pos + fsize) ((strlen s) - pos))::nil;
+  s;;
+
+
+/*!  @ingroup toolsstr
+  *  \brief convert a string to a list of words
+  *
+  *  <b>Prototype:</b> fun [S] [S r1]
+  *
+  *  \param S : string
+  *
+  *  \return [S r1] : the list of words
+  **/
+fun strToWordList(s)=
+  let strextr s -> l in
+  let nil -> nl in
+  (
+    while (l != nil) do
+    (
+      let hd l -> lw in
+      while (lw != nil) do
+      (
+        set nl = (hd lw)::nl;
+        set lw = tl lw;
+      );
+      
+      set l = tl l;
+    );
+    revertlist nl;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief replace key by value position in arg list ("my string is $1 with $2" "val1"::"val2"::nil)
+  *
+  *  <b>Prototype:</b> fun [S S [S r1]] S
+  *
+  *  \param S : string
+  *  \param S : the key "$" for example
+  *  \param [S r1] : list of arguments
+  *
+  *  \return S : the converted string
+  **/
+fun replaceByKeyIndex(s, key, args)=
+  let sizelist args -> size in
+  (
+    while (size > 0) do
+    (
+      set s = strreplace s (strcat key (itoa size)) (nth_list args (size - 1)); 
+      set size = size - 1;  
+    );
+    s;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Concat a string list with a defined separator
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] S
+  *
+  *  \param [S r1] : the string list
+  *  \param S : the separator to use
+  *
+  *  \return S : the new string
+  **/
+fun strcatnSep(l, sep)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+      if i == 0 then
+        set ndata = elem
+      else
+        set ndata = strcatn ndata::sep::elem::nil;
+        
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Concat a string list with a defined separator and a line feed
+  *
+  *  <b>Prototype:</b> fun [[[S r1] r1] S] S
+  *
+  *  \param [[S r1] r1] : the string list
+  *  \param S : the separator to use
+  *
+  *  \return S : the new string
+  **/
+fun strcatnlSep(l, sep)=
+  if l == nil then nil else
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+      if i == 0 then
+        set ndata = (strcatnSep elem sep)
+      else
+        set ndata = strcatn ndata::"\n"::(strcatnSep elem sep)::nil;
+        
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+fun strfindiList(l, s)=
+  let nil -> found in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while ((i < size) && (found == nil)) do
+    (
+      let nth_list l i -> elt in
+      let strfindi elt s 0 -> pos in
+      if (pos == nil) then nil else
+        set found = [i pos];
+      
+      set i = i + 1;
+    );
+    found;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Protect special character with a '\'
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the string to protect
+  *
+  *  \return S : the new string
+  **/
+fun addSlashes(s)=
+  let "" -> ret in
+  (
+    let strlen s -> size in
+    let 0 -> i in
+    while (i < size) do
+    (
+      let nth_char s i -> char in
+      if (char == 34) || (char == 39) || (char == 92) then
+        set ret = strcatn ret::(ctoa 92)::(ctoa char)::nil
+      else
+        set ret = strcat ret (ctoa char);
+      
+      set i = i + 1;
+    );
+    ret;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Truncate a string
+  *
+  *  <b>Prototype:</b> fun [S I S] S
+  *
+  *  \param S : the string
+  *  \param I : the maximun string length
+  *  \param S : the string to add to the end (...)
+  *
+  *  \return S : the new string
+  **/
+fun strTruncate(s, maxlen, rp)=
+  if (strlen s) > maxlen then
+    strcat substr s 0 (maxlen - (strlen rp)) rp
+  else
+    s;;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Quote a string
+  *
+  *  <b>Prototype:</b> fun [S S] S
+  *
+  *  \param S : the string
+  *  \param S : the character to use for quotes '"'
+  *
+  *  \return S : the new string
+  **/
+fun strQuote(s, q)= strcatn q::(strtrim s)::q::nil;;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Quote a string list
+  *
+  *  <b>Prototype:</b> fun [[S r1] S] [S r1]
+  *
+  *  \param [S r1] : the string list
+  *  \param S : the character to use for quotes '"'
+  *
+  *  \return [S r1] : the new string list
+  **/
+fun listQuote(l, q)=
+  let nil -> nl in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list l i -> elt in
+        set nl = lcat nl (strQuote elt q)::nil;
+      
+      set i = i + 1;
+    );
+    nl;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Convert a String to a list of lines
+  *
+  *  <b>Prototype:</b> fun [S] [S r1]
+  *
+  *  \param S : the string
+  *
+  *  \return [S r1] : the list of string lines
+  **/
+fun strToList(s)=
+  let nil -> ret in
+  let strextr s -> l in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while (i < size) do
+    (
+      let nth_list l i -> line in
+        set ret = lcat ret (strcatnSep line " ")::nil;
+      
+      set i = i + 1;
+    );
+    ret;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Change the line separation character
+  *
+  *  <b>Prototype:</b> fun [S S] S
+  *
+  *  \param S : the string
+  *  \param S : the line separation character
+  *
+  *  \return S : the new string
+  **/
+fun oneLineTransform(s, sep)=
+  strcatnSep (strToList s) sep;;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Convert a string to a list by a defined separator
+  *
+  *  <b>Prototype:</b> fun [S S] [S r1]
+  *
+  *  \param S : the string
+  *  \param S : separator ';'
+  *
+  *  \return [S r1] : the string list
+  **/
+fun strToListSep(s, sep)=
+  let nil -> ret in
+  let 0 -> spos in
+  (
+    while (strfindi sep s spos) != nil do
+    (
+      let strfindi sep s spos -> fpos in
+      let substr s spos (fpos - spos) -> value in
+      (
+        set ret = value::ret;
+        set spos = fpos + strlen sep;
+      );
+    );
+    
+    if (spos >= strlen s) then nil else
+      set ret = (substr s spos ((strlen s) - spos))::ret;
+      
+    revertlist ret;
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief Convert list of words and lines to a string
+  *
+  *  <b>Prototype:</b> fun [[[S r1] r1]] S
+  *
+  *  \param [[S r1] r1] : list of words and lines
+  *
+  *  \return S : the formated string
+  **/
+fun strbuildn(l)=
+  let nil -> ret in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while (i < size) do
+    (
+      let nth_list l i -> line in
+        set ret = lcat ret (strcatnSep line " ")::nil;
+        
+      set i = i + 1;
+    );
+    if ret == nil then nil else strcatnSep ret "\n";
+  );;  
+
+
+/*!  @ingroup toolsstr
+  *  \brief Convert list of words and lines to a string
+  *
+  *  <b>Prototype:</b> fun [[[S r1] r1]] S
+  *
+  *  \param [[S r1] r1] : list of words and lines
+  *
+  *  \return S : the formated string
+  **/
+fun listToString(l)=
+  let nil -> ret in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while (i < size) do
+    (
+      let nth_list l i -> line in
+      let strextr line -> lp in
+        set ret = lcat ret (strcatnSep (hd lp) " ")::nil;
+        
+      set i = i + 1;
+    );
+    if ret == nil then nil else strcatnSep ret "\n";
+  );;
+
+
+/*!  @ingroup toolsstr
+  *  \brief get the line after a keyword, for example "KEYWORD value"
+  *
+  *  <b>Prototype:</b> fun [S S] S
+  *
+  *  \param S : string
+  *  \param S : keyword
+  *
+  *  \return S : the value if the keyword exist nil otherwise
+  **/
+fun getNextToValue(cont, keyword)=
+  let strextr cont -> lcont in
+  let sizelist lcont -> size in
+  let 0 -> i in
+  let nil -> ret in
+  (
+    while ((i < size) && (ret == nil)) do
+    (
+      let nth_list lcont i -> [word next] in
+      if strcmpi keyword (strtrim word) then nil else
+        set ret = strcatnSep next " ";
+      
+      set i = i + 1;
+    );
+    ret;
+  );;
+
+
+/* ********************************************************************************************* /
+  HTTP DOWNLOAD
+/ ********************************************************************************************* */
+
+typeof lHTTP_COOKIES = [[S S] r1];;
+typeof lHTTP_REQUEST = [ObjCURL r1];;
+
+fun strIsUrl(url)= if ((!strcmp (substr url 0 8) "https://") || (!strcmp (substr url 0 7) "http://") || (!strcmp (substr url 0 7) "file://") || (!strcmp (substr url 0 6) "ftp://") || (!strcmp (substr url 0 7) "scol://")) && ((strlen url) > 10) then 1 else 0;;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Kill all current download requests
+  *
+  *  <b>Prototype:</b> fun [] I
+  *
+  *  \return 0
+  **/
+fun clearHttpRequest()=
+  let lHTTP_REQUEST -> l in
+  while (l != nil) do
+  (
+    _KILLcurlRequest hd l;
+    set l = tl l;
+  );
+  set lHTTP_REQUEST = nil;
+  0;;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Kill a download request
+  *
+  *  <b>Prototype:</b> fun [ObjCURL] I
+  *
+  *  \param ObjCURL : the request to kill
+  *
+  *  \return 0
+  **/
+fun killHttpRequest(req)=
+  if (req == nil) then nil else
+  (
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST req;
+    _KILLcurlRequest req;
+  );
+  0;;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Clear all http cookies
+  *
+  *  <b>Prototype:</b> fun [] I
+  *
+  *  \return 0
+  **/
+fun clearHttpCookies()=
+  set lHTTP_COOKIES = nil;
+  0;;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Get the domain of an url
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the url
+  *
+  *  \return S : the url domain
+  **/
+fun getHttpDomain(url)=
+  let if (!strcmp (substr url 0 8) "https://") then
+        substr url 8 ((strlen url) - 8)
+      else if (!strcmp (substr url 0 7) "http://") then
+        substr url 7 ((strlen url) - 7)
+      else if (!strcmp (substr url 0 7) "file://") then
+        substr url 7 ((strlen url) - 7)
+      else if (!strcmp (substr url 0 6) "ftp://") then
+        substr url 6 ((strlen url) - 6)
+      else url    
+  -> baseurl in
+    substr baseurl 0 (strfind "/" baseurl 0);;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Get Html header from an http response
+  *
+  *  <b>Prototype:</b> fun [S] S
+  *
+  *  \param S : the response
+  *
+  *  \return S : the header
+  **/
+fun getHtmlHeader(cont)=
+  let strextr cont -> lcont in
+  let sizelist lcont -> size in
+  let 0 -> i in
+  let 0 -> pos in
+  (
+    while ((i < size) && (pos <= 0)) do
+    (
+      let hd nth_list lcont i -> word in
+      if word != nil then nil else
+        set pos = i;
+      
+      set i = i + 1;
+    );
+    let splitList lcont pos -> [l1 l2] in
+      [(strbuildn l1) (strbuildn tl l2)];
+  );;
+
+
+fun decompHtmlCookie(cookie)=
+  let strToListSep cookie ";" -> l in
+  let [nil nil nil 0 0] -> pout in
+  (
+    let sizelist l -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list l i -> elt in
+      if (!strcmpi "Domain=" (substr elt 0 7)) then
+        mutate pout <- [_ (substr elt 7 ((strlen elt) - 7)) _ _ _]
+      else if (!strcmpi "Path=" (substr elt 0 5)) then
+        mutate pout <- [_ _ (substr elt 5 ((strlen elt) - 5)) _ _]
+      else if (!strcmpi "Secure" (substr elt 0 6)) then
+        mutate pout <- [_ _ _ 1 _]
+      else if (!strcmpi "HttpOnly" (substr elt 0 8)) then
+        mutate pout <- [_ _ _ _ 1]
+      else
+        mutate pout <- [elt _ _ _ _];
+      
+      set i = i + 1;
+    );
+    pout;
+  );;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Get Html Status code from header
+  *
+  *  <b>Prototype:</b> fun [S] I
+  *
+  *  \param S : the header
+  *
+  *  \return I : the html status code
+  **/
+fun getHtmlStatus(header)=
+  let getNextToValue header "status:" -> status in
+  let atoi (hd lineextr status) -> code in
+  (
+    if (code != nil) then nil else
+      let getNextToValue header "HTTP/1.1" -> status in
+        set code = atoi (hd lineextr status);
+    
+    if (code != nil) then nil else
+      let getNextToValue header "HTTP/1.0" -> status in
+        set code = atoi (hd lineextr status);
+    
+    code;
+  );;
+
+
+fun setHtmlCookie(url, header)=
+  let getHttpDomain url -> baseurl in
+  let getNextToValue header "Set-Cookie:" -> cookie in
+  if (cookie == nil) then nil else
+  (
+    //_fooS strcatn ">>>>>>>>> add cookie : "::cookie::" on "::baseurl::nil;
+    set lHTTP_COOKIES = remove_sid_from_list lHTTP_COOKIES baseurl;
+    set lHTTP_COOKIES = [baseurl cookie]::lHTTP_COOKIES;
+  );
+  0;;
+
+
+fun makeHtmlCookieHeader(url)=
+  let getHttpDomain url -> baseurl in
+  let switchstri lHTTP_COOKIES baseurl -> cookie in
+  if (cookie == nil) then nil else
+    strcatn "Cookie: "::cookie::(ctoa 13)::(ctoa 10)::nil;;
+
+
+fun makeHtmlCookie(url)=
+  let getHttpDomain url -> baseurl in
+  let switchstri lHTTP_COOKIES baseurl -> cookie in
+    cookie;;
+
+
+fun getHtmlCookie(url)=
+  let getHttpDomain url -> baseurl in
+    switchstri lHTTP_COOKIES baseurl;;
+
+
+fun cbDownloadFile(curlobj, p, data, code)=
+  let p -> [str url cbfun] in
+  if (code == -1) then
+  (
+    mutate p <- [(strcat str data) _ _];
+    0;
+  )
+  // download finished
+  else if (code == 0) then
+  (
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;   
+    exec cbfun with [url str];
+  )
+  else
+  (
+    _fooS strcatn ">>>>>>>>> Http download failed : "::url::" whith code : "::(itoa code)::nil;
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;
+    exec cbfun with [url nil];
+    0;
+  );
+  0;;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Download an url
+  *
+  *  <b>Prototype:</b> fun [S fun [S S] u0] I
+  *
+  *  \param S : the url to download
+  *  \param fun [S S] u0 : the callback with url and data
+  *
+  *  \return ObjCURL : the new request
+  **/
+fun downloadFile(file, cbfun)=
+  if strIsUrl file then
+  let makeHtmlCookie file -> cookie in
+  let _CRcurlRequest _channel file -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+        
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbDownloadFile ["" file cbfun])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [file nil];
+    nil;
+  );;
+  
+
+fun cbGetUrlContent(curlobj, p, data, code)=
+  let p -> [str url cbfun fullres] in
+  if (code == -1) then
+  (
+    mutate p <- [(strcat str data) _ _ _];
+    0;
+  )
+  // download finished
+  else if (code == 0) then
+  (
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;
+    let getHtmlHeader str -> [header cont] in
+    (
+      setHtmlCookie url header;
+      exec cbfun with [url (if fullres then str else cont)];
+    );
+  )
+  else
+  (
+    _fooS strcatn ">>>>>>>>> Http download failed : "::url::" whith code : "::(itoa code)::nil;
+    set lHTTP_REQUEST = remove_from_list lHTTP_REQUEST curlobj;
+    exec cbfun with [url nil];
+    0;
+  );
+  0;;
+
+
+ fun deleteUrlEx(url, params, cbfun, headeradd, fullres)=
+  let makeHtmlCookie url -> cookie in
+  if strIsUrl url then
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    if !fullres then nil else
+      _SETcurlOption objcurl CURLOPT_HEADER 1;
+    
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    _SETcurlOptionS objcurl CURLOPT_CUSTOMREQUEST "DELETE";
+   
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    if (params == nil || (!strcmp (strtrim params) "")) then nil else
+    (
+      _SETcurlOption objcurl CURLOPT_POST 1;
+      _SETcurlOptionS objcurl CURLOPT_POSTFIELDS params;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+
+ fun postUrlEx(url, params, cbfun, headeradd, fullres)=
+  let makeHtmlCookie url -> cookie in
+  if strIsUrl url then
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_HEADER 1;
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    if (params == nil || (!strcmp (strtrim params) "")) then nil else
+    (
+      _SETcurlOption objcurl CURLOPT_POST 1;
+      _SETcurlOptionS objcurl CURLOPT_POSTFIELDS params;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+
+ fun getUrlEx(url, params, cbfun, headeradd, fullres)=
+  let makeHtmlCookie url -> cookie in
+  if strIsUrl url then
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_HEADER 1;
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    if (params == nil || (!strcmp (strtrim params) "")) then nil else
+    (
+      _SETcurlOption objcurl CURLOPT_HTTPGET 1;
+      _SETcurlOptionS objcurl CURLOPT_POSTFIELDS params;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;  
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+
+ fun postUrlMultiPartEx(url, lparams, cbfun, headeradd, fullres)=
+  if strIsUrl url then
+  let makeHtmlCookie url -> cookie in
+  let _CRcurlRequest _channel url -> objcurl in
+  (
+    _SETcurlOption objcurl CURLOPT_HEADER 1;
+    _SETcurlOption objcurl CURLOPT_SSL_VERIFYPEER 0;
+    
+    if (headeradd == nil) then nil else
+      _SETcurlOptionList objcurl CURLOPT_HTTPHEADER headeradd;
+    
+    if (cookie == nil) then nil else
+      _SETcurlOptionS objcurl CURLOPT_COOKIE cookie;
+    
+    let sizelist lparams -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lparams i -> [name value file] in
+      (
+        if(file == nil) then
+        (
+          _ADDcurlFormField objcurl name value;
+        )
+        else
+        (
+          _ADDcurlFileFormField objcurl name _checkpack file;
+        );
+      );
+      set i = i + 1;
+    );
+    
+    set lHTTP_REQUEST = (_CALLcurlRequest objcurl @cbGetUrlContent ["" url cbfun fullres])::lHTTP_REQUEST;
+    hd lHTTP_REQUEST;
+  )
+  else
+  (
+    exec cbfun with [url nil];
+    nil;
+  );;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Download an url using the GET method
+  *
+  *  <b>Prototype:</b> fun [S S fun [S S] u0] I
+  *
+  *  \param S : the url to download
+  *  \param S : the url parameters ("login=toto&pass=tata")
+  *  \param fun [S S] u0 : the callback with url and data
+  *
+  *  \return ObjCURL : the new request
+  **/
+fun getUrl(url, params, cbfun)=
+  getUrlEx url params cbfun nil 0;;
+
+
+/*!  @ingroup toolsdl
+  *  \brief Download an url using the POST method
+  *
+  *  <b>Prototype:</b> fun [S S fun [S S] u0] I
+  *
+  *  \param S : the url to download
+  *  \param S : the url parameters ("login=toto&pass=tata")
+  *  \param fun [S S] u0 : the callback with url and data
+  *
+  *  \return ObjCURL : the new request
+  **/
+fun postUrl(url, params, cbfun)=
+  postUrlEx url params cbfun nil 0;;
+ 
+ 
+ /*!  @ingroup toolsdl
+  *  \brief Download an url using the POST method with multipart
+  *
+  *  <b>Prototype:</b> fun [S [[S S S] r1] fun [S S] u0] I
+  *
+  *  \param S : the url to download
+  *  \param [[S S S] r1]: list of parameters [name value file]
+  *  \param fun [S S] u0 : the callback with url and data
+  *
+  *  \return ObjCURL : the new request
+  **/
+ fun postUrlMultiPart(url, lparams, cbfun)=
+  postUrlMultiPartEx url lparams cbfun nil 0;;
+ 
+ 
+ /*!  @ingroup toolsdl
+  *  \brief Call the DELETE method on an url
+  *
+  *  <b>Prototype:</b> fun [S S fun [S S] u0] I
+  *
+  *  \param S : the url
+  *  \param S : the url parameters ("login=toto&pass=tata")
+  *  \param fun [S S] u0 : the callback with url and data
+  *
+  *  \return ObjCURL : the new request
+  **/
+fun deleteUrl(url, params, cbfun)=
+  deleteUrlEx url params cbfun nil 0;;
+ 
+/* ********************************************************************************************* /
+  Vector  
+/ ********************************************************************************************* */
+
+ /*!  @ingroup toolsvec
+  *  \brief Get the smallest float value
+  *
+  *  <b>Prototype:</b> fun [F F] F
+  *
+  *  \param F : first value
+  *  \param F : second value
+  *
+  *  \return F : the smallest value
+  **/
+fun minf(a, b)=
+  if a <. b then a else b;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Test if a vector is set to 0
+  *
+  *  <b>Prototype:</b> fun [[I I I]] I
+  *
+  *  \param [I I I] : float vector
+  *
+  *  \return I : 1 if the vector is 0, 0 otherwise
+  **/
+fun zeroVector(vec)=
+  let vec -> [x y z] in
+  if (x || y || z) then
+    0
+  else
+    1;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Test if a float vector is set to 0
+  *
+  *  <b>Prototype:</b> fun [[F F F]] I
+  *
+  *  \param [F F F] : float vector
+  *
+  *  \return I : 1 if the vector is 0, 0 otherwise
+  **/
+fun zeroVectorF(vec)=
+  let vec -> [x y z] in
+  if (((x != 0.0) && (x != nil)) || ((y != 0.0) && (y != nil)) || ((z != 0.0) && (z != nil))) then
+    0
+  else
+    1;;
+    
+
+ /*!  @ingroup toolsvec
+  *  \brief Test if a vector is set to 0
+  *
+  *  <b>Prototype:</b> fun [[I I I]] I
+  *
+  *  \param [I I I] : float vector
+  *
+  *  \return I : 1 if the vector is 0, 0 otherwise
+  **/
+fun vectorIsZero(vec)=
+  let vec -> [x y z] in
+    x == 0 && y == 0 && z == 0;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Test if a float vector is set to 0
+  *
+  *  <b>Prototype:</b> fun [[F F F]] I
+  *
+  *  \param [F F F] : float vector
+  *
+  *  \return I : 1 if the vector is 0, 0 otherwise
+  **/
+fun vectorIsZeroF(vec)=
+  let vec -> [x y z] in
+    x == 0.0 && y == 0.0 && z == 0.0;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Test if two vectors are equal
+  *
+  *  <b>Prototype:</b> fun [[I I I] [I I I]] I
+  *
+  *  \param [I I I] : first float vector
+  *  \param [I I I] : second float vector
+  *
+  *  \return I : 1 if the two vectors are equal, 0 otherwise
+  **/
+fun vectorEqual(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    x1 == x2 && y1 == y2 && z1 == z2;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Test if two float vectors are equal
+  *
+  *  <b>Prototype:</b> fun [[F F F] [F F F]] I
+  *
+  *  \param [F F F] : first float vector
+  *  \param [F F F] : second float vector
+  *
+  *  \return I : 1 if the two vectors are equal, 0 otherwise
+  **/
+fun vectorEqualF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    x1 == x2 && y1 == y2 && z1 == z2;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Normalize a float vector
+  *
+  *  <b>Prototype:</b> fun [[F F F]] [F F F]
+  *
+  *  \param [F F F] : float vector
+  *
+  *  \return [F F F] : normalized float vector
+  **/
+fun normalizeVectorF(vec)=
+  let vec -> [x y z] in
+  let (absf x) +. (absf y) +. (absf z) -> sum in
+  let if (sum == 0.0) then 1.0 else 1.0 /. sum -> coef in
+    [(x *. coef) (y *. coef) (z *. coef)];;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Get the average of a vector
+  *
+  *  <b>Prototype:</b> fun [[F F F]] F
+  *
+  *  \param [F F F] : float vector
+  *
+  *  \return F : average
+  **/
+fun vectorAverageF(vec)=
+  let vec -> [x y z] in
+    x +. y +. z /. 3.0;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Get the cube of a vector
+  *
+  *  <b>Prototype:</b> fun [[F F F]] F
+  *
+  *  \param [F F F] : float vector
+  *
+  *  \return F : cube (x * y * z)
+  **/
+fun vectorCubeF(vec)=
+  let vec -> [x y z] in
+    x *. y *. z;;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Substract two vectors
+  *
+  *  <b>Prototype:</b> fun [[I I I] [I I I]] [I I I]
+  *
+  *  \param [I I I] : first float vector
+  *  \param [I I I] : second float vector
+  *
+  *  \return [I I I] : vector result
+  **/
+fun subVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 - x2) (y1 - y2) (z1 - z2)];;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Substract two float vectors
+  *
+  *  <b>Prototype:</b> fun [[F F F] [F F F]] [F F F]
+  *
+  *  \param [F F F] : first float vector
+  *  \param [F F F] : second float vector
+  *
+  *  \return [F F F] : float vector result
+  **/
+fun subVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 -. x2) (y1 -. y2) (z1 -. z2)];;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Add two vectors
+  *
+  *  <b>Prototype:</b> fun [[I I I] [I I I]] [I I I]
+  *
+  *  \param [I I I] : first float vector
+  *  \param [I I I] : second float vector
+  *
+  *  \return [I I I] : vector result
+  **/
+fun addVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 + x2) (y1 + y2) (z1 + z2)];;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Add two float vectors
+  *
+  *  <b>Prototype:</b> fun [[F F F] [F F F]] [F F F]
+  *
+  *  \param [F F F] : first float vector
+  *  \param [F F F] : second float vector
+  *
+  *  \return [F F F] : float vector result
+  **/
+fun addVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 +. x2) (y1 +. y2) (z1 +. z2)];;
+    
+
+ /*!  @ingroup toolsvec
+  *  \brief Divide two vectors
+  *
+  *  <b>Prototype:</b> fun [[I I I] [I I I]] [I I I]
+  *
+  *  \param [I I I] : first float vector
+  *  \param [I I I] : second float vector
+  *
+  *  \return [I I I] : vector result
+  **/
+fun divideVector(vec1, vec2)=
+  if vectorIsZero vec2 then nil else
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 / x2) (y1 / y2) (z1 / z2)];;
+
+
+ /*!  @ingroup toolsvec
+  *  \brief Divide two float vectors
+  *
+  *  <b>Prototype:</b> fun [[F F F] [F F F]] [F F F]
+  *
+  *  \param [F F F] : first float vector
+  *  \param [F F F] : second float vector
+  *
+  *  \return [F F F] : float vector result
+  **/
+fun divideVectorF(vec1, vec2)=
+  if vectorIsZeroF vec2 then nil else
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 /. x2) (y1 /. y2) (z1 /. z2)];;
+    
+
+ /*!  @ingroup toolsvec
+  *  \brief Multiply two vectors
+  *
+  *  <b>Prototype:</b> fun [[I I I] [I I I]] [I I I]
+  *
+  *  \param [I I I] : first float vector
+  *  \param [I I I] : second float vector
+  *
+  *  \return [I I I] : vector result
+  **/
+fun multiplyVector(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 * x2) (y1 * y2) (z1 * z2)];;
+    
+
+ /*!  @ingroup toolsvec
+  *  \brief Multiply two float vectors
+  *
+  *  <b>Prototype:</b> fun [[F F F] [F F F]] [F F F]
+  *
+  *  \param [F F F] : first float vector
+  *  \param [F F F] : second float vector
+  *
+  *  \return [F F F] : float vector result
+  **/
+fun multiplyVectorF(vec1, vec2)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+    [(x1 *. x2) (y1 *. y2) (z1 *. z2)];;
+    
+
+ /*!  @ingroup toolsvec
+  *  \brief Get the shortest angle
+  *
+  *  <b>Prototype:</b> fun [F] F
+  *
+  *  \param F : angle in degree
+  *
+  *  \return F : the shortest angle in degree
+  **/
+fun getShortestAngle(p, q) =
+   let (absf (q -. p)) -> path1 in
+   let (absf (q +. 360.0 -. p)) -> path2 in
+   let (absf (q -. 360.0 -. p)) -> path3 in
+   let minf path1 minf path2 path3 -> minpath in
+      if (minpath == path1) then
+         q
+      else if (minpath == path2) then
+         (q +. 360.0)
+      else
+         (q -. 360.0);;
+      
+         
+/* ********************************************************************************************* /
+  Date  
+/ ********************************************************************************************* */
+
+/*!  @ingroup toolsdate
+  *  \brief get the number of day for a month depending of the year
+  *
+  *  <b>Prototype:</b> fun [I I] I
+  *
+  *  \param I : the month
+  *  \param I : the year
+  *
+  *  \return I : the number of days
+  **/
+fun getMonthDays(month, year)=
+  if (month <= 0) then nil else
+  let if ((mod year 4)==0 && (mod year 100) != 0) || (mod year 400)==0 then 29 else 28 -> feb in
+  let 0::31::feb::31::30::31::30::31::31::30::31::30::31::nil -> nbdays in
+    nth_list nbdays month;;
+
+
+/*!  @ingroup toolsdate
+  *  \brief test if a date string is valid
+  *
+  *  <b>Prototype:</b> fun [S] I
+  *
+  *  \param S : the date in string format ("Tue Jan 21 11:24:53 1997")
+  *
+  *  \return I : 1 if valid, 0 otherwise
+  **/
+fun isDateString(date)=
+  let hd strextr date -> [dayname [monthname [day [hour [year _]]]]] in
+    ((strfind dayname "SunMonTueWedThuFriSat" 0) != nil) &&
+    ((strfind monthname "JanFebMarAprMayJunJulAugSepOctNovDec" 0) != nil) &&
+    ((atoi day) != 0) &&
+    ((strlen hour) == 8) &&
+    (!strcmp (substr hour 2 1) ":") &&
+    (!strcmp (substr hour 5 1) ":") &&
+    (let (atoi (substr hour 0 2)) -> H in (H>=0) && (H<24)) &&
+    (let (atoi (substr hour 3 2)) -> M in (M>=0) && (M<60)) &&
+    (let (atoi (substr hour 6 2)) -> Sc in (Sc>=0) && (Sc<60)) &&
+    ((strlen year) == 4) &&
+    ((atoi year) != 0);;
+
+
+/*!  @ingroup toolsdate
+  *  \brief get the number of seconds from a complete date time
+  *
+  *  <b>Prototype:</b> fun [I I I I I I] I
+  *
+  *  \param I : the day
+  *  \param I : the month
+  *  \param I : the year
+  *  \param I : the hours
+  *  \param I : the minutes
+  *  \param I : the seconds
+  *
+  *  \return I : the number of seconds from 1970
+  **/
+fun getSecondsFromDateTime(day, month, year, hours, minutes, seconds)=
+  (((((((year-1969) / 4) + 365 * (year - 1970) + (getMonthDays month year) + day - 1) * 24 + hours - 2) * 60) + minutes) * 60) + seconds;;
+  
+
+/*!  @ingroup toolsdate
+  *  \brief get the decomposed date time from a string date
+  *
+  *  <b>Prototype:</b> fun [S] [I I I I I I]
+  *
+  *  \param S : the date in string format ("Tue Jan 21 11:24:53 1997")
+  *
+  *  \return [I I I I I I] : return nil is the input string is not a valid date
+  *  \I : the day
+  *  \I : the month
+  *  \I : the year
+  *  \I : the hours
+  *  \I : the minutes
+  *  \I : the seconds
+  **/
+fun getDateTimeFromString(date)=
+  if (!isDateString date) then nil else
+//  let ["Mon" 1]::["Tue" 2]::["Wed" 3]::["Thu" 4]::["Fri" 5]::["Sat" 6]::["Sun" 7]::nil -> ldays in
+  let ["Jan" 1]::["Feb" 2]::["Mar" 3]::["Apr" 4]::["May" 5]::["Jun" 6]::["Jul" 7]::["Aug" 8]::["Sep" 9]::["Oct" 10]::["Nov" 11]::["Dec" 12]::nil -> lmonths in
+  let hd strextr date -> [dayname [monthname [day [hour [year _]]]]] in
+  let atoi (substr hour 0 2) -> hours in
+  let atoi (substr hour 3 2) -> minutes in
+  let atoi (substr hour 6 2) -> seconds in
+    [(atoi day) (switchstr lmonths monthname) (atoi year) hours minutes seconds];;
+
+
+/*!  @ingroup toolsdate
+  *  \brief get the current date time
+  *
+  *  <b>Prototype:</b> fun [I] [I I I I I I]
+  *
+  *  \param I : 0 or nil for local time, 1 for GMT
+  *
+  *  \return [I I I I I I] :
+  *  \I : the day
+  *  \I : the month
+  *  \I : the year
+  *  \I : the hours
+  *  \I : the minutes
+  *  \I : the seconds
+  **/
+fun getCurrentDateTime(mode)=
+  let if (mode >= 1) then (gmtime time) else (localtime time) -> [seconds minutes hours day month year _ _] in
+    [day month year hours minutes seconds]
+  ;;
+
+
+/*!  @ingroup toolsdate
+  *  \brief get the current time
+  *
+  *  <b>Prototype:</b> fun [I] [I I I]
+  *
+  *  \param I : 0 or nil for local time, 1 for GMT
+  *
+  *  \return [I I I] :
+  *  \I : the hours
+  *  \I : the minutes
+  *  \I : the seconds
+  **/
+fun getCurrentTime(mode)=
+  let if (mode >= 1) then (gmtime time) else (localtime time) -> [seconds minutes hours day month year _ _] in
+    [hours minutes seconds]
+  ;;
+

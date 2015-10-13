@@ -1,0 +1,4186 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*! @defgroup v3DApi OpenSpace3D 3D view API
+ *  OpenSpace3D 3D view API
+ *  @{
+ */
+
+/** @} */
+
+/**************************************************
+ SO3Engine (Ogre 3D) library
+ 
+ Version: 1.0
+ Author: Bastien BOURINEAU / I-maginer
+ Last update: 02.04.2009
+
+**************************************************/
+
+// Meter
+var iGlobalUnit               = 1;;
+
+var sV3DDEFAULTRESOURCESPATH  = "dms/os3dlib/res/";; /*<<<<<<<<<<<<<*/
+var sV3DHIDECURSOR = "hide_cursor.bmp";;
+
+var iV3Ddebug                 = 0;;
+
+// Frames handling
+var iV3DmaxFramerate          = 90;;     // Maximum possible framerate
+
+var iV3DIndex                 = 0;;
+var iV3DSessionIndex          = 0;;
+
+// - Mouse -
+var V3DCLICK_NO               = 0;;
+var V3DCLICK_LEFT             = 1;;
+var V3DCLICK_RIGHT            = 2;;
+var V3DCLICK_SHIFT            = 4;;
+var V3DCLICK_CTRL             = 8;;
+var V3DCLICK_MIDDLE           = 16;;
+
+
+var V3DAXIS_X                 = 32;;
+var V3DAXIS_Y                 = 64;;
+var V3DAXIS_Z                 = 128;;
+
+
+var iDefaultBackGroundRColor = 123;;
+var iDefaultBackGroundGColor = 123;;
+var iDefaultBackGroundBColor = 123;;
+
+var iDefaultAmbiantRColor = 50;;
+var iDefaultAmbiantGColor = 50;;
+var iDefaultAmbiantBColor = 50;;
+
+var iDefaultShadowTextureSize = 512;;
+var fDefaultShadowTextureFadeStart = 0.65;;
+var fDefaultShadowTextureFadeEnd = 0.9;;
+
+var iShadowTextureSize = 512;;
+var fShadowTextureFadeStart = 0.65;;
+var fShadowTextureFadeEnd = 0.9;;
+
+var fDefaultAnimationSpeed = 1.0;;
+
+typeof cHIDECURSOR = ObjCursor;;
+
+// - Struct viewport -
+struct V3Dviewport =
+[
+  V3D_iViewportIndex     : I,                                     //!< viewport index
+  V3D_viewport           : SO3_VIEWPORT,                          //!< SO3 viewport object
+  V3D_iViewportX         : F,                                     //!< X float position
+  V3D_iViewportY         : F,                                     //!< Y float position
+  V3D_iViewportW         : F,                                     //!< width float position
+  V3D_iViewportH         : F,                                     //!< height float position
+  V3D_lWidgetControl     : [SO3_WIDGET r1],                       //!< list of widgets
+  V3D_iBgColor           : I,                                     //!< background color
+  V3D_iPolygonMode       : I,                                     //!< render polygon mode
+  V3D_lCompositor        : [[S S] r1]                             //!< list of viewport compositors
+
+] mkV3Dviewport;;
+
+
+// - Struct Axis -
+struct V3Daxis =
+[
+  V3D_axisFather         : SO3_OBJECT,                            //!< parent node
+  V3D_axisShell          : SO3_OBJECT,                            //!< shell axis
+  V3D_xAxisObject        : SO3_OBJECT,                            //!< X axis object
+  V3D_yAxisObject        : SO3_OBJECT,                            //!< Y axis object
+  V3D_zAxisObject        : SO3_OBJECT,                            //!< Z axis object
+  V3D_xAxisTextObject    : SO3_OBJECT,                            //!< X axis letter object
+  V3D_yAxisTextObject    : SO3_OBJECT,                            //!< Y axis letter object
+  V3D_zAxisTextObject    : SO3_OBJECT,                            //!< Z axis letter object
+  V3D_iAxisMode          : I                                      //!< axis mode, 1 translation, 2 rotation, 3 scale
+  
+] mkV3Daxis;;
+
+
+// - Struct Helper -
+struct V3Dhelper =
+[
+  V3D_helperFather       : SO3_OBJECT,                            //!< parent node
+  V3D_helperIcon         : SO3_OBJECT,                            //!< helper icon object
+  V3D_iHelperMode        : I                                      //!< helper type, 1 node, 4 light, 8 camera
+  
+] mkV3Dhelper;;
+
+
+// - Struct Session -
+struct V3Dsession =
+[
+  V3D_sessionView        : V3Dview,                               //!< 3d View structure
+  V3D_session            : SO3_SCENE,                             //!< SO3 scene
+  V3D_defaultLight       : SO3_OBJECT,                            //!< default scene light
+  V3D_lCamera            : [[I SO3_OBJECT] r1],                   //!< list of scene cameras
+  V3D_defaultCamera      : SO3_OBJECT,                            //!< current default camera
+  V3D_lPrevDefaultCamera : [SO3_OBJECT r1],                       //!< previous default camera
+  V3D_shellNavigate      : SO3_OBJECT,                            //!< default navigation shell
+  
+  V3D_physics            : V3Dphysics,                            //!< physic structure
+  V3D_lAxis              : [[SO3_OBJECT V3Daxis] r1],             //!< list of scene axis
+  V3D_lHelper            : [[SO3_OBJECT V3Dhelper] r1],           //!< list of scene helpers
+  V3D_helperGrid         : [SO3_OBJECT [SO3_OBJECT r1]],          //!< helper grid
+  V3D_bHelpersState      : I,                                     //!< helpers visibility state
+  
+  V3D_selectedAxis       : [V3Daxis I],                           //!< current selected axis
+  V3D_cbAxisClick        : fun [V3Dsession SO3_OBJECT I I I I] I, 
+  V3D_cbAxisUnClick      : fun [V3Dsession SO3_OBJECT I I I I] I,  
+  V3D_cbAxisMove         : fun [V3Dsession SO3_OBJECT I I I I F] I,
+  V3D_bNavigate          : I,                                     //!< default navigation state
+  
+  V3D_lAnimations        : [[S V3Danim] r1],                      //!< list of scene animations
+  V3D_cbScenePreRender   : fun [V3Dsession I] I,
+  V3D_cbScenePreRender2  : fun [V3Dsession I] I,
+  V3D_cbScenePreRenderPhysic  : fun [V3Dsession I] I,
+  V3D_cbScenePostRender  : fun [V3Dsession I] I
+  
+] mkV3Dsession;;
+
+
+struct V3Danim =
+[
+  V3D_animSession        : V3Dsession,
+  V3D_anim               : SO3_ANIM,
+  V3D_iAnimId            : I,
+  V3D_sBaseName          : S,
+  V3D_meshAnim           : SO3_OBJECT,        // Animated object / node
+  V3D_nodePRS            : [[F F F] [F F F F] [F F F]],
+  V3D_sAnimName          : S,
+  V3D_bAnimState         : I,
+  V3D_bAnimSkipFrame     : I,
+  V3D_fAnimWeight        : F,                 // Current animation weight
+  V3D_iAnimLenght        : F,                 // anim lenght
+  V3D_iAnimType          : I,                 // define if this animation is an mesh, skeletal, node or animation sequence
+  V3D_cbAnimPlay         : fun [V3Danim] I,
+  V3D_cbAnimPause        : fun [V3Danim] I,
+  V3D_cbAnimStop         : fun [V3Danim] I,
+  V3D_bAnimReset         : I
+  
+] mkV3Danim;;
+
+
+// - Struct 3D -
+struct V3Dview =
+[
+  V3D_win                : ObjWin,                            //!< buffer scol window
+  V3D_buffer             : SO3_BUFFER,                        //!< SO3 3D buffer
+  V3D_channel            : Chn,                               //!< view scol channel
+  V3D_iWinW              : I,                                 //!< view width
+  V3D_iWinH              : I,                                 //!< view height
+  V3D_iWinX              : I,                                 //!< view X position
+  V3D_iWinY              : I,                                 //!< view Y position
+  V3D_iOldWinW           : I,                                 //!< previous view width
+  V3D_iOldWinH           : I,                                 //!< previous view height
+  
+  V3D_lSessions          : [[I V3Dsession] r1],               //!< list of scenes associated with this view
+  V3D_bPaused            : I,                                 //!< pause state
+  
+  // ressources 
+  V3D_iRenderTick        : I,                                 //!< render last tick
+  
+  // mouse / keyboard
+  V3D_iClickStatus       : I,                                 //!< last mouse click state
+  V3D_iClickX            : I,                                 //!< last mouse click X coordinate
+  V3D_iClickY            : I,                                 //!< last mouse click Y coordinate
+  V3D_iMoveX             : I,                                 //!< last mouse X coordinate
+  V3D_iMoveY             : I,                                 //!< last mouse Y coordinate
+  V3D_lastMouseData      : [V3Dsession SO3_VIEWPORT SO3_OBJECT SO3_MATERIAL I [I [[F F F] [F F F] [F F F]] [[F F] [F F] [F F]]] [F F F] [F F] F], //!< last complete mouse data
+  
+  // Cursor direction
+  V3D_iCursorDirX        : I,                                 //!< last mouse cursor X direction
+  V3D_iCursorDirY        : I,                                 //!< last mouse cursor Y direction
+  
+  V3D_iRenderMoveX       : I,                                 //!< last mouse move X coordinate in render view
+  V3D_iRenderMoveY       : I,                                 //!< last mouse move Y coordinate in render view
+  V3D_iMoveClickStatus   : I,                                 //!< last mouse move click state
+  V3D_bMouseEnabled      : I,                                 //!< mouse enable state
+  V3D_bKeyboardEnabled   : I,                                 //!< keyboard enable state
+  
+  // Callback
+  V3D_cbInit             : fun [V3Dview] I,
+  V3D_cbDestroy          : fun [V3Dview] I,
+  V3D_cbPreRenderEffects : fun [V3Dview] I,
+  V3D_cbPreRender        : fun [V3Dview] I,
+  V3D_cbPostRender       : fun [V3Dview] I,
+  V3D_cbClick            : fun [V3Dview I I I] I,
+  V3D_cbDbClick          : fun [V3Dview I I I] I,
+  V3D_cbUnClick          : fun [V3Dview I I I] I,
+  V3D_cbWheel            : fun [V3Dview I I I I] I,
+  V3D_cbCursorMove       : fun [V3Dview I I I] I,
+  V3D_cbKeyDown          : fun [V3Dview I I] I,
+  V3D_cbKeyUp            : fun [V3Dview I] I,
+  V3D_cbDropFile         : fun [V3Dview I I [P r1]] I,
+  V3D_cbCameraChange     : fun [V3Dview V3Dsession SO3_OBJECT] I,
+  V3D_cbResizeView       : fun [V3Dview I I] I,
+  V3D_cbFocusView        : fun [V3Dview] I,
+  V3D_cbKillFocusView    : fun [V3Dview] I,
+  V3D_lViewport          : [[I V3Dviewport] r1],
+  
+  V3D_bFullScreen        : I,                                 //!< current fullscreen state
+  V3D_bState             : I,                                 //!< current view state
+  V3D_bShowCursor        : I                                  //!< current show cursor state
+  
+]mkV3Dview;;
+
+
+proto V3DviewSetFocus = fun [V3Dview] I;;
+proto V3DphysCreate = fun [V3Dsession] I;;
+proto V3DphysDestroy = fun [V3Dsession] I;;
+proto V3DphysReset = fun [V3Dsession] I;;
+proto V3DsetWindowedMode = fun [V3Dview] I;;
+//proto V3DphysUpdate = fun [V3Dsession] I;;
+
+/* ********************************************************************************************* /
+  Common
+/ ********************************************************************************************* */
+fun V3Dlcat(p, q)=
+  if p==nil
+  then
+    q
+  else let p -> [h nxt] in
+    h::V3Dlcat nxt q;;
+
+
+fun V3DisUrl(url)=
+  if (!strcmpi "http://" (substr url 0 7)) || (!strcmpi "https://" (substr url 0 8)) || (!strcmpi "ftp://" (substr url 0 6)) || (!strcmpi "mms://" (substr url 0 6))  || (!strcmpi "rstp://" (substr url 0 7)) then
+    1
+  else 0;;
+
+
+fun V3DgetPathFile(longfile, file)=
+  if (longfile==nil) || (strlen longfile)==0 || (nth_char longfile ((strlen longfile)-1)) == '/ then
+  (
+    if (strfind "." file 0) != nil then
+      [longfile file]
+    else if file != nil then
+      [strcatn longfile::file::"/"::nil nil]
+    else
+      [longfile nil];
+  )
+  else
+    V3DgetPathFile
+      substr longfile 0 (strlen longfile)-1
+      strcat
+        substr longfile ((strlen longfile)-1) 1
+        file;;
+
+
+// return the fileName without Path and Extension
+fun V3DgetFileNameWithoutExt(file)=
+ let V3DgetPathFile file "" -> [_ file2] in
+  substr file2 0 (strfind "." file2 0);;
+
+
+fun V3DgetFileExt(file)=
+ let V3DgetPathFile file "" -> [_ file2] in
+  substr file2 ((strfind "." file2 0) + 1) 1024;;
+
+
+fun V3DgetFilePathWithoutExt(file)=
+  substr file 0 (strfind "." file 0);;
+
+
+fun V3DremoveIdxFromList(l, idx)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [id _] in
+    if id == idx then
+      tl l
+    else
+      (hd l)::V3DremoveIdxFromList tl l idx;;
+
+
+fun V3DremoveSidxFromList(l, idx)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [id _] in
+    if (!strcmpi id idx) then
+      tl l
+    else
+      (hd l)::V3DremoveIdxFromList tl l idx;;
+
+
+fun V3DremoveTupFromListBy2ndElem(l, s2nd)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [_ elem] in
+    if elem == s2nd then
+      tl l
+    else
+      (hd l)::V3DremoveTupFromListBy2ndElem tl l s2nd;;
+
+
+fun V3DremoveTupFromListByName(l, name)=
+  if l==nil
+  then
+    nil
+  else
+    let hd l -> [sname _] in
+    if (!strcmp name sname) then
+      tl l
+    else
+      (hd l)::V3DremoveTupFromListByName tl l name;;
+
+
+/* ********************************************************************************************* /
+  Session
+/ ********************************************************************************************* */
+fun V3DgetSessionIndex(viewstr, sessionstr)=
+  let sizelist viewstr.V3D_lSessions -> size in
+  let nil -> idx in
+  let 0 -> i in
+  (
+    while i < size && idx == nil do
+    (
+      let nth_list viewstr.V3D_lSessions i -> [sidx sstr] in
+      if sstr != sessionstr then nil else
+        set idx = sidx;
+      
+      set i = i + 1;
+    );
+    idx;
+  );;
+
+
+fun V3DgetSession(sessionstr)= sessionstr.V3D_session;;
+
+
+fun V3DgetSessionByIndex(viewstr, idx)= switch viewstr.V3D_lSessions idx;;
+
+
+fun V3DgetDefaultSession(viewstr)= switch viewstr.V3D_lSessions 0;;
+
+
+fun V3DdegToRad(f)=f *. ((2.0 *. PIf) /. 360.0);;
+
+
+fun V3DradToDeg(f)=f /. ((2.0 *. PIf) /. 360.0);;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an object euler rotation in degree
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT] [F F F]
+  *
+  *  \param SO3_OBJECT : the 3d object
+  *
+  *  \return [F F F] : the euler rotation in degree
+  **/
+fun V3DgetObjectOrientationDeg(obj)=
+  let SO3MathsQuatToEulerXYZ SO3ObjectGetOrientation obj -> [ax ay az] in
+    [(SO3MathsRadianToDegree ax) (SO3MathsRadianToDegree ay) (SO3MathsRadianToDegree az)];;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an object euler rotation in degree
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT [F F F]] [F F F]
+  *
+  *  \param SO3_OBJECT : the 3d object
+  *  \param [F F F] : euler rotation in degree
+  *
+  *  \return [F F F] : the same rotation
+  **/
+fun V3DsetObjectOrientationDeg(obj, ang)=
+  let ang -> [ax ay az] in
+  let [(SO3MathsDegreeToRadian ax) (SO3MathsDegreeToRadian ay) (SO3MathsDegreeToRadian az)] -> rang in
+  (
+    SO3ObjectSetOrientation obj SO3MathsEulerXYZToQuat rang;
+    ang;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an object global euler rotation in degree
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT] [F F F]
+  *
+  *  \param SO3_OBJECT : the 3d object
+  *
+  *  \return [F F F] : the global euler rotation in degree
+  **/
+fun V3DgetObjectGlobalOrientationDeg(obj)=
+  let SO3MathsQuatToEulerXYZ SO3ObjectGetGlobalOrientation obj -> [ax ay az] in
+    [(SO3MathsRadianToDegree ax) (SO3MathsRadianToDegree ay) (SO3MathsRadianToDegree az)];;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an object global euler rotation in degree
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT [F F F]] [F F F]
+  *
+  *  \param SO3_OBJECT : the 3d object
+  *  \param [F F F] : global euler rotation in degree
+  *
+  *  \return [F F F] : the same rotation
+  **/
+fun V3DsetObjectGlobalOrientationDeg(obj, ang)=
+  let ang -> [ax ay az] in
+  let [(SO3MathsDegreeToRadian ax) (SO3MathsDegreeToRadian ay) (SO3MathsDegreeToRadian az)] -> rang in
+  (
+    SO3ObjectSetGlobalOrientation obj SO3MathsEulerXYZToQuat rang;
+    ang;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the V3Dview structure from a V3Dsession structure
+  *
+  *  <b>Prototype:</b> fun [V3Dsession] V3Dview
+  *
+  *  \param V3Dsession : the scene structure
+  *
+  *  \return V3Dview : the 3d view structure
+  **/
+fun V3DgetSessionView(sessionstr) = sessionstr.V3D_sessionView;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d object by his name or camera type
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S] SO3_OBJECT
+  *
+  *  \param V3Dsession : the scene structure
+  *  \param S : the object name
+  *
+  *  \return SO3_OBJECT : the object, nil if not found
+  **/
+fun V3DgetObjectByName(sessionstr, name) =
+  if (!strcmpi "Current camera" name) then
+    sessionstr.V3D_defaultCamera
+  else if (!strcmpi "Current camera shell" name) then
+  (
+    let (SO3ObjectGetParent sessionstr.V3D_defaultCamera) -> parent in
+      // the navigation shell should be the 2nd parent
+      if ((SO3ObjectGetParent parent) == nil || (SO3ObjectGetParent parent) == SO3ObjectGetSceneRoot (V3DgetSession sessionstr)) then
+        parent
+      else
+      // the navigation shell should be the 3nd parent
+      let SO3ObjectGetParent parent -> parent in
+      (
+        if ((SO3ObjectGetParent parent) == nil || (SO3ObjectGetParent parent) == SO3ObjectGetSceneRoot (V3DgetSession sessionstr)) then
+          parent
+        else
+          SO3ObjectGetParent parent;
+      )
+  )
+  else
+    SO3SceneGetObject (V3DgetSession sessionstr) name;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d object mode by it's name
+  *
+  *  <b>Prototype:</b> fun [S] SO3_OBJECT
+  *
+  *  \param S : the object name
+  *
+  *  \return I : mode 1 if this is the default camera, 2 if this is the navigation shell, 0 if none
+  **/
+fun V3DgetObjectTypeByName(name) = if (!strcmpi "Current camera" name) then 1 else if (!strcmpi "Current camera shell" name) then 2 else 0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a camera object by type, the camera or the navigation shell
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT I] SO3_OBJECT
+  *
+  *  \param SO3_OBJECT : the camera
+  *  \param I : the type, 1 the same camera, 2 the navigation shell
+  *
+  *  \return SO3_OBJECT : the object, nil if not found
+  **/
+fun V3DgetCameraByType(sessionstr, cam, type) =
+  if (type == 2) then
+  (
+    let (SO3ObjectGetParent cam) -> parent in
+      // the navigation shell should be the 2nd parent
+      if ((SO3ObjectGetParent parent) == nil || (SO3ObjectGetParent parent) == SO3ObjectGetSceneRoot (V3DgetSession sessionstr)) then
+        parent
+      else
+        SO3ObjectGetParent parent;
+  )
+  else cam;;
+
+
+/* ********************************************************************************************* /
+  Viewport
+/ ********************************************************************************************* */
+/*!  @ingroup v3DApi
+  *  \brief Get a viewport structure from it's index in 3d view
+  *
+  *  <b>Prototype:</b> fun [V3Dview I] V3Dviewport
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : the viewport index
+  *
+  *  \return V3Dviewport : the viewport structure, nil if not found
+  **/
+fun V3DgetViewportByIndex(viewstr, idx)= switch viewstr.V3D_lViewport idx;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the current viewport camera
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport] SO3_OBJECT
+  *
+  *  \param V3Dviewport : the viewport structure
+  *
+  *  \return SO3_OBJECT : the camera, nil if not set
+  **/
+fun V3DgetViewportCamera(viewportstr)= SO3ViewportGetCamera viewportstr.V3D_viewport;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a viewport index in a 3d view structure
+  *
+  *  <b>Prototype:</b> fun [V3Dview V3Dviewport] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param V3Dviewport : the viewport structure
+  *
+  *  \return I : the viewport index
+  **/
+fun V3DgetViewportIndex(viewstr, viewport)=
+  let sizelist viewstr.V3D_lViewport -> size in
+  let nil -> idx in
+  let 0 -> i in
+  (
+    while i < size && idx == nil do
+    (
+      let nth_list viewstr.V3D_lViewport i -> [sidx view] in
+      if view != viewport then nil else
+        set idx = sidx;
+      
+      set i = i + 1;
+    );
+    idx;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the default viewport of a 3d view structure
+  *
+  *  <b>Prototype:</b> fun [V3Dview] V3Dviewport
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return V3Dviewport : the viewport structure, nil if not set
+  **/
+fun V3DgetDefaultViewport(viewstr)= switch viewstr.V3D_lViewport 0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a viewport backgroung color
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport I] I
+  *
+  *  \param V3Dviewport : the viewport structure
+  *  \param I : the background color
+  *
+  *  \return 0
+  **/
+fun V3DsetViewportColor(viewportstr, color)=
+  set viewportstr.V3D_iBgColor = color;
+  SO3ViewportSetBackgroundColor viewportstr.V3D_viewport color;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a viewport backgroung color
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport] I
+  *
+  *  \param V3Dviewport : the viewport structure
+  *
+  *  \return I : the viewport background color
+  **/
+fun V3DgetViewportColor(viewportstr)= SO3ViewportGetBackgroundColor viewportstr.V3D_viewport;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Remove a viewport
+  *
+  *  <b>Prototype:</b> fun [V3Dview V3Dviewport] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param V3Dviewport : the viewport structure
+  *
+  *  \return 0
+  **/
+fun V3DdelViewport(viewstr, viewportstr)=  
+  SO3ViewportDestroy viewportstr.V3D_viewport;
+  let V3DgetViewportIndex viewstr viewportstr -> idx in
+    set viewstr.V3D_lViewport = V3DremoveIdxFromList viewstr.V3D_lViewport idx;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a viewport
+  *
+  *  <b>Prototype:</b> fun [V3Dview F F F F I] V3Dviewport
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param F : the X position between 0 and 1
+  *  \param F : the Y position between 0 and 1
+  *  \param F : the width between 0 and 1
+  *  \param F : the height between 0 and 1
+  *  \param I : the background color
+  *
+  *  \return V3Dviewport : the new viewport structure
+  **/
+fun V3DaddViewport(viewstr, x, y, w, h, backcolor)=
+  let
+    let 0 -> i in
+    (
+      while ((switch viewstr.V3D_lViewport i) != nil) do
+      (
+        set i = i + 1;
+      );
+      i;
+    )
+  -> idx in
+  let mkV3Dviewport [idx nil x y w h nil backcolor SO3_POLY_SOLID nil] -> newviewport in
+  (
+    set viewstr.V3D_lViewport = V3Dlcat viewstr.V3D_lViewport [idx newviewport]::nil;
+    newviewport;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a viewport polygon render mode
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport I] I
+  *
+  *  \param V3Dviewport : the viewport structure
+  *  \param I : the render mode, SO3_POLY_POINTS, SO3_POLY_SOLID or SO3_POLY_WIREFRAME
+  *
+  *  \return 0
+  **/
+fun V3DsetViewportPolygonMode(viewportstr, mode)=
+  set viewportstr.V3D_iPolygonMode = mode;
+  let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in
+    SO3CameraSetPolygonMode camera viewportstr.V3D_iPolygonMode;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a viewport polygon render mode
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport I] I
+  *
+  *  \param V3Dviewport : the viewport structure
+  *
+  *  \return I : the render mode, SO3_POLY_POINTS, SO3_POLY_SOLID or SO3_POLY_WIREFRAME
+  **/
+fun V3DgetViewportPolygonMode(viewportstr)= viewportstr.V3D_iPolygonMode;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a viewport camera and display it
+  *
+  *  <b>Prototype:</b> fun [V3Dview V3Dviewport SO3_OBJECT] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param V3Dviewport : the viewport structure
+  *  \param SO3_OBJECT : the camera object
+  *
+  *  \return 0
+  **/
+fun V3DsetViewport(viewstr, viewportstr, camera)=
+  if viewportstr.V3D_viewport == nil then
+  (
+    SO3CameraSetPolygonMode camera viewportstr.V3D_iPolygonMode;
+    set viewportstr.V3D_viewport = SO3ViewportCreate viewstr.V3D_channel viewstr.V3D_buffer camera viewportstr.V3D_iViewportX viewportstr.V3D_iViewportY viewportstr.V3D_iViewportW viewportstr.V3D_iViewportH viewportstr.V3D_iViewportIndex;
+    SO3ViewportSetBackgroundColor viewportstr.V3D_viewport viewportstr.V3D_iBgColor;
+    SO3ViewportSetShadowEnabled viewportstr.V3D_viewport 1;
+    0;
+  )
+  else
+  (
+    SO3CameraSetPolygonMode camera viewportstr.V3D_iPolygonMode;
+    SO3CameraSetViewport viewportstr.V3D_viewport camera;
+    0;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Resize a viewport
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport F F F F] I
+  *
+  *  \param V3Dviewport : the viewport structure
+  *  \param F : the X position between 0 and 1
+  *  \param F : the Y position between 0 and 1
+  *  \param F : the width between 0 and 1
+  *  \param F : the height between 0 and 1
+  *
+  *  \return 0
+  **/
+fun V3DsetViewportPositionSize(viewportstr, x, y, w, h)=
+  if viewportstr.V3D_viewport == nil then nil else
+  (
+    set viewportstr.V3D_iViewportX = x;
+    set viewportstr.V3D_iViewportY = y;
+    set viewportstr.V3D_iViewportW = w;
+    set viewportstr.V3D_iViewportH = h;
+      SO3ViewportSetPositionSize viewportstr.V3D_viewport x y w h;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Change a viewport camera
+  *
+  *  <b>Prototype:</b> fun [V3Dsession V3Dviewport SO3_OBJECT] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param V3Dviewport : the viewport structure
+  *  \param SO3_OBJECT : the camera object
+  *
+  *  \return 0
+  **/
+fun V3DchangeCameraViewport(sessionstr, viewportstr, camera)=
+  let if viewportstr == nil then V3DgetDefaultViewport (V3DgetSessionView sessionstr) else viewportstr -> viewportstr in
+  (
+    V3DsetViewport (V3DgetSessionView sessionstr) viewportstr camera;
+    //exec sessionstr.V3D_sessionView.V3D_cbCameraChange with [sessionstr.V3D_sessionView sessionstr camera];
+  );
+  0;;
+  
+
+/*!  @ingroup v3DApi
+  *  \brief Add a compositor to a viewport
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport S S] I
+  *
+  *  \param V3Dviewport : the viewport structure
+  *  \param S : the compositor name
+  *  \param S : the compositor scheme name
+  *
+  *  \return 0
+  **/
+fun V3DregisterCompositor(viewportstr, compo, scheme)=
+  set viewportstr.V3D_lCompositor = V3DremoveSidxFromList viewportstr.V3D_lCompositor compo;
+  set viewportstr.V3D_lCompositor = [compo scheme]::viewportstr.V3D_lCompositor;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Remove a compositor from a viewport
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport S] I
+  *
+  *  \param V3Dviewport : the viewport structure
+  *  \param S : the compositor name
+  *
+  *  \return 0
+  **/
+fun V3DunRegisterCompositor(viewportstr, compo)=
+  set viewportstr.V3D_lCompositor = V3DremoveSidxFromList viewportstr.V3D_lCompositor compo;
+  0;;
+
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the scheme name associated with a viewport compositor
+  *
+  *  <b>Prototype:</b> fun [V3Dviewport S] S
+  *
+  *  \param V3Dviewport : the viewport structure
+  *  \param S : the compositor name
+  *
+  *  \return S : the compositor scheme name
+  **/
+fun V3DgetCompositorScheme(viewportstr, compo)=
+  switchstr viewportstr.V3D_lCompositor compo;;
+
+
+/* ********************************************************************************************* /
+  Camera
+/ ********************************************************************************************* */
+
+/*!  @ingroup v3DApi
+  *  \brief Set a camera settings
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT F F F F] SO3_OBJECT
+  *
+  *  \param SO3_OBJECT : the camera object
+  *  \param F : FOV length
+  *  \param F : FOVy
+  *  \param F : near clip distance
+  *  \param F : far clip distance
+  *
+  *  \return SO3_OBJECT : the same camera
+  **/
+fun V3DsetCamera(camera, fovlenght, fovy, nclip, fclip)=
+  if fovlenght == nil then nil else
+    SO3CameraSetFocalLenght camera fovlenght;
+  
+  if fovy == nil then nil else
+    SO3CameraSetFOVy camera fovy;
+    
+  if nclip == nil then nil else
+    SO3CameraSetNearClipDistance camera nclip;
+  
+  if fclip == nil then nil else
+    SO3CameraSetFarClipDistance camera fclip;
+    
+  camera;;
+
+
+fun V3DgetCameraByIndex(sessionstr, idx)= switch sessionstr.V3D_lCamera idx;;
+
+
+fun V3DgetCameraIndex(sessionstr, camera)=
+  let sizelist sessionstr.V3D_lCamera -> size in
+  let nil -> idx in
+  let 0 -> i in
+  (
+    while i < size && idx == nil do
+    (
+      let nth_list sessionstr.V3D_lCamera i -> [sidx cam] in
+      if cam != camera then nil else
+        set idx = sidx;
+      
+      set i = i + 1;
+    );
+    idx;
+  );;
+
+
+fun V3DrestaurePreviousDefaultCamera(sessionstr)=
+  if (sessionstr.V3D_lPrevDefaultCamera != nil) then
+  (
+    set sessionstr.V3D_defaultCamera = hd sessionstr.V3D_lPrevDefaultCamera;
+    set sessionstr.V3D_lPrevDefaultCamera = tl sessionstr.V3D_lPrevDefaultCamera;
+    exec sessionstr.V3D_sessionView.V3D_cbCameraChange with [sessionstr.V3D_sessionView sessionstr sessionstr.V3D_defaultCamera];
+    0;
+  )
+  else
+  let SO3SceneGetObject (V3DgetSession sessionstr) "default_camera" -> defaultcam in
+  (
+    set sessionstr.V3D_defaultCamera = defaultcam;
+    exec sessionstr.V3D_sessionView.V3D_cbCameraChange with [sessionstr.V3D_sessionView sessionstr defaultcam];
+    0;
+  );
+  V3DchangeCameraViewport sessionstr (V3DgetDefaultViewport sessionstr.V3D_sessionView) sessionstr.V3D_defaultCamera;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the current default camera
+  *
+  *  <b>Prototype:</b> fun [V3Dsession] SO3_OBJECT
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *
+  *  \return SO3_OBJECT : the camera
+  **/
+fun V3DgetDefaultCamera(sessionstr)= sessionstr.V3D_defaultCamera;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set the current default camera
+  *
+  *  <b>Prototype:</b> fun [V3Dsession SO3_OBJECT] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param SO3_OBJECT : the new default camera
+  *
+  *  \return 0
+  **/
+fun V3DsetDefaultCamera(sessionstr, camera)=
+  if (camera == nil) || (camera == sessionstr.V3D_defaultCamera) then nil else
+  (
+    set sessionstr.V3D_lPrevDefaultCamera = sessionstr.V3D_defaultCamera::sessionstr.V3D_lPrevDefaultCamera;
+    set sessionstr.V3D_defaultCamera = camera;
+    exec sessionstr.V3D_sessionView.V3D_cbCameraChange with [sessionstr.V3D_sessionView sessionstr camera];
+    V3DchangeCameraViewport sessionstr (V3DgetDefaultViewport sessionstr.V3D_sessionView) sessionstr.V3D_defaultCamera;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Remove the default camera
+  *
+  *  <b>Prototype:</b> fun [V3Dsession SO3_OBJECT] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param SO3_OBJECT : the default camera
+  *
+  *  \return 0
+  **/
+fun V3DremoveDefaultCamera(sessionstr, camera)=
+  if (camera == nil) then nil else
+  (
+    set sessionstr.V3D_lPrevDefaultCamera = remove_from_list sessionstr.V3D_lPrevDefaultCamera camera;
+    
+    if (camera != sessionstr.V3D_defaultCamera) then nil else
+      V3DrestaurePreviousDefaultCamera sessionstr;
+  );
+  0;;
+
+
+fun V3DsetOrthographicMode(camera, mode)=
+  SO3CameraSetProjectionType camera (if mode then SO3_PROJECTION_ORTHOGRAPHIC else SO3_PROJECTION_PERSPECTIVE);
+  0;;
+
+
+fun V3DgetOrthographicMode(camera)=
+  if ((SO3CameraGetProjectionType camera) == SO3_PROJECTION_ORTHOGRAPHIC) then
+    1
+  else
+    0;;
+
+
+fun V3DsetOrthographicScale(camera, scale)=
+  if !(V3DgetOrthographicMode camera) then nil else
+  let if scale <. 0.1 then 0.1 else scale -> scale in
+  let SO3CameraGetViewport camera -> viewport in
+  let SO3ViewportGetPixelPositionSize viewport -> [_ _ vw vh] in
+  let ((itof vw) /. (itof vh)) *. scale -> wscale in
+    SO3CameraSetOrthoWindow camera wscale scale;
+  0;;
+
+
+fun V3DgetOrthographicScale(camera)=
+  let SO3CameraGetOrthoWindow camera -> [_ scale] in
+    scale;;
+
+
+fun V3DsetCbCameraChange(viewstr, cbfun)=
+  set viewstr.V3D_cbCameraChange = cbfun;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Remove a camera
+  *
+  *  <b>Prototype:</b> fun [V3Dsession SO3_OBJECT] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param SO3_OBJECT : the camera
+  *
+  *  \return 0
+  **/
+fun V3DdelCamera(sessionstr, camera)=
+  // remove this camera from the previous default camera list if this camera have been a default camera
+  set sessionstr.V3D_lPrevDefaultCamera = remove_from_list sessionstr.V3D_lPrevDefaultCamera camera;
+
+  if camera != sessionstr.V3D_defaultCamera then nil else
+    V3DrestaurePreviousDefaultCamera sessionstr;
+  
+  let V3DgetCameraIndex sessionstr camera -> idx in
+    set sessionstr.V3D_lCamera = V3DremoveIdxFromList sessionstr.V3D_lCamera idx;
+
+  SO3ObjectDestroy camera;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a camera
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S] SO3_OBJECT
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param S : the camera name (the name must be unique)
+  *
+  *  \return SO3_OBJECT : the new camera
+  **/
+fun V3DaddCamera(sessionstr, name)=
+  let
+    let 0 -> i in
+    (
+      while ((switch sessionstr.V3D_lCamera i) != nil) do
+      (
+        set i = i + 1;
+      );
+      i;
+    )
+  -> idx in
+  let SO3CameraCreate (V3DgetSession sessionstr) name -> newcam in
+  (
+    set sessionstr.V3D_lCamera = V3Dlcat sessionstr.V3D_lCamera [idx newcam]::nil;
+    if sessionstr.V3D_defaultCamera != nil then nil else
+      set sessionstr.V3D_defaultCamera = newcam;
+    
+    newcam;
+  );;
+
+
+/* ********************************************************************************************* /
+  Particle Sytem
+/ ********************************************************************************************* */
+
+/*!  @ingroup v3DApi
+  *  \brief Add a particle system
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S S] SO3_OBJECT
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param S : the particle system name (the name must be unique)
+  *  \param S : the particle template name
+  *
+  *  \return SO3_OBJECT : the new particle system
+  **/
+fun V3DaddParticleSystem(sessionstr, name, template)=
+  SO3ParticleSystemCreateFromTemplate (V3DgetSession sessionstr) name template;;
+
+
+/* ********************************************************************************************* /
+  Lights
+/ ********************************************************************************************* */
+/*!  @ingroup v3DApi
+  *  \brief Set a light parameters
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT I I I F F F F] SO3_OBJECT
+  *
+  *  \param SO3_OBJECT : the light object
+  *  \param I : the light type SO3_POINT_LIGHT, SO3_DIRECTIONAL_LIGHT or SO3_SPOT_LIGHT
+  *  \param I : diffuse color
+  *  \param I : specular color
+  *  \param F : light range
+  *  \param F : constant attenuation
+  *  \param F : linear attenuation
+  *  \param F : quadratic attenuation
+  *
+  *  \return SO3_OBJECT : the same light object
+  **/
+fun V3DsetLight(light, type, dcolor, scolor, range, const, linear, quadr)=
+  if (light == nil) then nil else
+  (
+    SO3LightSetType light type;
+    SO3LightSetDiffuseColor light dcolor;
+    SO3LightSetSpecularColor light scolor;
+    SO3LightSetAttenuation light [range const linear quadr];  
+    
+    light;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Enable or Disable a light
+  *
+  *  <b>Prototype:</b> fun [SO3_OBJECT I] I
+  *
+  *  \param SO3_OBJECT : the light object
+  *  \param I : 1 to enable the light, 0 to disable
+  *
+  *  \return 0
+  **/
+fun V3DenableLight(light, state)=
+  SO3LightSetVisible light state;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a light
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S SO3_OBJECT I I I F F F F] SO3_OBJECT
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param S : the light name (must be unique)
+  *  \param SO3_OBJECT : the parent node
+  *  \param I : the light type SO3_POINT_LIGHT, SO3_DIRECTIONAL_LIGHT or SO3_SPOT_LIGHT
+  *  \param I : diffuse color
+  *  \param I : specular color
+  *  \param F : light range
+  *  \param F : constant attenuation
+  *  \param F : linear attenuation
+  *  \param F : quadratic attenuation
+  *
+  *  \return SO3_OBJECT : the new light object
+  **/
+fun V3DaddLight(sessionstr, name, father, type, dcolor, scolor, range, const, linear, quadr)=
+  if sessionstr == nil then nil else
+  let SO3LightCreate (V3DgetSession sessionstr) name -> light in
+  (
+    if father == nil then nil else
+      SO3ObjectLink light father;
+    
+    SO3LightSetType light type;
+    SO3LightSetDiffuseColor light dcolor;
+    SO3LightSetSpecularColor light scolor;
+    SO3LightSetAttenuation light [range const linear quadr];
+    //SO3LightSetVisible light 0;
+
+    //SO3LightSetSpotFallOff light falloff;    
+    //SO3LightSetPowerScale light 1000.0;
+    //SO3ObjectLookAt light [0.0 0.0 0.0] 2; 
+    light;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a resource to a scene
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S S I] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param S : the resource path
+  *  \param S : the resource group name
+  *  \param I : the resource type SO3_RESOURCE_MESH, SO3_RESOURCE_MATERIAL, SO3_RESOURCE_TEXTURE, SO3_RESOURCE_SKELETON, SO3_RESOURCE_GPUPROGRAM, SO3_RESOURCE_HIGHLEVELGPUPROGRAM or SO3_RESOURCE_PARTICLE_SYSTEM
+  *
+  *  \return 0
+  **/
+fun V3DaddResource(sessionstr, ressource, group, type)=
+  let V3DgetPathFile ressource "" -> [longfile filename] in
+  if longfile == nil && filename == nil then nil else
+  (
+    if (filename == nil) then nil
+      //SO3AddResourceLocationDirectory group (substr longfile 0 ((strlen longfile) - 1))
+    else if (V3DisUrl ressource) then nil
+      //SO3AddResourceLocationURL group ressource
+    else if (!strcmpi (V3DgetFileExt filename) "zip") then
+      SO3AddResourceLocationZIP group _checkpack ressource
+    else
+      SO3SceneLoadResource (V3DgetSession sessionstr) group (_checkpack ressource) type;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a mesh to a scene
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S S I S SO3_OBJECT] SO3_OBJECT
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param S : the mesh path
+  *  \param S : the mesh name
+  *  \param I : the mesh index (must be unique)
+  *  \param S : the resource group name
+  *  \param SO3_OBJECT : the parent node
+  *
+  *  \return SO3_OBJECT : the new mesh
+  **/
+fun V3DaddMesh(sessionstr, file, name, idx, group, father)=
+  if (sessionstr == nil) || (file == nil) then nil else
+  (
+    V3DaddResource sessionstr file group SO3_RESOURCE_MESH;
+    
+    let SO3SceneLoadEntity (V3DgetSession sessionstr) group strcatn idx::"."::name::nil _checkpack file -> mesh in
+    (
+      if father == nil then nil else
+        SO3ObjectLink mesh father;
+      mesh;
+    );
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a shell node to a scene
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S I SO3_OBJECT [F F F] [F F F F]] SO3_OBJECT
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param S : the shell name
+  *  \param I : the shell index (must be unique)
+  *  \param SO3_OBJECT : the parent node, this can be nil
+  *  \param [F F F] : the shell position, this can be nil
+  *  \param [F F F F] : the shell orientation (quaternion), this can be nil
+  *
+  *  \return SO3_OBJECT : the new shell node
+  **/
+fun V3DaddShell(sessionstr, name, idx, father, pos, ang)=
+  if sessionstr == nil then nil else
+  let if name == nil || (!strcmp name "") then idx else if idx == nil || (!strcmp idx "") then name else strcatn idx::"."::name::nil -> name in
+  let SO3SceneNodeCreate (V3DgetSession sessionstr) name -> shell in
+  (
+    if father == nil then nil else
+      SO3ObjectLink shell father;
+    
+    if pos == nil then nil else
+      SO3ObjectSetPosition shell pos;
+    
+    if ang == nil then nil else
+      SO3ObjectSetOrientation shell ang;
+    
+    shell;
+  );;
+
+
+// update axis pos and scale
+fun V3DupdateObjectAxis(viewstr, sessionstr, axisstr)=
+  if (axisstr == nil) || (axisstr.V3D_axisFather) == nil then nil else
+  let (V3DgetDefaultViewport viewstr) -> viewportstr in  
+  let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in
+  let SO3ObjectGetGlobalPosition camera -> [cx cy cz] in  
+  let SO3ObjectGetGlobalPosition axisstr.V3D_axisFather -> [ox oy oz] in
+  let SO3ObjectGetGlobalOrientation axisstr.V3D_axisFather -> quat in
+  let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
+  
+  // same object size on different distances
+  let SO3CameraGetFOVy camera -> fovy in
+  let if fovy <=. 0.0 then 0.000001 else fovy -> fovy in
+  let if V3DgetOrthographicMode camera then 1.0 else fovy -> fovy in
+  let SO3ObjectGetPosition camera -> [_ _ zdist] in  
+  let if V3DgetOrthographicMode camera then zdist else sqrt ((sqr(cx -. ox)) +. (sqr(cy -. oy)) +. (sqr(cz -. oz))) -> dist in
+  let maxf 0.000001 ((dist /. ((itof vh) /. 2.0)) *. fovy) /. 2.0 -> scale in
+  (
+    SO3ObjectSetPosition axisstr.V3D_axisShell [ox oy oz];
+    SO3ObjectSetOrientation axisstr.V3D_axisShell quat;
+    SO3ObjectSetScale axisstr.V3D_axisShell [scale scale scale];
+    
+    SO3ObjectSetGlobalOrientation axisstr.V3D_xAxisTextObject (SO3ObjectGetNodeFacingOrientation axisstr.V3D_xAxisTextObject camera nil nil);
+    SO3ObjectSetGlobalOrientation axisstr.V3D_yAxisTextObject (SO3ObjectGetNodeFacingOrientation axisstr.V3D_yAxisTextObject camera nil nil);
+    SO3ObjectSetGlobalOrientation axisstr.V3D_zAxisTextObject (SO3ObjectGetNodeFacingOrientation axisstr.V3D_zAxisTextObject camera nil nil);
+  );
+  0;;
+
+
+fun V3DupdateAxisTarget(viewstr, sessionstr)=
+  let sizelist sessionstr.V3D_lAxis -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list sessionstr.V3D_lAxis i -> [refobj axisstr] in
+      V3DupdateObjectAxis viewstr sessionstr axisstr;
+
+    set i = i + 1;
+  );
+  0;;
+
+
+fun V3DshowObjectAxis(viewstr, sessionstr, refobj, mode, state)=
+  if (refobj == nil) then nil else
+  if state then
+  let (switch sessionstr.V3D_lAxis refobj) -> axisstr in
+  let if (axisstr != nil) then axisstr else mkV3Daxis [nil nil nil nil nil nil nil nil 0] -> axisstr in
+  let SO3ObjectGetName refobj -> refname in
+  let SO3ObjectGetGlobalPosition refobj -> pos in
+  let SO3ObjectGetGlobalOrientation refobj -> quat in
+  let (V3DgetDefaultViewport viewstr) -> viewportstr in  
+  let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in  
+  (
+    set axisstr.V3D_iAxisMode = mode;
+    
+    // reset axis if exist
+    SO3ObjectDestroy axisstr.V3D_xAxisObject;
+    SO3ObjectDestroy axisstr.V3D_yAxisObject;
+    SO3ObjectDestroy axisstr.V3D_zAxisObject;
+    SO3ObjectDestroy axisstr.V3D_xAxisTextObject;
+    SO3ObjectDestroy axisstr.V3D_yAxisTextObject;
+    SO3ObjectDestroy axisstr.V3D_zAxisTextObject;
+    SO3ObjectDestroy axisstr.V3D_axisShell;
+    
+    set axisstr.V3D_axisFather = refobj;
+    set axisstr.V3D_axisShell = SO3SceneNodeCreate (V3DgetSession sessionstr) strcat refname ".coord_axis";
+    
+    if mode == 2 then
+    (
+      set axisstr.V3D_xAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_ang_axis_x" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/ang_axis_x.mesh");
+      set axisstr.V3D_yAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_ang_axis_y" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/ang_axis_y.mesh");
+      set axisstr.V3D_zAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_ang_axis_z" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/ang_axis_z.mesh");
+    )
+    else if mode == 3 then
+    (
+      set axisstr.V3D_xAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_scale_x" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_scale_x.mesh");
+      set axisstr.V3D_yAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_scale_y" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_scale_y.mesh");
+      set axisstr.V3D_zAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_scale_z" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_scale_z.mesh");
+    )
+    else
+    (
+      set axisstr.V3D_xAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_x" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_x.mesh");
+      set axisstr.V3D_yAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_y" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_y.mesh");
+      set axisstr.V3D_zAxisObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_z" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_z.mesh");
+    );
+    
+    set axisstr.V3D_xAxisTextObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_text_x" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_text_x.mesh");
+    set axisstr.V3D_yAxisTextObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_text_y" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_text_y.mesh");
+    set axisstr.V3D_zAxisTextObject = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".coords_axis_text_z" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_text_z.mesh");
+    
+    SO3ObjectSetMouseForeGround axisstr.V3D_xAxisObject 1;
+    SO3ObjectSetMouseForeGround axisstr.V3D_yAxisObject 1;
+    SO3ObjectSetMouseForeGround axisstr.V3D_zAxisObject 1;
+    SO3ObjectSetMouseForeGround axisstr.V3D_xAxisTextObject 1;
+    SO3ObjectSetMouseForeGround axisstr.V3D_yAxisTextObject 1;
+    SO3ObjectSetMouseForeGround axisstr.V3D_zAxisTextObject 1;
+    
+    SO3ObjectLink axisstr.V3D_xAxisObject axisstr.V3D_axisShell;
+    SO3ObjectLink axisstr.V3D_yAxisObject axisstr.V3D_axisShell;
+    SO3ObjectLink axisstr.V3D_zAxisObject axisstr.V3D_axisShell;
+    SO3ObjectLink axisstr.V3D_xAxisTextObject axisstr.V3D_axisShell;
+    SO3ObjectLink axisstr.V3D_yAxisTextObject axisstr.V3D_axisShell;
+    SO3ObjectLink axisstr.V3D_zAxisTextObject axisstr.V3D_axisShell;
+    
+    SO3ObjectSetCastShadows axisstr.V3D_xAxisObject 0;
+    SO3ObjectSetCastShadows axisstr.V3D_yAxisObject 0;
+    SO3ObjectSetCastShadows axisstr.V3D_zAxisObject 0;
+    SO3ObjectSetCastShadows axisstr.V3D_xAxisTextObject 0;
+    SO3ObjectSetCastShadows axisstr.V3D_yAxisTextObject 0;
+    SO3ObjectSetCastShadows axisstr.V3D_zAxisTextObject 0;
+    
+    SO3ObjectSetPosition axisstr.V3D_xAxisTextObject [95.0 0.0 0.0];
+    SO3ObjectSetPosition axisstr.V3D_yAxisTextObject [0.0 95.0 0.0];
+    SO3ObjectSetPosition axisstr.V3D_zAxisTextObject [0.0 0.0 95.0];
+    
+    SO3ObjectSetPosition axisstr.V3D_axisShell pos;
+    SO3ObjectSetOrientation axisstr.V3D_axisShell quat;
+    
+    /*
+    SO3ObjectSetAutoTracking axisstr.V3D_xAxisTextObject camera 1 [0.0 0.0 (-.1.0)] nil;
+    SO3ObjectSetAutoTracking axisstr.V3D_yAxisTextObject camera 1 [0.0 0.0 (-.1.0)] nil;
+    SO3ObjectSetAutoTracking axisstr.V3D_zAxisTextObject camera 1 [0.0 0.0 (-.1.0)] nil;
+    */
+    
+    // TODO change to render priority
+    SO3ObjectSetRenderOverlay axisstr.V3D_xAxisObject 1;
+    SO3ObjectSetRenderOverlay axisstr.V3D_yAxisObject 1;
+    SO3ObjectSetRenderOverlay axisstr.V3D_zAxisObject 1;
+    SO3ObjectSetRenderOverlay axisstr.V3D_xAxisTextObject 1;
+    SO3ObjectSetRenderOverlay axisstr.V3D_yAxisTextObject 1;
+    SO3ObjectSetRenderOverlay axisstr.V3D_zAxisTextObject 1;    
+    
+    set sessionstr.V3D_lAxis = V3Dlcat sessionstr.V3D_lAxis [refobj axisstr]::nil;
+  )
+  else
+  (
+    let (switch sessionstr.V3D_lAxis refobj) -> axisstr in
+    if axisstr == nil then nil else
+    (
+      SO3ObjectDestroy axisstr.V3D_xAxisObject;
+      SO3ObjectDestroy axisstr.V3D_yAxisObject;
+      SO3ObjectDestroy axisstr.V3D_zAxisObject;
+      SO3ObjectDestroy axisstr.V3D_xAxisTextObject;
+      SO3ObjectDestroy axisstr.V3D_yAxisTextObject;
+      SO3ObjectDestroy axisstr.V3D_zAxisTextObject;
+      SO3ObjectDestroy axisstr.V3D_axisShell;
+      
+      set sessionstr.V3D_lAxis = V3DremoveIdxFromList sessionstr.V3D_lAxis refobj;
+    );
+  );
+  0;;
+
+
+// update axis pos and scale
+fun V3DupdateObjectHelper(viewstr, sessionstr, helperstr)=
+  if (helperstr == nil) || (helperstr.V3D_helperFather) == nil then nil else
+  let (V3DgetDefaultViewport viewstr) -> viewportstr in  
+  let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in
+  let SO3ObjectGetGlobalPosition camera -> [cx cy cz] in  
+  let SO3ObjectGetGlobalPosition helperstr.V3D_helperFather -> [ox oy oz] in
+  let SO3ObjectGetGlobalOrientation helperstr.V3D_helperFather -> quat in
+  let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
+  
+  // same object size on different distances
+  let SO3CameraGetFOVy camera -> fovy in
+  let if fovy <=. 0.0 then 0.000001 else fovy -> fovy in
+  let if V3DgetOrthographicMode camera then 1.0 else fovy -> fovy in
+  let SO3ObjectGetPosition camera -> [_ _ zdist] in  
+  let if V3DgetOrthographicMode camera then zdist else sqrt ((sqr(cx -. ox)) +. (sqr(cy -. oy)) +. (sqr(cz -. oz))) -> dist in
+  let maxf 0.000001 ((dist /. ((itof vh) /. 2.0)) *. fovy) /. 2.0 -> scale in
+  (
+    //hide the default camera helper (seen in othographic mode)
+    if (helperstr.V3D_helperFather != (V3DgetDefaultCamera sessionstr)) then nil else
+      SO3ObjectSetVisible helperstr.V3D_helperIcon 0 0;
+    
+    SO3ObjectSetPosition helperstr.V3D_helperIcon [ox oy oz];
+    SO3ObjectSetOrientation helperstr.V3D_helperIcon quat;
+    SO3ObjectSetScale helperstr.V3D_helperIcon [scale scale scale];
+  );
+  0;;
+
+
+fun V3DupdateHelpersTarget(viewstr, sessionstr)=
+  if !sessionstr.V3D_bHelpersState then nil else
+  let sizelist sessionstr.V3D_lHelper -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list sessionstr.V3D_lHelper i -> [refobj helperstr] in
+      V3DupdateObjectHelper viewstr sessionstr helperstr;
+    
+    set i = i + 1;
+  );
+  0;;
+
+
+fun V3DshowObjectHelper(viewstr, sessionstr, refobj, mode, state)=
+  if (refobj == nil) then nil else
+  if state then
+  let (switch sessionstr.V3D_lHelper refobj) -> phelperstr in
+  let if phelperstr != nil then phelperstr else mkV3Dhelper [nil nil mode] -> helperstr in
+  let SO3ObjectGetName refobj -> refname in
+  let SO3ObjectGetGlobalPosition refobj -> pos in
+  let SO3ObjectGetGlobalOrientation refobj -> quat in
+  let (V3DgetDefaultViewport viewstr) -> viewportstr in  
+  let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in  
+  (
+    // reset helper if exist
+    if phelperstr == nil then nil else
+    (
+      SO3ObjectDestroy phelperstr.V3D_helperIcon;
+      set sessionstr.V3D_lHelper = V3DremoveIdxFromList sessionstr.V3D_lHelper refobj;
+    );
+    
+    set helperstr.V3D_helperFather = refobj;
+    if !sessionstr.V3D_bHelpersState then nil else
+    (
+      if mode == 4 then // light
+      (
+        let SO3LightGetType refobj -> lightType in
+        if(lightType == SO3_DIRECTIONAL_LIGHT) then 
+          set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_dir_light" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_dir_light.mesh")
+        else if(lightType == SO3_SPOT_LIGHT) then 
+          set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_spot_light" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_spot_light.mesh")
+        else
+          set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_light" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_light.mesh");
+      )
+      else if mode == 8 then // camera
+      (
+        set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_camera" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_camera.mesh");
+      )
+      else // dummy
+      (
+        set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_dummy" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_dummy.mesh");
+      );
+      
+      //SO3ObjectSetMouseForeGround helperstr.V3D_helperIcon 1;
+      
+      SO3ObjectSetCastShadows helperstr.V3D_helperIcon 0;
+      
+      SO3ObjectSetPosition helperstr.V3D_helperIcon pos;
+      SO3ObjectSetOrientation helperstr.V3D_helperIcon quat;
+      
+      // TODO change to render priority
+      //SO3ObjectSetRenderOverlay helperstr.V3D_helperIcon 1;  
+    );
+    
+    set sessionstr.V3D_lHelper = V3Dlcat sessionstr.V3D_lHelper [refobj helperstr]::nil;
+  )
+  else
+  (
+    let (switch sessionstr.V3D_lHelper refobj) -> helperstr in
+    if helperstr == nil then nil else
+    (
+      SO3ObjectDestroy helperstr.V3D_helperIcon;
+      set sessionstr.V3D_lHelper = V3DremoveIdxFromList sessionstr.V3D_lHelper refobj;
+    );
+  );
+  0;;
+
+
+fun V3DisSceneHelperVisible(sessionstr)= if !sessionstr.V3D_bHelpersState then 0 else 1;;
+
+
+fun V3DenableHelpers(viewportstr, sessionstr, state)=
+  let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in  
+  let sizelist sessionstr.V3D_lHelper -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list sessionstr.V3D_lHelper i -> [_ helperstr] in
+    if state then
+    let SO3ObjectGetGlobalPosition helperstr.V3D_helperFather -> pos in
+    let SO3ObjectGetGlobalOrientation helperstr.V3D_helperFather -> quat in
+    let SO3ObjectGetName helperstr.V3D_helperFather -> refname in
+    if (refname == nil) then nil else
+    (
+      // reset helper if exist
+      SO3ObjectDestroy helperstr.V3D_helperIcon;
+
+      if helperstr.V3D_iHelperMode == 4 then // light
+      (
+        let SO3LightGetType helperstr.V3D_helperFather -> lightType in
+        if(lightType == SO3_DIRECTIONAL_LIGHT) then 
+          set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_dir_light" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_dir_light.mesh")
+        else if(lightType == SO3_SPOT_LIGHT) then 
+          set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_spot_light" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_spot_light.mesh")
+        else
+          set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_light" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_light.mesh");
+      )
+      else if helperstr.V3D_iHelperMode == 8 then // camera
+      (
+        set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_camera" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_camera.mesh");
+      )
+      else // dummy
+      (
+        set helperstr.V3D_helperIcon = SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat refname ".helper_dummy" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_dummy.mesh");
+      );
+      
+      //SO3ObjectSetMouseForeGround helperstr.V3D_helperIcon 1;
+      
+      SO3ObjectSetCastShadows helperstr.V3D_helperIcon 0;
+      
+      SO3ObjectSetPosition helperstr.V3D_helperIcon pos;
+      SO3ObjectSetOrientation helperstr.V3D_helperIcon quat;
+      
+      // TODO change to render priority
+      //SO3ObjectSetRenderOverlay helperstr.V3D_helperIcon 1;
+      0;
+    )
+    else
+    (
+      SO3ObjectDestroy helperstr.V3D_helperIcon;
+      0;
+    );
+    
+    set i = i + 1;
+  );
+  set sessionstr.V3D_bHelpersState = state;
+  0;;
+
+
+fun V3DgetObjectFromHelper(sessionstr, obj)=
+  let nil -> found in
+  (
+    let sizelist sessionstr.V3D_lHelper -> size in
+    let 0 -> i in
+    while i < size && found == nil do
+    (
+      let nth_list sessionstr.V3D_lHelper i -> [_ helperstr] in
+        if helperstr.V3D_helperIcon != obj then nil else
+          set found = helperstr.V3D_helperFather;
+        
+      set i = i + 1;
+    );
+    if found == nil then obj else found;
+  );;
+
+
+fun V3DgetObjectSize(object)=
+  let SO3ObjectGetBoundingBoxInfo object 0 -> [size _ _] in
+    size;;
+
+
+fun V3DgetGlobalObjectCenter(object)=
+  let SO3ObjectGetGlobalPosition object -> [x y z] in
+  let SO3ObjectGetBoundingBoxInfo object 0 -> [_ bpos _] in
+  let bpos -> [bx by bz] in
+  if bpos == nil then
+    [x y z]
+  else
+    [(x +. bx) (y +. by) (z +. bz)];;
+
+
+fun V3DgetObjectRadius(sessionstr, object)=
+  let V3DgetObjectSize object -> size in
+  let size -> [px py pz] in
+  let if px >. py then px else py -> radius in
+  let if radius >. pz then radius else pz -> radius in
+  let if size == nil then 100.0 else radius -> radius in
+    radius;;
+
+
+fun V3DisSceneGridVisible(sessionstr)= if sessionstr.V3D_helperGrid == nil then 0 else 1;;
+
+
+fun V3DshowSceneGrid(sessionstr, mode)=
+  if (mode && (sessionstr.V3D_helperGrid != nil)) then nil else
+  if mode then
+  (
+    let SO3SceneNodeCreate (V3DgetSession sessionstr) "default_helper_grid" -> node in
+    let SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" "default_helper_grid_square" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/default_grid_helper.mesh") -> square in
+    let square::nil -> lobj in
+    (
+      SO3ObjectSetScale square [(0.01 *. (itof iGlobalUnit)) (0.01 *. (itof iGlobalUnit)) (0.01 *. (itof iGlobalUnit))];
+      SO3ObjectLink square node;
+      SO3ObjectSetMouseClick square 0;
+      SO3ObjectSetCastShadows square 0;
+      let -5 * iGlobalUnit -> i in
+      while i < (5 * iGlobalUnit) do
+      (
+        let SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat "default_helper_grid_hline_" (itoa i) _checkpack (strcat sV3DDEFAULTRESOURCESPATH (if i == 0 then "helpers/h_line_b.mesh" else "helpers/h_line_w.mesh")) -> hline in
+        let SO3SceneLoadEntity (V3DgetSession sessionstr) "V3DdefaultResources" strcat "default_helper_grid_vline_" (itoa i) _checkpack (strcat sV3DDEFAULTRESOURCESPATH (if i == 0 then "helpers/v_line_b.mesh" else "helpers/v_line_w.mesh")) -> vline in
+        (
+          SO3ObjectSetScale hline [(0.01 *. (itof iGlobalUnit)) (0.01 *. (itof iGlobalUnit)) (0.01 *. (itof iGlobalUnit))];
+          SO3ObjectSetScale vline [(0.01 *. (itof iGlobalUnit)) (0.01 *. (itof iGlobalUnit)) (0.01 *. (itof iGlobalUnit))];
+          SO3ObjectLink hline node;
+          SO3ObjectLink vline node;
+
+          SO3ObjectSetMouseClick hline 0;
+          SO3ObjectSetMouseClick vline 0;
+
+          SO3ObjectSetCastShadows hline 0;
+          SO3ObjectSetCastShadows vline 0;
+
+          SO3ObjectSetPosition hline [0.0 0.0 (itof i)];
+          SO3ObjectSetPosition vline [(itof i) 0.0 0.0];
+
+          set lobj = hline::vline::lobj;
+        );
+
+        set i = i + iGlobalUnit;
+      );
+      
+      set sessionstr.V3D_helperGrid = [node lobj];
+    );
+    0;
+  )
+  else if (sessionstr.V3D_helperGrid != nil) then
+  let sessionstr.V3D_helperGrid -> [node lobj] in
+  (
+    let sizelist lobj -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lobj i -> obj in
+        SO3ObjectDestroy obj;
+      
+      set i = i + 1;
+    );
+    
+    SO3ObjectDestroy node;
+    set sessionstr.V3D_helperGrid = nil;
+    0;
+  )
+  else nil;
+  0;;
+
+
+fun V3DcameraPan(sessionstr, viewportstr, x, y) =
+  let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in
+  let SO3CameraGetFOVy camera -> fovy in
+  let if fovy <=. 0.0 then 0.000001 else fovy -> fovy in
+  let if V3DgetOrthographicMode camera then 1.0 else fovy -> fovy in
+  let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [vx vy vw vh] in
+  let SO3ObjectGetPosition camera -> [_ _ dist] in
+  let ((itof vw)) /. atan fovy -> dx in
+  let ((-.dist *. ((itof vw))) /. dx /. ((itof vh))) -> coef in
+  let (itof x) *. coef -> mx in
+  let (itof y) *. coef -> my in
+  let [mx my 0.0] -> vect in
+    SO3ObjectTranslate sessionstr.V3D_shellNavigate vect SO3_LOCAL_TS;
+  0;;
+
+
+fun V3DsetShellNavPos(sessionstr, pos)=
+  SO3ObjectSetPosition sessionstr.V3D_shellNavigate pos;
+  0;;
+
+
+fun V3DsetShellNavAng(sessionstr, quat)=
+  SO3ObjectSetOrientation sessionstr.V3D_shellNavigate quat;
+  0;;
+
+
+fun V3DgetShellNavPos(sessionstr)= SO3ObjectGetPosition sessionstr.V3D_shellNavigate;;
+
+
+fun V3DgetShellNavAng(sessionstr)= SO3ObjectGetOrientation sessionstr.V3D_shellNavigate;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set the scene ambient color
+  *
+  *  <b>Prototype:</b> fun [V3Dsession I] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param I : the new ambient color
+  *
+  *  \return 0
+  **/
+fun V3DsetAmbientLight(sessionstr, color) =
+  SO3SceneSetAmbientLight (V3DgetSession sessionstr) color;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the scene ambient color
+  *
+  *  <b>Prototype:</b> fun [V3Dsession] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *
+  *  \return I : the scene ambient color
+  **/
+fun V3DgetAmbientLight(sessionstr) =
+  SO3SceneGetAmbientLight (V3DgetSession sessionstr);;
+
+
+fun V3DsetShadowTechnique(sessionstr, type, dist, color, self)=
+  SO3SceneSetShadowTechnique (V3DgetSession sessionstr) (if type == nil then SO3_SHADOWTYPE_NONE else type);
+  SO3SceneSetShadowFarDistance (V3DgetSession sessionstr) (if dist == nil then 3000.0 else dist);
+  SO3SceneSetShadowColor (V3DgetSession sessionstr) (if color == nil then 0x000000 else color);
+  SO3SceneSetSelfShadowTexture (V3DgetSession sessionstr) (if self == nil then 1 else self);   
+  0;;
+
+
+fun V3DsetShadowCameraType(sessionstr, camtype, px, py, pz, pd)=
+  if camtype == SO3_PLANE_SHADOW_CAMERA then
+  (
+    SO3SceneSetPlaneShadowCamera (V3DgetSession sessionstr) [px py pz] pd;
+  )
+  else if camtype == SO3_FOCUSED_SHADOW_CAMERA then
+  (
+    SO3SceneSetFocusedShadowCamera (V3DgetSession sessionstr);
+  )
+  else if camtype == SO3_LISPSM_SHADOW_CAMERA then
+  (
+    SO3SceneSetLISPSMShadowCamera (V3DgetSession sessionstr);
+  )
+  else // SO3_DEFAULT_SHADOW_CAMERA
+  (
+    SO3SceneSetDefaultShadowCamera (V3DgetSession sessionstr);
+  );
+  0;;
+
+
+fun V3DgetShadowCameraType(sessionstr)= SO3SceneGetShadowCameraSetup (V3DgetSession sessionstr);;
+
+
+fun V3DsetShadowTextureParams(sessionstr, size, count, offset, fadestart, fadestop)=
+  SO3SceneSetShadowTextureSize (V3DgetSession sessionstr) (if size == nil then 512 else size);
+  SO3SceneSetShadowTextureCount (V3DgetSession sessionstr) (if count == nil then 1 else count);
+  SO3SceneSetShadowDirLightTextureOffset (V3DgetSession sessionstr) (if offset == nil then 0.0 else offset);
+  SO3SceneSetShadowTextureFadeStart (V3DgetSession sessionstr) (if fadestart == nil then 0.7 else fadestart);
+  SO3SceneSetShadowTextureFadeEnd (V3DgetSession sessionstr) (if fadestop == nil then 0.9 else fadestop);
+  0;;
+
+
+fun V3DsetObjectReceiveShadows(sessionstr, obj, bool)=
+  let SO3EntityMaterialList obj -> l in
+  let sizelist l -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list l i -> mat in
+      SO3MaterialSetReceiveShadows mat bool;
+      
+    set i = i + 1;
+  );
+  0;;
+
+
+fun V3DsetSceneFog(sessionstr, mode, color, density, linearstart, linearend)=
+  let if mode != nil then mode else SO3SceneGetFogMode (V3DgetSession sessionstr) -> mode in
+  let if color != nil then color else SO3SceneGetFogColor (V3DgetSession sessionstr) -> color in
+  let if density != nil then density else SO3SceneGetFogDensity (V3DgetSession sessionstr) -> density in
+  let if linearstart != nil then linearstart else SO3SceneGetFogStart (V3DgetSession sessionstr) -> linearstart in
+  let if linearend != nil then linearend else SO3SceneGetFogEnd (V3DgetSession sessionstr) -> linearend in
+    SO3SceneSetFog (V3DgetSession sessionstr) mode color density linearstart linearend;
+  0;;
+
+
+/* ********************************************************************************************* /
+  Animations
+/ ********************************************************************************************* */
+/*!  @ingroup v3DApi
+  *  \brief Get an animation by it's name
+  *
+  *  <b>Prototype:</b> fun [V3Dsession S] V3Danim
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param S : the animation name
+  *
+  *  \return V3Danim : the animation, nil if not found
+  **/
+fun V3DgetAnimationByName(sessionstr, name)=
+  if name == nil then nil else
+    switchstr sessionstr.V3D_lAnimations name;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation structure from the SO3_ANIM object
+  *
+  *  <b>Prototype:</b> fun [V3Dsession SO3_ANIM] V3Danim
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param SO3_ANIM : SO3 animation object
+  *
+  *  \return V3Danim : the animation, nil if not found
+  **/
+fun V3DgetAnimationByAnim(sessionstr, anim)=
+  if anim == nil then nil else
+  let nil -> fanimstr in
+  (
+    let sizelist sessionstr.V3D_lAnimations -> size in
+    let 0 -> i in
+    while (i < size) && (fanimstr == nil) do
+    (
+      let nth_list sessionstr.V3D_lAnimations i -> [_ animstr] in
+        if animstr.V3D_anim != anim then nil else
+          set fanimstr = animstr;
+      
+      set i = i + 1;
+    );
+    fanimstr;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add an animation to the scene
+  *
+  *  <b>Prototype:</b> fun [V3Dsession SO3_OBJECT I S S F F F I I I I] V3Danim
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param SO3_OBJECT : the object containing the animation
+  *  \param I : index (must be unique)
+  *  \param S : base name
+  *  \param S : name
+  *  \param F : length
+  *  \param F : speed
+  *  \param F : weight
+  *  \param I : initial state
+  *  \param I : 1 for loop mode, 0 otherwise
+  *  \param I : translation interpolation mode SO3_IM_LINEAR or SO3_IM_SPLINE
+  *  \param I : rotation interpolation mode SO3_RIM_LINEAR or SO3_RIM_SPHERICAL
+  *
+  *  \return V3Danim : the animation
+  **/
+fun V3DaddAnimation(sessionstr, obj, id, basename, name, length, speed, weight, state, loop, transmode, rotmode)=
+  let switchstr sessionstr.V3D_lAnimations name -> animexist in
+  if animexist != nil then animexist else
+  let if weight == nil then 1.0 else weight -> weight in
+  let mkV3Danim [sessionstr nil id basename obj nil name state 1 weight 0.0 SO3_SCENENODE_ANIM nil nil nil 1] -> animstr in
+  (
+    set animstr.V3D_anim = SO3ObjectCreateNodesAnimation obj animstr.V3D_sAnimName length;
+    SO3AnimationSetLoop animstr.V3D_anim loop;
+    SO3AnimationSetInterpMode animstr.V3D_anim transmode;
+    SO3AnimationSetRotInterpMode animstr.V3D_anim rotmode; 
+    SO3AnimationSetWeight animstr.V3D_anim weight;
+    SO3AnimationSetSpeed animstr.V3D_anim speed;
+    set sessionstr.V3D_lAnimations = [name animstr]::sessionstr.V3D_lAnimations;
+    animstr;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a sequence animation to the scene
+  *
+  *  <b>Prototype:</b> fun [V3Dsession I S S F F I I] V3Danim
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param I : index (must be unique)
+  *  \param S : base name
+  *  \param S : name
+  *  \param F : speed
+  *  \param F : weight
+  *  \param I : initial state
+  *  \param I : 1 for loop mode, 0 otherwise
+  *
+  *  \return V3Danim : the animation
+  **/
+fun V3DaddSequenceAnimation(sessionstr, id, basename, name, speed, weight, state, loop)=
+  let switchstr sessionstr.V3D_lAnimations name -> animexist in
+  if animexist != nil then animexist else
+  let if weight == nil then 1.0 else weight -> weight in
+  let mkV3Danim [sessionstr nil id basename nil nil name state 1 weight 0.0 SO3_SEQUENCE_ANIM nil nil nil 1] -> animstr in
+  (
+    set animstr.V3D_anim = SO3SceneCreateAnimationSequence (V3DgetSession sessionstr) animstr.V3D_sAnimName;
+    SO3AnimationSetLoop animstr.V3D_anim loop;
+    SO3AnimationSetWeight animstr.V3D_anim weight;
+    SO3AnimationSetSpeed animstr.V3D_anim speed;
+    set sessionstr.V3D_lAnimations = [name animstr]::sessionstr.V3D_lAnimations;
+    animstr;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the number of animation tracks
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return I : the number of tracks
+  **/
+fun V3DgetNbAnimationTracks(animstr)=
+  SO3AnimationNumOfAnimationTrack animstr.V3D_anim;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get the number of animation track keys
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *
+  *  \return I : the number of track keys
+  **/
+fun V3DgetNbAnimationTrackKeys(animstr, trackidx)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+    SO3AnimTrackGetNumKeys track;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a sequence animation track
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return I : return the track index
+  **/
+fun V3DaddSequenceAnimationTrack(animstr)=
+  SO3AnimationCreateAnimTrack animstr.V3D_anim nil nil;
+  (SO3AnimationNumOfAnimationTrack animstr.V3D_anim) -1;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Remove a sequence animation track
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *
+  *  \return 0
+  **/
+fun V3DdelSequenceAnimationTrack(animstr, trackidx)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+    SO3AnimTrackDestroy track;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Move a sequence animation track key
+  *
+  *  <b>Prototype:</b> fun [V3Danim I I I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *  \param I : index of key
+  *  \param I : new index of key
+  *
+  *  \return 0
+  **/
+fun V3DmoveSequenceAnimationKey(animstr, trackidx, keyidx, newidx)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+    SO3AnimTrackMoveSequenceKey track keyidx newidx;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a sequence animation track key
+  *
+  *  <b>Prototype:</b> fun [V3Danim I I] V3Danim
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *  \param I : index of key
+  *
+  *  \return V3Danim : the animation used as a sequence animation key
+  **/
+fun V3DgetSequenceAnimationKey(animstr, trackidx, keyidx)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+  let SO3AnimTrackGetSequenceKey track keyidx -> [kanim _ _ _ _] in
+    V3DgetAnimationByAnim animstr.V3D_animSession kanim;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a sequence animation track key infos
+  *
+  *  <b>Prototype:</b> fun [V3Danim I I] [V3Danim F F F F]
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *  \param I : index of key
+  *
+  *  \return [V3Danim F F F F] : the animation used as a sequence animation key, the key position, the key length, the key transition time and the key offset
+  **/
+fun V3DgetSequenceAnimationKeyInfos(animstr, trackidx, keyidx)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+  let SO3AnimTrackGetSequenceKey track keyidx -> [kanim pos length trans decal] in
+    [(V3DgetAnimationByAnim animstr.V3D_animSession kanim) pos length trans decal];;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a sequence animation track key infos
+  *
+  *  <b>Prototype:</b> fun [V3Danim I I F F F] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *  \param I : index of key
+  *  \param F : length
+  *  \param F : transition time in second
+  *  \param F : offset in second
+  *
+  *  \return 0
+  **/
+fun V3DsetSequenceAnimationKeyInfos(animstr, trackidx, keyidx, length, trans, decal)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+    SO3AnimTrackSetSequenceKey track keyidx length trans decal;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a sequence animation track key
+  *
+  *  <b>Prototype:</b> fun [V3Danim I V3Danim F F F] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *  \param V3Danim : the animation structure to use as a key
+  *  \param F : length
+  *  \param F : transition time in second
+  *  \param F : offset in second
+  *
+  *  \return I : the key index
+  **/
+fun V3DaddSequenceAnimationKey(animstr, trackidx, keyanimstr, length, transition, decal)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+  (
+    SO3AnimTrackCreateSequenceKey track keyanimstr.V3D_anim length transition decal;
+    (SO3AnimTrackGetNumKeys track) - 1;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Remove a sequence animation track key
+  *
+  *  <b>Prototype:</b> fun [V3Danim I I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : index of the animation track
+  *  \param I : index of key
+  *
+  *  \return 0
+  **/
+fun V3DdelSequenceAnimationKey(animstr, trackidx, keyidx)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> track in
+    SO3AnimTrackRemoveKey track keyidx;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add a morph animation to the scene
+  *
+  *  <b>Prototype:</b> fun [V3Dsession SO3_ANIM SO3_OBJECT I S S F F I I] V3Danim
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param SO3_ANIM : the SO3 animation object
+  *  \param SO3_OBJECT : the 3d object
+  *  \param I : index (must be unique)
+  *  \param S : base name
+  *  \param S : name
+  *  \param F : speed
+  *  \param F : weight
+  *  \param I : initial state
+  *  \param I : 1 for loop mode, 0 otherwise
+  *
+  *  \return V3Danim : the animation
+  **/
+fun V3DaddMorphAnimation(sessionstr, anim, obj, id, basename, name, speed, weight, state, loop)=  
+  if anim == nil then nil else
+  let switchstr sessionstr.V3D_lAnimations name -> animexist in
+  if animexist != nil then animexist else
+  let if weight == nil then 1.0 else weight -> weight in
+  let mkV3Danim [sessionstr anim id basename obj nil name state 1 weight 0.0 SO3_VERTEX_ANIM nil nil nil 1] -> animstr in
+  (
+    SO3AnimationSetLoop animstr.V3D_anim loop;
+    SO3AnimationSetWeight animstr.V3D_anim weight;
+    SO3AnimationSetSpeed animstr.V3D_anim speed;
+    set sessionstr.V3D_lAnimations = [name animstr]::sessionstr.V3D_lAnimations;
+    
+    animstr;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Delete an animation
+  *
+  *  <b>Prototype:</b> fun [V3Dsession V3Danim] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param V3Danim : the animation structure to delete
+  *
+  *  \return 0
+  **/
+fun V3DdelAnimation(sessionstr, animstr)=
+  if animstr.V3D_anim == nil then nil else
+    SO3AnimationDestroy animstr.V3D_anim;
+  
+  set sessionstr.V3D_lAnimations = V3DremoveTupFromListByName sessionstr.V3D_lAnimations animstr.V3D_sAnimName;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Add an animation node key
+  *
+  *  <b>Prototype:</b> fun [V3Danim [F F F] [F F F F] [F F F] F] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param [F F F] : position vector
+  *  \param [F F F F] : orientation quaternion
+  *  \param [F F F] : scale vector
+  *  \param F : key time position
+  *
+  *  \return 0
+  **/
+fun V3DaddAnimationKey(animstr, pos, quat, scale, ftime)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim 0 -> animtrack in
+  let if animtrack == nil then (SO3AnimationCreateAnimTrack animstr.V3D_anim nil nil) else animtrack -> animtrack in
+    SO3AnimTrackCreateKey animtrack ftime pos quat scale;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Delete an animation track
+  *
+  *  <b>Prototype:</b> fun [V3Dsession V3Danim I] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *  \param V3Danim : the animation structure
+  *  \param I : track index to delete
+  *
+  *  \return 0
+  **/
+fun V3DdelAnimationTrack(sessionstr, animstr, trackidx)=
+  let SO3AnimationGetAnimTrack animstr.V3D_anim trackidx -> animtrack in
+  if animtrack == nil then nil else
+    SO3AnimTrackDestroy animtrack;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation weight
+  *
+  *  <b>Prototype:</b> fun [V3Danim F] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param F : animation weight
+  *
+  *  \return 0
+  **/
+fun V3DsetAnimationWeight(animstr, weight)=
+  set animstr.V3D_fAnimWeight = weight;
+  SO3AnimationSetWeight animstr.V3D_anim weight;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation weight
+  *
+  *  <b>Prototype:</b> fun [V3Danim] F
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return F : animation weight
+  **/
+fun V3DgetAnimationWeight(animstr)= animstr.V3D_fAnimWeight;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation state
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : state
+  *
+  *  \return I : the new state
+  **/
+fun V3DsetAnimationState(animstr, state)= set animstr.V3D_bAnimState = state;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation loop
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : loop state
+  *
+  *  \return 0
+  **/
+fun V3DsetAnimationLoop(animstr, loop)= SO3AnimationSetLoop animstr.V3D_anim loop;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation speed factor
+  *
+  *  <b>Prototype:</b> fun [V3Danim F] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param F : speed factor
+  *
+  *  \return 0
+  **/
+fun V3DsetAnimationSpeed(animstr, speed)= SO3AnimationSetSpeed animstr.V3D_anim speed;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation translation interpolation mode
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : interpolation mode, SO3_IM_LINEAR or SO3_IM_SPLINE
+  *
+  *  \return 0
+  **/
+fun V3DsetAnimationInterpolationMode(animstr, mode)= SO3AnimationSetInterpMode animstr.V3D_anim mode;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation rotation interpolation mode
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : interpolation mode, SO3_RIM_LINEAR or SO3_RIM_SPHERICAL
+  *
+  *  \return 0
+  **/
+fun V3DsetAnimationRotInterpolationMode(animstr, mode)= SO3AnimationSetRotInterpMode animstr.V3D_anim mode;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation state
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return I : the current animation state
+  **/
+fun V3DgetAnimationState(animstr)= animstr.V3D_bAnimState;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation loop state
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return I : the current loop state
+  **/
+fun V3DgetAnimationLoop(animstr)= SO3AnimationGetLoop animstr.V3D_anim;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation speed factor
+  *
+  *  <b>Prototype:</b> fun [V3Danim] F
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return F : the current speed factor
+  **/
+fun V3DgetAnimationSpeed(animstr)= SO3AnimationGetSpeed animstr.V3D_anim;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation type
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return I : the animation type, SO3_SCENENODE_ANIM, SO3_SKELETAL_ANIM, SO3_VERTEX_ANIM, SO3_POSE_ANIM, SO3_SEQUENCE_ANIM
+  **/
+fun V3DgetAnimationType(animstr)= animstr.V3D_iAnimType;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation position
+  *
+  *  <b>Prototype:</b> fun [V3Danim F] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param F : time position
+  *
+  *  \return 0
+  **/
+fun V3DsetAnimationPosition(animstr, pos)= SO3AnimationSetTimePosition animstr.V3D_anim pos;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation position
+  *
+  *  <b>Prototype:</b> fun [V3Danim] F
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return F : time position
+  **/
+fun V3DgetAnimationPosition(animstr)= SO3AnimationGetTimePosition animstr.V3D_anim;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation length
+  *
+  *  <b>Prototype:</b> fun [V3Danim] F
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return F : animation length
+  **/
+fun V3DgetAnimationLenght(animstr)= SO3AnimationGetLenght animstr.V3D_anim;;
+
+
+fun V3DsetAnimationCbPlay(animstr, cbfun)= set animstr.V3D_cbAnimPlay = cbfun;;
+
+
+fun V3DsetAnimationCbPause(animstr, cbfun)= set animstr.V3D_cbAnimPause = cbfun;;
+
+
+fun V3DsetAnimationCbStop(animstr, cbfun)= set animstr.V3D_cbAnimStop = cbfun;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation enable state
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return I : animation enable state
+  **/
+fun V3DgetAnimationEnable(animstr)= SO3AnimationGetEnable animstr.V3D_anim;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Reset an animation
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return 0
+  **/
+fun V3DresetAnimation(animstr)=
+  V3DsetAnimationState animstr 0;
+  SO3AnimationSetEnable animstr.V3D_anim 0;
+  SO3AnimationSetTimePosition animstr.V3D_anim 0.0;
+  
+  if (animstr.V3D_iAnimType == SO3_SCENENODE_ANIM) then
+  let animstr.V3D_nodePRS -> [vec quat scale] in
+  (
+    SO3ObjectSetPosition animstr.V3D_meshAnim vec;
+    SO3ObjectSetOrientation animstr.V3D_meshAnim quat;
+    SO3ObjectSetScale animstr.V3D_meshAnim scale;
+    0;
+  )
+  else if (animstr.V3D_iAnimType == SO3_SEQUENCE_ANIM) then
+  (
+    let SO3AnimationNumOfAnimationTrack animstr.V3D_anim -> sizetrack in
+    let 0 -> i in
+    while i < sizetrack do
+    (
+      let SO3AnimationGetAnimTrack animstr.V3D_anim i -> track in
+      let SO3AnimTrackGetNumKeys track -> sizekey in
+      let if sizekey == nil then 0 else sizekey -> sizekey in
+      let 0 -> j in
+      while j < sizekey do
+      (
+        let SO3AnimTrackGetSequenceKey track j -> [kanim _ _ _ _] in
+        let V3DgetAnimationByAnim animstr.V3D_animSession kanim -> kanimstr in
+          V3DresetAnimation kanimstr;
+        
+        set j = j + 1;
+      );
+      
+      set i = i + 1;
+    );
+    0;
+  )
+  else
+  (
+    SO3ObjectResetToInitialState animstr.V3D_meshAnim;
+    0;
+  );
+  
+  set animstr.V3D_bAnimReset = 1;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Reset all scene animations
+  *
+  *  <b>Prototype:</b> fun [V3Dsession] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *
+  *  \return 0
+  **/
+fun V3DresetAnimations(sessionstr)=
+  let sizelist sessionstr.V3D_lAnimations -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list sessionstr.V3D_lAnimations i -> [_ animstr] in
+      SO3AnimationSetTimePosition animstr.V3D_anim 0.0;
+    
+    set i = i + 1;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Pause an animation
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return 0
+  **/
+fun V3DpauseAnimation(animstr)=
+  V3DsetAnimationState animstr 0;
+  exec animstr.V3D_cbAnimPause with [animstr];
+  SO3AnimationSetPause animstr.V3D_anim 1;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Play an animation
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return 0
+  **/
+fun V3DplayAnimation(animstr)=
+  if (animstr.V3D_bAnimState) then nil else
+  (
+    let SO3AnimationGetLenght animstr.V3D_anim -> lenght in
+    let SO3AnimationGetTimePosition animstr.V3D_anim -> pos in
+    if !(SO3AnimationGetPause animstr.V3D_anim) || (pos >=. lenght) then
+      SO3AnimationSetTimePosition animstr.V3D_anim 0.0
+    else nil;
+    
+    V3DsetAnimationState animstr 1;
+    
+    exec animstr.V3D_cbAnimPlay with [animstr];
+    SO3AnimationSetEnable animstr.V3D_anim 1;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Play an animation from a position
+  *
+  *  <b>Prototype:</b> fun [V3Danim F] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param F : the start time position
+  *
+  *  \return 0
+  **/
+fun V3DplayAnimationFromPos(animstr, startpos)=
+  SO3AnimationSetTimePosition animstr.V3D_anim startpos;
+  V3DsetAnimationState animstr 1;
+  exec animstr.V3D_cbAnimPlay with [animstr];
+  SO3AnimationSetEnable animstr.V3D_anim 1;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Stop an animation
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return 0
+  **/
+fun V3DstopAnimation(animstr)=
+  V3DsetAnimationState animstr 0;
+  SO3AnimationSetEnable animstr.V3D_anim 0;
+  exec animstr.V3D_cbAnimStop with [animstr];
+  SO3AnimationSetTimePosition animstr.V3D_anim 0.0;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation enable state
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : the enable state
+  *
+  *  \return 0
+  **/
+fun V3DenableAnimation(animstr, state)=
+  if !state then
+  (
+    SO3AnimationSetTimePosition animstr.V3D_anim 0.0;
+    SO3AnimationSetEnable animstr.V3D_anim 0;
+    
+    if animstr.V3D_iAnimType == SO3_VERTEX_ANIM || animstr.V3D_iAnimType == SO3_SKELETAL_ANIM then
+      SO3ObjectResetToInitialState animstr.V3D_meshAnim
+    else nil;
+  )
+  else
+  (
+    if animstr.V3D_iAnimType == SO3_VERTEX_ANIM || animstr.V3D_iAnimType == SO3_SKELETAL_ANIM then
+      SO3ObjectSetInitialState animstr.V3D_meshAnim
+    else nil;
+    
+    SO3AnimationSetEnable animstr.V3D_anim animstr.V3D_bAnimState;
+    0;
+  );
+  0;;
+
+
+fun V3DinitializeAnimation(animstr, state)=
+  SO3AnimationSetTimePosition animstr.V3D_anim 0.0;
+  SO3AnimationSetEnable animstr.V3D_anim 0;
+  
+  if animstr.V3D_meshAnim == nil then nil else
+  (
+    set animstr.V3D_nodePRS = [(SO3ObjectGetPosition animstr.V3D_meshAnim) (SO3ObjectGetOrientation animstr.V3D_meshAnim) (SO3ObjectGetScale animstr.V3D_meshAnim)];
+  
+    if animstr.V3D_iAnimType == SO3_VERTEX_ANIM || animstr.V3D_iAnimType == SO3_SKELETAL_ANIM then
+      SO3ObjectSetInitialState animstr.V3D_meshAnim
+    else nil;
+  );
+
+  if (animstr.V3D_iAnimType != SO3_SEQUENCE_ANIM) then nil else
+  (
+    let SO3AnimationNumOfAnimationTrack animstr.V3D_anim -> sizetrack in
+    let 0 -> i in
+    while i < sizetrack do
+    (
+      let SO3AnimationGetAnimTrack animstr.V3D_anim i -> track in
+      let SO3AnimTrackGetNumKeys track -> sizekey in
+      let if sizekey == nil then 0 else sizekey -> sizekey in
+      let 0 -> j in
+      while j < sizekey do
+      (
+        let SO3AnimTrackGetSequenceKey track j -> [kanim _ _ _ _] in
+        let V3DgetAnimationByAnim animstr.V3D_animSession kanim -> kanimstr in
+        (
+          if (!kanimstr.V3D_bAnimReset) then nil else
+            V3DinitializeAnimation kanimstr state;
+          SO3AnimationSetEnable kanimstr.V3D_anim 0;
+        );
+        
+        set j = j + 1;
+      );
+      
+      set i = i + 1;
+    );
+    0;
+  );
+  
+  SO3AnimationSetSkipFrame animstr.V3D_anim animstr.V3D_bAnimSkipFrame;
+  if (!state) then nil else
+    SO3AnimationSetEnable animstr.V3D_anim animstr.V3D_bAnimState;
+  
+  set animstr.V3D_bAnimReset = 0;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set an animation skip frame state
+  *
+  *  <b>Prototype:</b> fun [V3Danim I] I
+  *
+  *  \param V3Danim : the animation structure
+  *  \param I : the skip frame state
+  *
+  *  \return 0
+  **/
+fun V3DanimationSetSkipFrame(animstr, state)= SO3AnimationSetSkipFrame animstr.V3D_anim state;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get an animation skip frame state
+  *
+  *  <b>Prototype:</b> fun [V3Danim] I
+  *
+  *  \param V3Danim : the animation structure
+  *
+  *  \return I : the skip frame state
+  **/
+fun V3DanimationGetSkipFrame(animstr)= SO3AnimationGetSkipFrame animstr.V3D_anim;;
+
+
+fun V3DanimationGetDefaultSkipFrame(animstr)= animstr.V3D_bAnimSkipFrame;;
+
+
+fun V3DanimationSetDefaultSkipFrame(animstr, state)=
+  set animstr.V3D_bAnimSkipFrame = state;
+  SO3AnimationSetSkipFrame animstr.V3D_anim animstr.V3D_bAnimSkipFrame;
+  0;;
+
+  
+fun V3DanimationsEnableScene(sessionstr, state, play)=
+  let sizelist sessionstr.V3D_lAnimations -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list sessionstr.V3D_lAnimations i -> [_ animstr] in
+    (
+      if state then
+      (
+        V3DinitializeAnimation animstr play;
+        0;
+      )
+      else if (animstr.V3D_bAnimReset == 1) then nil else
+      (
+        V3DresetAnimation animstr;
+        0;
+      );
+    );
+    
+    set i = i + 1;
+  );
+  0;;
+
+
+/* ********************************************************************************************* /
+  RENDER
+/ ********************************************************************************************* */    
+fun V3DgetSessionByScene(viewstr, scene)=
+  let nil -> found in
+  (
+    let 0 -> i in
+    let sizelist viewstr.V3D_lSessions -> size in
+    while ((i < size) && (found == nil)) do
+    (
+      let nth_list viewstr.V3D_lSessions i -> [_ sesstr] in
+        if sesstr.V3D_session != scene then nil else
+          set found = sesstr;
+      
+      set i = i + 1;
+    );
+    
+    found;
+  );;
+
+
+fun cbV3DbufferPreRender(buffer, viewstr)=
+  exec viewstr.V3D_cbPreRender with [viewstr];
+  
+  if viewstr.V3D_bPaused then nil else
+    exec viewstr.V3D_cbPreRenderEffects with [viewstr];
+  0;;
+
+
+fun cbV3DbufferPostRender(buffer, viewstr)=
+  exec viewstr.V3D_cbPostRender with [viewstr];
+  0;;
+
+
+fun V3DWidgetCtrlHasFocus(viewstr)=
+  let sizelist viewstr.V3D_lViewport -> sizev in
+  let 0 -> iv in
+  let nil -> ret in
+  (
+    while (iv < sizev && ret == nil) do
+    (
+      let nth_list viewstr.V3D_lViewport iv -> [_ viewportstr] in
+      let sizelist viewportstr.V3D_lWidgetControl -> size in
+      let 0 -> i in
+      while (i < size && ret == nil) do
+      (
+        let nth_list viewportstr.V3D_lWidgetControl i -> widgetctrl in
+        if (SO3WidgetHasFocus widgetctrl) then
+          set ret = widgetctrl
+        else nil;
+        
+        set i = i + 1;
+      );
+        
+      set iv = iv + 1;
+    );
+    ret;
+  );;
+
+
+fun cbV3DscenePreRender(session, sessionstr, etime)=
+  let sessionstr.V3D_sessionView -> viewstr in
+  let _GETdesktopSize -> [sw sh] in
+  (
+    exec sessionstr.V3D_cbScenePreRender with [sessionstr etime];
+   
+    let SO3BufferGetLastMouseInfos viewstr.V3D_buffer -> infos in
+    let infos -> [session viewport obj mat ent pdata p3d puv dist] in
+    let V3DgetSessionByScene viewstr session -> msessionstr in
+      set viewstr.V3D_lastMouseData = [msessionstr viewport obj mat ent pdata p3d puv dist];
+    
+    let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+    let if (widgetctrl != nil) && (SO3WidgetGetMouseEnable widgetctrl) && (SO3WidgetIsMouseOver widgetctrl) then 1 else 0 -> disablenavig in
+    
+    let sizelist viewstr.V3D_lSessions -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+      (
+        // Camera rotation on mouse drag
+        let sessionstr.V3D_selectedAxis -> [axisstr _] in
+        if (viewstr.V3D_iMoveClickStatus != V3DCLICK_LEFT) || (_keybdstate != 0) || (!sessionstr.V3D_bNavigate) || ((axisstr != nil) && axisstr.V3D_iAxisMode) || disablenavig then nil else
+          let if viewstr.V3D_iRenderMoveX == nil then viewstr.V3D_iClickX else viewstr.V3D_iRenderMoveX -> mvx in
+          let if viewstr.V3D_iRenderMoveY == nil then viewstr.V3D_iClickY else viewstr.V3D_iRenderMoveY -> mvy in
+          let [(viewstr.V3D_iMoveX-mvx) (mvy-viewstr.V3D_iMoveY)] -> [dx dy] in
+          let 3.14159265 /. ((itof sw) /. 2.0) *. (itof dx) -> fdx in
+          let 3.14159265 /. ((itof sh) /. 2.0) *. (itof -dy) -> fdy in
+          /*
+          let [(viewstr.V3D_iMoveX-viewstr.V3D_iClickX) (viewstr.V3D_iClickY-viewstr.V3D_iMoveY)] -> [dx dy] in
+          let 1.0 /. (((itof viewstr.V3D_iWinW * 2) /. ((itof dx) +. 0.000001)) +. 0.000001) -> fdx in
+          let 1.0 /. (((itof viewstr.V3D_iWinH * 2) /. ((itof dy) +. 0.000001)) +. 0.000001) -> fdy in
+          */
+          (
+            SO3ObjectRotateYaw sessionstr.V3D_shellNavigate (-. fdx) SO3_WORLD_TS;
+            SO3ObjectRotatePitch sessionstr.V3D_shellNavigate (-. fdy) SO3_LOCAL_TS;
+          );
+        
+        // mouse pan with left Click + Ctrl
+        if ((viewstr.V3D_iMoveClickStatus != V3DCLICK_MIDDLE) && (viewstr.V3D_iMoveClickStatus != V3DCLICK_LEFT|V3DCLICK_CTRL)) || (_keybdstate &4) || (_keybdstate &1) || (!sessionstr.V3D_bNavigate) || disablenavig then nil else
+        (
+          let if viewstr.V3D_iRenderMoveX == nil then viewstr.V3D_iClickX else viewstr.V3D_iRenderMoveX -> mvx in
+          let if viewstr.V3D_iRenderMoveY == nil then viewstr.V3D_iClickY else viewstr.V3D_iRenderMoveY -> mvy in
+          let [(viewstr.V3D_iMoveX-mvx) (mvy-viewstr.V3D_iMoveY)] -> [dx dy] in
+            V3DcameraPan sessionstr V3DgetDefaultViewport viewstr dx dy;
+        );
+        
+        // mouse zoom with left click + Ctrl + Alt
+        if (viewstr.V3D_iMoveClickStatus != V3DCLICK_CTRL|V3DCLICK_LEFT) || !(_keybdstate &4) || (!sessionstr.V3D_bNavigate) || disablenavig then nil else
+        (
+          let if viewstr.V3D_iRenderMoveY == nil then viewstr.V3D_iClickY else viewstr.V3D_iRenderMoveY -> mvy in
+          let (mvy-viewstr.V3D_iMoveY) -> dy in
+          let if iGlobalUnit > 1 then ((itof iGlobalUnit) /. 10.0) else (itof iGlobalUnit) -> unitdiv in
+          (
+            let SO3ObjectGetPosition (V3DgetDefaultCamera sessionstr) -> [_ _ z] in   
+            let (((itof -dy) /. 10.0) *. (((absf z) +. 10.0) /. (100.0 /. unitdiv)) ) -> zm in
+            if zm <. 0.0 && z <=. 0.0 then nil else
+            (
+              SO3ObjectSetPosition (V3DgetDefaultCamera sessionstr) [0.0 0.0 z +. zm];
+              V3DsetOrthographicScale (V3DgetDefaultCamera sessionstr) (z +. zm);
+            );
+            0;
+          );
+        );
+        
+        // render stats and debug
+        let if viewstr.V3D_iRenderTick == 0 then _tickcount else viewstr.V3D_iRenderTick -> lasttick in
+        (
+          let sizelist viewstr.V3D_lViewport -> vsize in
+          let SO3BufferGetAverageFPS viewstr.V3D_buffer -> avfps in
+          let SO3BufferGetBatchCount viewstr.V3D_buffer -> bcount in
+          let 0 -> v in
+          while v < vsize do
+          (
+            let nth_list viewstr.V3D_lViewport v -> [_ viewportstr] in
+              if !(SO3DebugGetEnable viewportstr.V3D_viewport) then nil else
+              let _tickcount -> curtick in
+              let (curtick - viewstr.V3D_iRenderTick) -> frametime in
+              let if frametime <= 0 then 1 else frametime -> frametime in
+                SO3DebugSetText viewportstr.V3D_viewport strcatn "FPS : "::(itoa (ftoi avfps))::"\n"::"Frametime : "::(itoa frametime)::"\n"::"Polygon count : "::(itoa SO3BufferGetTriangleCount viewstr.V3D_buffer)::"\n"::"Batch count : "::(itoa bcount)::"\n"::nil;
+            
+            set v = v + 1;
+          );
+          set viewstr.V3D_iRenderTick = _tickcount;
+        );
+        
+        V3DupdateAxisTarget viewstr sessionstr;
+        V3DupdateHelpersTarget viewstr sessionstr;
+      );
+      set i = i + 1;
+    );
+  	
+  	//update 3D sound listener
+    let (V3DgetDefaultViewport viewstr) -> viewportstr in
+    let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in
+    let SO3ObjectGetGlobalPosition camera -> pos in
+    let SO3MathsQuatGetDirection SO3ObjectGetGlobalOrientation camera [0.0 0.0 (-.1.0)] -> dir in  
+      _AudioSetListenerPosition pos dir;
+  	
+    set viewstr.V3D_iCursorDirX = if viewstr.V3D_iRenderMoveX == nil then 0 else viewstr.V3D_iMoveX - viewstr.V3D_iRenderMoveX;
+    set viewstr.V3D_iCursorDirY = if viewstr.V3D_iRenderMoveY == nil then 0 else viewstr.V3D_iMoveY - viewstr.V3D_iRenderMoveY;
+    
+    set viewstr.V3D_iRenderMoveX = viewstr.V3D_iMoveX;
+    set viewstr.V3D_iRenderMoveY = viewstr.V3D_iMoveY;
+  );
+  0;;
+
+
+fun cbV3DscenePreRender2(session, sessionstr, etime)=
+  exec sessionstr.V3D_cbScenePreRender2 with [sessionstr etime];
+  0;;
+
+
+fun cbV3DscenePreRenderPhysic(session, sessionstr, etime)=
+  exec sessionstr.V3D_cbScenePreRenderPhysic with [sessionstr etime];
+  0;;
+
+fun cbV3DscenePostRender(buffer, sessionstr, etime)=
+  exec sessionstr.V3D_cbScenePostRender with [sessionstr etime];
+  0;;
+
+
+fun V3DgetDefaultCompositorsList(sessionstr)=
+  SO3SceneParseCompositorsFromGroup (V3DgetSession sessionstr) "SO3/Internal";;
+
+
+fun V3DloadDefaultCompositors(sessionstr)=
+  let strcat sV3DDEFAULTRESOURCESPATH "compositors" -> comppath in
+  (
+    let getFilesFromDir comppath "program"::nil -> l in
+    let sizelist l -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list l i -> elt in
+        SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack elt SO3_RESOURCE_GPUPROGRAM;
+      
+      set i = i + 1;
+    );
+  
+    let getFilesFromDir comppath "material"::nil -> l in
+    let sizelist l -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list l i -> elt in
+        SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack elt SO3_RESOURCE_MATERIAL;
+      
+      set i = i + 1;
+    );
+    
+    let getFilesFromDir comppath "compositor"::nil -> l in
+    let sizelist l -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list l i -> elt in
+        SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack elt SO3_RESOURCE_COMPOSITOR;
+      
+      set i = i + 1;
+    );
+  );
+  0;;
+
+
+fun V3DloadDefaultResources(sessionstr)=
+  // helpers resources
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helpers.material") SO3_RESOURCE_MATERIAL;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/ang_axis_x.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/ang_axis_y.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/ang_axis_z.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_scale_x.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_scale_y.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_scale_z.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_x.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_y.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_z.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_text_x.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_text_y.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/coords_axis_text_z.mesh") SO3_RESOURCE_MESH;
+  
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_camera.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_dummy.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_dir_light.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_spot_light.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/helper_light.mesh") SO3_RESOURCE_MESH;
+  
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/default_grid_helper.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/h_line_b.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/h_line_w.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/v_line_b.mesh") SO3_RESOURCE_MESH;
+  SO3SceneLoadResource (V3DgetSession sessionstr) "V3DdefaultResources" _checkpack (strcat sV3DDEFAULTRESOURCESPATH "helpers/v_line_w.mesh") SO3_RESOURCE_MESH;
+  
+  //V3DloadDefaultCompositors sessionstr;
+  0;;
+
+
+fun V3DuseDefaultLight(sessionstr, state)=
+  if ((sessionstr.V3D_defaultLight == nil) && state) then
+  (
+    set sessionstr.V3D_defaultLight = V3DaddLight sessionstr "default_light" nil SO3_DIRECTIONAL_LIGHT (make_rgba 250 250 250 0) (make_rgba 255 255 255 0) 15000.0 0.1 0.0 0.0;
+    SO3ObjectSetPosition sessionstr.V3D_defaultLight [0.0 0.0 0.0];
+    SO3ObjectSetOrientation sessionstr.V3D_defaultLight [(-.0.146521) 0.853541 (-.0.353523) (-.0.353523)];
+    0;
+  )
+  else if (sessionstr.V3D_defaultLight != nil) then
+  (
+    SO3ObjectSetVisible sessionstr.V3D_defaultLight state 0;
+    0;
+  )
+  else nil;
+  0;;
+
+
+fun V3DgetDefaultLight(sessionstr)= sessionstr.V3D_defaultLight;;
+
+
+fun V3DdeleteSession(viewstr, sessionstr)=
+  if sessionstr == nil then nil else
+  (
+    V3DphysDestroy sessionstr;
+    SO3SceneDelete (V3DgetSession sessionstr);
+    
+    let V3DgetSessionIndex viewstr sessionstr -> idx in
+      set viewstr.V3D_lSessions = V3DremoveIdxFromList viewstr.V3D_lSessions idx;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Create a 3d scene structure
+  *
+  *  <b>Prototype:</b> fun [V3Dview, S] V3Dsession
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param S : the scene name (must be unique)
+  *
+  *  \return V3Dsession : the new 3d scene structure
+  **/
+fun V3DcrSession(viewstr, name)=
+  let
+    let 0 -> i in
+    (
+      while ((switch viewstr.V3D_lSessions i) != nil) do
+      (
+        set i = i + 1;
+      );
+      i;
+    )
+  -> idx in
+  
+  let mkV3Dsession [viewstr nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil] -> sessionstr in
+  (
+    set viewstr.V3D_lSessions = V3Dlcat viewstr.V3D_lSessions [idx sessionstr]::nil;
+    
+    // create the new scene
+    
+    set sessionstr.V3D_session = SO3SceneCreate viewstr.V3D_channel strcatn (itoa iV3DSessionIndex)::"."::name::nil;
+    set iV3DSessionIndex = iV3DSessionIndex + 1;
+    
+    SO3GroupCreate sessionstr.V3D_session "V3DdefaultResources";
+        
+    set sessionstr.V3D_bHelpersState = 0;
+    
+    // create the default camera
+    V3DaddCamera sessionstr "default_camera";
+    
+    // create a shell
+    set sessionstr.V3D_shellNavigate = SO3SceneNodeCreate (V3DgetSession sessionstr) "camshell";
+    
+    // set the shell position
+		SO3ObjectSetPosition sessionstr.V3D_shellNavigate [0.0 0.0 0.0];
+		
+		// set the shell orientation
+	  SO3ObjectRotatePitch sessionstr.V3D_shellNavigate (-.0.5) SO3_LOCAL_TS;
+		
+		// link the camera to the shell
+		SO3ObjectLink (V3DgetDefaultCamera sessionstr) sessionstr.V3D_shellNavigate;
+		
+		// define that the camera always look at this point
+		//SO3ObjectLookAt (V3DgetDefaultCamera sessionstr) [0.0 0.0 0.0] 2;  
+    
+    SO3ObjectSetPosition (V3DgetDefaultCamera sessionstr) [0.0 0.0 (5.0 *. itof(iGlobalUnit))];
+    
+    // set the ambient light color
+    V3DsetAmbientLight sessionstr 0x000000;
+    
+    set sessionstr.V3D_bNavigate = 0;
+    
+    V3DloadDefaultResources sessionstr;
+    
+    SO3CbScenePreRender (V3DgetSession sessionstr) @cbV3DscenePreRender sessionstr;
+    SO3CbScenePreRenderPhysic (V3DgetSession sessionstr) @cbV3DscenePreRenderPhysic sessionstr;
+    SO3CbScenePreRender2 (V3DgetSession sessionstr) @cbV3DscenePreRender2 sessionstr;
+    SO3CbScenePostRender (V3DgetSession sessionstr) @cbV3DscenePostRender sessionstr;
+    
+    V3DphysCreate sessionstr;
+    
+    sessionstr;
+  );;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Reset a 3d scene
+  *
+  *  <b>Prototype:</b> fun [V3Dsession] I
+  *
+  *  \param V3Dsession : the 3d scene structure
+  *
+  *  \return 0
+  **/
+fun V3DresetSession(sessionstr)=
+  SO3SceneClear (V3DgetSession sessionstr);  
+  SO3GroupDelete (V3DgetSession sessionstr) "V3DdefaultResources";
+  
+  set sessionstr.V3D_lCamera = nil;
+  set sessionstr.V3D_lAxis = nil;
+  set sessionstr.V3D_lHelper = nil;
+  set sessionstr.V3D_shellNavigate = nil;
+  set sessionstr.V3D_lAnimations = nil;
+  set sessionstr.V3D_lPrevDefaultCamera = nil;
+  set sessionstr.V3D_defaultCamera = nil;
+  
+  SO3ObjectDestroy sessionstr.V3D_defaultLight;
+  set sessionstr.V3D_defaultLight = nil;
+  
+  V3DphysReset sessionstr;
+
+  SO3SceneSetShadowCaster (V3DgetSession sessionstr) nil;
+  SO3SceneSetShadowReceiver (V3DgetSession sessionstr) nil;
+  
+  SO3GroupCreate (V3DgetSession sessionstr) "V3DdefaultResources";
+  
+  V3DsetCamera (V3DaddCamera sessionstr "default_camera") nil nil 0.01 10000.0;
+  
+  // create a shell
+  set sessionstr.V3D_shellNavigate = SO3SceneNodeCreate (V3DgetSession sessionstr) "camshell";
+  
+  // set the shell position
+	SO3ObjectSetPosition sessionstr.V3D_shellNavigate [0.0 0.0 0.0];
+	
+  // set the shell orientation
+	SO3ObjectRotatePitch sessionstr.V3D_shellNavigate (-.0.5) SO3_LOCAL_TS;
+	
+	// link the camera to the shell
+	SO3ObjectLink (V3DgetDefaultCamera sessionstr) sessionstr.V3D_shellNavigate;
+	
+	SO3ObjectSetPosition (V3DgetDefaultCamera sessionstr) [0.0 0.0 (5.0 *. itof(iGlobalUnit))];
+	
+	V3DchangeCameraViewport sessionstr nil (V3DgetDefaultCamera sessionstr);
+	
+  V3DloadDefaultResources sessionstr;
+  
+  if sessionstr.V3D_helperGrid == nil then nil else
+  (
+    set sessionstr.V3D_helperGrid = nil;
+    V3DshowSceneGrid sessionstr 1;
+  );
+  0;;
+
+
+fun cbV3DkillFocus(win, viewstr)=
+  if !viewstr.V3D_iClickStatus then nil else
+  (
+    if viewstr.V3D_iClickX == nil || viewstr.V3D_iClickY == nil then nil else
+      exec viewstr.V3D_cbUnClick with [viewstr viewstr.V3D_iClickX viewstr.V3D_iClickY viewstr.V3D_iClickStatus];    
+    set viewstr.V3D_iClickStatus = V3DCLICK_NO;
+  );
+  
+  if !viewstr.V3D_iMoveClickStatus then nil else
+  (
+    if viewstr.V3D_iMoveX == nil || viewstr.V3D_iMoveY == nil then nil else
+      exec viewstr.V3D_cbUnClick with [viewstr viewstr.V3D_iMoveX viewstr.V3D_iMoveY viewstr.V3D_iMoveClickStatus];    
+    set viewstr.V3D_iMoveClickStatus = V3DCLICK_NO;
+  );
+  exec viewstr.V3D_cbKillFocusView with [viewstr];
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set the 3d view focus
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return 0
+  **/
+fun V3DviewSetFocus(viewstr)=
+  _SETfocus viewstr.V3D_win;
+  0;;
+
+
+fun V3DchangeSelectedAxis(sessionstr, objname, mode)=
+  let SO3SceneGetObject (V3DgetSession sessionstr) objname -> refobj in
+  let (switch sessionstr.V3D_lAxis refobj) -> axisstr in
+    set sessionstr.V3D_selectedAxis = [axisstr mode];
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set the mouse cursor visibility state
+  *
+  *  <b>Prototype:</b> fun [V3Dview I] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : 1 to show the cursor, 0 to hide
+  *
+  *  \return 0
+  **/
+fun V3DshowCursor(viewstr, state)=
+  if (state) then
+    _SETwinCursor viewstr.V3D_win nil
+  else
+    _SETwinCursor viewstr.V3D_win cHIDECURSOR;
+  
+  set viewstr.V3D_bShowCursor = state;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view the mouse cursor visibility state
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return I : the cursor visibility state
+  **/
+fun V3DgetCursorVisible(viewstr)= viewstr.V3D_bShowCursor;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view mouse cursor
+  *
+  *  <b>Prototype:</b> fun [V3Dview] ObjCursor
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return ObjCursor : the current 3d view mouse cursor
+  **/
+fun V3DgetCursor(viewstr)= _GETcursorWin viewstr.V3D_win;;
+
+
+fun cbV3DviewDropFile(win, viewstr, x, y, lp)=
+  exec viewstr.V3D_cbDropFile with [viewstr x y lp];
+  0;;  
+
+
+fun cbV3DviewKeyDown(buffer, viewstr, key, ascode)=
+  let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+  if ((widgetctrl != nil) && (SO3WidgetGetKeyboardEnable widgetctrl)) then nil else
+  (
+    if key == 328 then // UP
+    (
+      let sizelist viewstr.V3D_lSessions -> size in
+      let 0 -> i in
+      while i < size do
+      (
+        let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+        if !sessionstr.V3D_bNavigate then nil else
+        (
+          SO3ObjectRotatePitch sessionstr.V3D_shellNavigate (-.0.1) SO3_LOCAL_TS;
+        );
+        set i = i + 1;
+      );
+    )
+    else nil;
+    if key == 336 then // DOWN
+    (
+      let sizelist viewstr.V3D_lSessions -> size in
+      let 0 -> i in
+      while i < size do
+      (
+        let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+        if !sessionstr.V3D_bNavigate then nil else
+        (
+          SO3ObjectRotatePitch sessionstr.V3D_shellNavigate (0.1) SO3_LOCAL_TS;
+        );
+        set i = i + 1;
+      );
+    )
+    else nil;
+    if key == 331 then // LEFT
+    (
+      let sizelist viewstr.V3D_lSessions -> size in
+      let 0 -> i in
+      while i < size do
+      (
+        let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+        if !sessionstr.V3D_bNavigate then nil else
+        (
+          SO3ObjectRotateYaw sessionstr.V3D_shellNavigate (-.0.1) SO3_WORLD_TS;
+        );
+        set i = i + 1;
+      );
+    )
+    else nil;
+    if key == 333 then // RIGHT
+    (
+      let sizelist viewstr.V3D_lSessions -> size in
+      let 0 -> i in
+      while i < size do
+      (
+        let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+        if !sessionstr.V3D_bNavigate then nil else
+        (
+          SO3ObjectRotateYaw sessionstr.V3D_shellNavigate (0.1) SO3_WORLD_TS;
+        );
+        set i = i + 1;
+      );
+    )
+    else nil;
+    
+    exec viewstr.V3D_cbKeyDown with [viewstr key ascode];
+  );
+  0;;
+
+
+fun cbV3DviewKeyUp(buffer, viewstr, key)=
+  let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+  if ((widgetctrl != nil) && (SO3WidgetGetKeyboardEnable widgetctrl)) then nil else
+  (
+    exec viewstr.V3D_cbKeyUp with [viewstr key];
+  );
+  0;;
+
+
+fun cbV3DviewDbClick(buffer, viewstr, posx, posy, btn)=
+  if (V3DgetCursorVisible viewstr) then nil else
+    V3DshowCursor viewstr 0;
+
+  let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+  if ((widgetctrl != nil) && (SO3WidgetGetMouseEnable widgetctrl) && (SO3WidgetIsMouseOver widgetctrl)) then nil else
+  (   
+    exec viewstr.V3D_cbDbClick with [viewstr posx posy btn];
+  );
+  0;;
+
+
+fun cbV3DviewClick(buffer, viewstr, posx, posy, btn)=
+  V3DviewSetFocus viewstr;
+  
+  if (V3DgetCursorVisible viewstr) then nil else
+    V3DshowCursor viewstr 0;
+  
+  let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+  if ((widgetctrl != nil) && (SO3WidgetGetMouseEnable widgetctrl) && (SO3WidgetIsMouseOver widgetctrl)) then nil else
+  (
+    set viewstr.V3D_iClickX = posx;
+    set viewstr.V3D_iClickY = posy;
+    set viewstr.V3D_iClickStatus = if btn == nil then V3DCLICK_NO else btn;
+    
+    let sizelist viewstr.V3D_lSessions -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+      if sessionstr.V3D_selectedAxis != nil then nil else
+      let viewstr.V3D_lastMouseData -> [_ _ obj mat _ _ _ _ _] in
+      let sizelist sessionstr.V3D_lAxis -> size2 in
+      let 0 -> i2 in
+      while (i2 < size2) && (sessionstr.V3D_selectedAxis == nil) do
+      (
+        let nth_list sessionstr.V3D_lAxis i2 -> [_ axisstr] in
+        if obj == axisstr.V3D_xAxisObject then
+        (
+          set sessionstr.V3D_selectedAxis = [axisstr V3DAXIS_X];
+          exec sessionstr.V3D_cbAxisClick with [sessionstr axisstr.V3D_axisFather V3DAXIS_X posx posy btn];
+        )
+        else if obj == axisstr.V3D_yAxisObject then
+        (
+          set sessionstr.V3D_selectedAxis = [axisstr V3DAXIS_Y];
+          exec sessionstr.V3D_cbAxisClick with [sessionstr axisstr.V3D_axisFather V3DAXIS_Y posx posy btn]
+        )
+        else if obj == axisstr.V3D_zAxisObject then
+        (
+          set sessionstr.V3D_selectedAxis = [axisstr V3DAXIS_Z];
+          exec sessionstr.V3D_cbAxisClick with [sessionstr axisstr.V3D_axisFather V3DAXIS_Z posx posy btn]
+        )
+        else nil;
+        
+        set i2 = i2 + 1;
+      );
+      
+      set i = i + 1;
+    );
+    
+    exec viewstr.V3D_cbClick with [viewstr posx posy btn];
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view last cursor translation
+  *
+  *  <b>Prototype:</b> fun [V3Dview] [I I]
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return [I I] : x, y cursor translation
+  **/
+fun V3DgetCursorTrans(viewstr)=
+  if viewstr.V3D_iMoveClickStatus & (V3DCLICK_LEFT|V3DCLICK_RIGHT|V3DCLICK_MIDDLE) then
+    [(viewstr.V3D_iMoveX-viewstr.V3D_iClickX) (viewstr.V3D_iClickY-viewstr.V3D_iMoveY)]
+  else
+    nil;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view last cursor direction
+  *
+  *  <b>Prototype:</b> fun [V3Dview] [I I]
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return [I I] : x, y cursor direction
+  **/
+fun V3DgetCursorDirection(viewstr)= [viewstr.V3D_iCursorDirX viewstr.V3D_iCursorDirY];;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view last mouse click state
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return I : 1 if the 3d view is clicked
+  **/
+fun V3DisClicked(viewstr)= viewstr.V3D_iClickStatus;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view last mouse move click state
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return I : 1 if the 3d view is clicked while cursor moving
+  **/
+fun V3DisMoveClicked(viewstr)= viewstr.V3D_iMoveClickStatus;;
+
+
+fun cbV3DviewUnclick(buffer, viewstr, posx, posy, btn) =
+  if (V3DgetCursorVisible viewstr) then nil else
+    V3DshowCursor viewstr 0;
+
+  let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+  if ((widgetctrl != nil) && (SO3WidgetGetMouseEnable widgetctrl)) then nil else
+  (
+    if viewstr.V3D_iClickStatus == V3DCLICK_NO && viewstr.V3D_iMoveClickStatus == V3DCLICK_NO then nil else
+    (
+      set viewstr.V3D_iClickStatus = V3DCLICK_NO;
+      set viewstr.V3D_iMoveClickStatus = V3DCLICK_NO;
+      set viewstr.V3D_iRenderMoveX = nil;
+      set viewstr.V3D_iRenderMoveY = nil;
+      
+      exec viewstr.V3D_cbUnClick with [viewstr posx posy btn];
+      
+      let sizelist viewstr.V3D_lSessions -> size in
+      let 0 -> i in
+      while i < size do
+      (
+        let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+        if sessionstr.V3D_selectedAxis == nil then nil else
+        let sessionstr.V3D_selectedAxis -> [axisstr axisflag] in
+        (
+          exec sessionstr.V3D_cbAxisUnClick with [sessionstr axisstr.V3D_axisFather axisflag posx posy btn];
+          set sessionstr.V3D_selectedAxis = nil;
+        );
+        
+        set i = i + 1;
+      );   
+    );
+  );
+  0;;
+
+
+fun cbV3DviewWheel(buffer, viewstr, posx, posy, delta, btn)=  
+  let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+  if ((widgetctrl != nil) && (SO3WidgetGetMouseEnable widgetctrl)) then nil else
+  (
+    let sizelist viewstr.V3D_lSessions -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+      if !sessionstr.V3D_bNavigate then nil else
+      let if iGlobalUnit > 1 then ((itof iGlobalUnit) /. 10.0) else (itof iGlobalUnit) -> unitdiv in
+      (
+        let SO3ObjectGetPosition (V3DgetDefaultCamera sessionstr) -> [_ _ z] in   
+        let ((itof -delta) *. (((absf z) +. 10.0) /. (100.0 /. unitdiv)) ) -> zm in
+        let if (_keybdstate &2) then zm *. 10.0 else zm -> zm in
+        if zm <. 0.0 && z <=. 0.0 then nil else
+        (
+          SO3ObjectSetPosition (V3DgetDefaultCamera sessionstr) [0.0 0.0 z +. zm];
+          V3DsetOrthographicScale (V3DgetDefaultCamera sessionstr) (z +. zm);
+        );
+        0;
+      );
+      set i = i + 1;
+    );
+    exec viewstr.V3D_cbWheel with [viewstr posx posy delta btn];  
+  );
+  0;;
+
+
+fun V3DgetMoveAxis(viewstr, posx, posy, btn) =
+  let sizelist viewstr.V3D_lSessions -> size in
+  let 0 -> i in
+  while i < size do
+  (
+    let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+    if sessionstr.V3D_lAxis == nil then nil else
+    (
+      let viewstr.V3D_lastMouseData -> [_ _ obj mat _ _ _ _ _] in
+      
+      if sessionstr.V3D_selectedAxis != nil then
+      let sessionstr.V3D_selectedAxis -> [selectedaxisstr axisflag] in
+      let (V3DgetDefaultViewport viewstr) -> viewportstr in
+      let SO3ViewportGetCamera viewportstr.V3D_viewport -> camera in
+      let SO3ObjectGetGlobalPosition camera -> [cx cy cz] in  
+      let SO3ObjectGetGlobalPosition selectedaxisstr.V3D_axisFather -> [ox oy oz] in
+      
+      let SO3CameraGetFOVy camera -> fovy in
+      let if fovy <=. 0.0 then 0.000001 else fovy -> fovy in
+      let if V3DgetOrthographicMode camera then 1.0 else fovy -> fovy in
+      
+      let if axisflag == V3DAXIS_X then
+            [selectedaxisstr.V3D_xAxisObject selectedaxisstr.V3D_xAxisTextObject]
+          else if axisflag == V3DAXIS_Y then
+            [selectedaxisstr.V3D_yAxisObject selectedaxisstr.V3D_yAxisTextObject]
+          else if axisflag == V3DAXIS_Z then
+            [selectedaxisstr.V3D_zAxisObject selectedaxisstr.V3D_zAxisTextObject]
+          else nil
+      -> [axisobj letterobj] in
+      
+      let SO3ObjectGetScreenPixelCoord axisobj viewportstr.V3D_viewport -> [shpx shpy] in
+      let SO3ObjectGetScreenPixelCoord letterobj viewportstr.V3D_viewport -> [lhpx lhpy] in
+      let [(itof (lhpx-shpx)) (itof (lhpy-shpy))] -> [u v] in
+      
+      let [(posx - viewstr.V3D_iMoveX) (posy - viewstr.V3D_iMoveY)] -> [mvx mvy] in
+      let SO3ObjectGetPosition camera -> [_ _ zdist] in  
+      let if V3DgetOrthographicMode camera then zdist else sqrt ((sqr(cx -. ox)) +. (sqr(cy -. oy)) +. (sqr(cz -. oz))) -> dist in
+      let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
+      
+      // TODO find the real algo ! use global scale ?
+      let maxf 0.000001 ((dist /. (itof vh)) *. fovy) *. 98.5 -> scale in
+      let SO3ObjectGetParent selectedaxisstr.V3D_axisFather -> ofather in
+      let if (ofather == (SO3ObjectGetSceneRoot (V3DgetSession sessionstr))) || (ofather == nil) then [1.0 1.0 1.0] else SO3ObjectGetGlobalScale ofather -> [gsx gsy gsz] in
+      let SO3ObjectGetScale selectedaxisstr.V3D_axisFather -> [sox soy soz] in
+      let if axisflag == V3DAXIS_X then (if gsx == 0.0 then sox else gsx) else
+          if axisflag == V3DAXIS_Y then (if gsy == 0.0 then soy else gsy) else
+          if axisflag == V3DAXIS_Z then (if gsz == 0.0 then soz else gsz) else
+          1.0
+      -> gscale in
+      let ((scale *. (u *. (itof mvx) +. v *. (itof mvy))) /. sqr(0.000001+.sqrt((sqr u)+.(sqr v)))) /. (if (gscale != 0.0) then gscale else 0.000001) -> coef in
+      (
+        if u == nil || v == nil then nil else
+        (
+          exec sessionstr.V3D_cbAxisMove with [sessionstr selectedaxisstr.V3D_axisFather axisflag mvx mvy btn coef];
+        );
+        0;
+      )
+      else
+      (
+        let sizelist sessionstr.V3D_lAxis -> size2 in
+        let 0 -> i2 in
+        while i2 < size2 do
+        (
+          let nth_list sessionstr.V3D_lAxis i2 -> [_ axisstr] in
+          if axisstr.V3D_iAxisMode then
+          (
+            if obj == axisstr.V3D_xAxisObject then
+            (
+              let hd (SO3EntityMaterialList axisstr.V3D_xAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 255 255 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 255 255 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 255 255 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_yAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 0 255 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 0 255 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 0 255 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_zAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 0 0 255 0);
+                SO3MaterialSetAmbient mat (make_rgba 0 0 255 0);
+                SO3MaterialSetDiffuse mat (make_rgba 0 0 255 0);            
+              );
+              0;
+            )
+            else if obj == axisstr.V3D_yAxisObject then
+            (
+              let hd (SO3EntityMaterialList axisstr.V3D_xAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 255 0 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 255 0 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 255 0 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_yAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 255 255 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 255 255 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 255 255 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_zAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 0 0 255 0);
+                SO3MaterialSetAmbient mat (make_rgba 0 0 255 0);
+                SO3MaterialSetDiffuse mat (make_rgba 0 0 255 0);            
+              );
+              0;
+            )
+            else if obj == axisstr.V3D_zAxisObject then
+            (
+              let hd (SO3EntityMaterialList axisstr.V3D_xAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 255 0 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 255 0 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 255 0 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_yAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 0 255 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 0 255 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 0 255 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_zAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 255 255 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 255 255 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 255 255 0 0);       
+              );
+              0;
+            )
+            else
+            (
+              let hd (SO3EntityMaterialList axisstr.V3D_xAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 255 0 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 255 0 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 255 0 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_yAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 0 255 0 0);
+                SO3MaterialSetAmbient mat (make_rgba 0 255 0 0);
+                SO3MaterialSetDiffuse mat (make_rgba 0 255 0 0);
+              );
+              let hd (SO3EntityMaterialList axisstr.V3D_zAxisObject) -> mat in
+              (
+                SO3MaterialSetSelfIllumination mat (make_rgba 0 0 255 0);
+                SO3MaterialSetAmbient mat (make_rgba 0 0 255 0);
+                SO3MaterialSetDiffuse mat (make_rgba 0 0 255 0);            
+              );
+              0;
+            );
+          )
+          else nil;
+          
+          set i2 = i2 + 1;
+        );
+        0;
+      );
+    );
+    
+    set i = i + 1;
+  );
+  0;;
+
+
+fun cbV3DcursorMove(win, viewstr, posx, posy, btn) =
+  let if viewstr.V3D_iClickStatus == V3DCLICK_NO then nil else btn -> btn in
+  (
+    set viewstr.V3D_iMoveClickStatus = if btn == nil then V3DCLICK_NO else btn;
+    V3DgetMoveAxis viewstr posx posy btn;
+    
+    set viewstr.V3D_iMoveX = posx;
+    set viewstr.V3D_iMoveY = posy;
+    
+    exec viewstr.V3D_cbCursorMove with [viewstr posx posy btn];
+  );
+  0;;
+
+
+fun V3DsetCbResizeView(viewstr, cbfun)=
+  set viewstr.V3D_cbResizeView = cbfun;
+  0;;
+
+
+fun V3DsetCbFocusView(viewstr, cbfun)=
+  set viewstr.V3D_cbFocusView = cbfun;
+  0;;
+
+
+fun V3DsetCbKillFocusView(viewstr, cbfun)=
+  set viewstr.V3D_cbKillFocusView = cbfun;
+  0;;
+
+
+fun V3DsetCbPreRenderEffects(viewstr, cbfun)=
+  set viewstr.V3D_cbPreRenderEffects = cbfun;
+  0;;
+
+
+fun V3DsetCbPreRender(viewstr, cbfun)=
+  set viewstr.V3D_cbPreRender = cbfun;
+  0;;
+
+
+fun V3DsetCbPostRender(viewstr, cbfun)=
+  set viewstr.V3D_cbPostRender = cbfun;
+  0;;
+
+
+fun V3DsetCbScenePreRender(sessionstr, cbfun)=
+  set sessionstr.V3D_cbScenePreRender = cbfun;
+  0;;
+
+
+fun V3DsetCbScenePreRender2(sessionstr, cbfun)=
+  set sessionstr.V3D_cbScenePreRender2 = cbfun;
+  0;;
+
+
+fun V3DsetCbScenePreRenderPhysic(sessionstr, cbfun)=
+  set sessionstr.V3D_cbScenePreRenderPhysic = cbfun;
+  0;;
+
+
+fun V3DsetCbScenePostRender(sessionstr, cbfun)=
+  set sessionstr.V3D_cbScenePostRender = cbfun;
+  0;;
+
+
+fun V3DsetCbKeyDown(viewstr, cbfun)=
+  set viewstr.V3D_cbKeyDown = cbfun;
+  0;;
+
+
+fun V3DsetCbKeyUp(viewstr, cbfun)=
+  set viewstr.V3D_cbKeyUp = cbfun;
+  0;;
+
+
+fun V3DsetCbClick(viewstr, cbfun)=
+  set viewstr.V3D_cbClick = cbfun;
+  0;;
+
+
+fun V3DsetCbDropFile(viewstr, cbfun)=
+  set viewstr.V3D_cbDropFile = cbfun;
+  0;;
+
+
+fun V3DgetCbClick(viewstr)= viewstr.V3D_cbClick;;
+
+
+fun V3DsetCbDbClick(viewstr, cbfun)=
+  set viewstr.V3D_cbDbClick = cbfun;
+  0;;
+
+
+fun V3DgetCbDbClick(viewstr)= viewstr.V3D_cbDbClick;;
+
+
+fun V3DsetCbUnClick(viewstr, cbfun)=
+  set viewstr.V3D_cbUnClick = cbfun;
+  0;;
+
+
+fun V3DgetCbUnClick(viewstr)= viewstr.V3D_cbUnClick;;
+
+
+fun V3DsetCbWheel(viewstr, cbfun)=
+  set viewstr.V3D_cbWheel = cbfun;
+  0;;
+
+
+fun V3DgetCbWheel(viewstr)= viewstr.V3D_cbWheel;;
+
+
+fun V3DsetCbCursorMove(viewstr, cbfun)=
+  set viewstr.V3D_cbCursorMove = cbfun;
+  0;;
+
+
+fun V3DgetCbCursorMove(viewstr)= viewstr.V3D_cbCursorMove;;
+
+
+fun V3DsetCbAxisMove(sessionstr, cbfun)=
+  set sessionstr.V3D_cbAxisMove = cbfun;
+  0;;
+
+
+fun V3DsetCbAxisClick(sessionstr, cbfun)=
+  set sessionstr.V3D_cbAxisClick = cbfun;
+  0;;
+
+
+fun V3DsetCbAxisUnClick(sessionstr, cbfun)=
+  set sessionstr.V3D_cbAxisUnClick = cbfun;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a 3d view keyboard state
+  *
+  *  <b>Prototype:</b> fun [V3Dview I] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : 1 to enable the keyboard, 0 to disable
+  *
+  *  \return 0
+  **/
+fun V3DenableKeyboard(viewstr, mode)=
+  set viewstr.V3D_bKeyboardEnabled = mode;
+   
+  if !mode then
+  (
+    //SO3CbBufferKeyDown viewstr.V3D_buffer nil nil;
+    //SO3CbBufferKeyUp viewstr.V3D_buffer nil nil;
+    _CBwinKeydown viewstr.V3D_win nil nil;
+    _CBwinKeyup viewstr.V3D_win nil nil;
+  )
+  else
+  (
+    //SO3CbBufferKeyDown viewstr.V3D_buffer @cbV3DviewKeyDown viewstr;
+    //SO3CbBufferKeyUp viewstr.V3D_buffer @cbV3DviewKeyUp viewstr;
+    _CBwinKeydown viewstr.V3D_win @cbV3DviewKeyDown viewstr;
+    _CBwinKeyup viewstr.V3D_win @cbV3DviewKeyUp viewstr;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a 3d view mouse state
+  *
+  *  <b>Prototype:</b> fun [V3Dview I] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : 1 to enable the mouse, 0 to disable
+  *
+  *  \return 0
+  **/
+fun V3DenableMouse(viewstr, mode)=
+  set viewstr.V3D_bMouseEnabled = mode;
+  if !mode then
+  (
+    _CBwinClick viewstr.V3D_win nil nil;
+    _CBwinUnclick viewstr.V3D_win nil nil;
+    _CBwinWheel viewstr.V3D_win nil nil;
+    _CBcursorMove viewstr.V3D_win nil nil;
+    _CBwinDClick viewstr.V3D_win nil nil;
+    _CBwinDropFile viewstr.V3D_win nil nil;
+  )
+  else
+  (
+    _CBwinClick viewstr.V3D_win @cbV3DviewClick viewstr;
+    _CBwinUnclick viewstr.V3D_win @cbV3DviewUnclick viewstr;
+    _CBwinWheel viewstr.V3D_win @cbV3DviewWheel viewstr;
+    _CBcursorMove viewstr.V3D_win @cbV3DcursorMove viewstr;
+    _CBwinDClick viewstr.V3D_win @cbV3DviewDbClick viewstr;
+    _CBwinDropFile viewstr.V3D_win @cbV3DviewDropFile viewstr;
+  );
+  0;;
+
+
+fun V3DenableNavigate(sessionstr, mode)=
+  set sessionstr.V3D_bNavigate = mode;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Change a 3d view mouse cursor
+  *
+  *  <b>Prototype:</b> fun [V3Dview ObjCursor] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param ObjCursor : the cursor
+  *
+  *  \return 0
+  **/
+fun V3DsetCursor(viewstr, cursor)=
+  let (V3DWidgetCtrlHasFocus viewstr) -> widgetctrl in
+  //if ((widgetctrl != nil) && (SO3WidgetGetMouseEnable widgetctrl) && (SO3WidgetIsMouseOver widgetctrl)) then nil else
+    _SETwinCursor viewstr.V3D_win cursor;
+  0;;
+
+
+fun cbV3Dsize(win, viewstr, w, h)=
+  if w == 0 || h == 0 then nil else
+  (
+    set viewstr.V3D_iWinW = w;
+    set viewstr.V3D_iWinH = h;
+    
+    exec viewstr.V3D_cbResizeView with [viewstr w h];
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Destroy a 3d view
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return 0
+  **/
+fun V3DdsView(viewstr)=
+  V3DsetWindowedMode viewstr;
+  if viewstr.V3D_win == nil then nil else
+  (
+    let sizelist viewstr.V3D_lViewport -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list viewstr.V3D_lViewport i -> [_ viewportstr] in
+        V3DdelViewport viewstr viewportstr;
+      
+      set i = i + 1;
+    );
+    
+    let sizelist viewstr.V3D_lSessions -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list viewstr.V3D_lSessions i -> [_ sessionstr] in
+      (
+        SO3GroupDelete (V3DgetSession sessionstr) "V3DdefaultResources";
+        SO3SceneDelete (V3DgetSession sessionstr);
+      );
+      set i = i + 1;
+    );
+    
+    SO3DestroyBuffer viewstr.V3D_buffer;
+    //remove the ds callback to avoid cb looooooop
+    _CBwinDestroy viewstr.V3D_win nil nil;
+    _DSwindow viewstr.V3D_win;
+    set viewstr.V3D_win = nil;
+    
+    exec viewstr.V3D_cbDestroy with [viewstr];
+  );
+  0;;
+
+
+fun cbV3DwinDestroy(win, viewstr)=
+  V3DdsView viewstr;
+  0;;
+
+
+fun cbV3DbufferFocus(buffer, viewstr)=
+  exec viewstr.V3D_cbFocusView with [viewstr];
+  0;;
+
+
+fun cbV3DbufferKillFocus(buffer, viewstr)=
+  exec viewstr.V3D_cbKillFocusView with [viewstr];
+  0;;
+
+
+fun V3DresizeView(viewstr, x, y, w, h)=
+  set viewstr.V3D_iWinX = x;
+  set viewstr.V3D_iWinY = y;
+  set viewstr.V3D_iWinW = w;
+  set viewstr.V3D_iWinH = h;
+  
+  _SIZEwindow viewstr.V3D_win viewstr.V3D_iWinW viewstr.V3D_iWinH viewstr.V3D_iWinX viewstr.V3D_iWinY;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view position and size
+  *
+  *  <b>Prototype:</b> fun [V3Dview] [I I I I]
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return [I I I I] : the 3d view x, y, width and height
+  **/
+fun V3DgetViewPosSize(viewstr)= [viewstr.V3D_iWinX viewstr.V3D_iWinY viewstr.V3D_iWinW viewstr.V3D_iWinH];;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view position
+  *
+  *  <b>Prototype:</b> fun [V3Dview] [I I]
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return [I I] : the 3d view x, y
+  **/
+fun V3DgetViewPos(viewstr)= [viewstr.V3D_iWinX viewstr.V3D_iWinY];;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view size
+  *
+  *  <b>Prototype:</b> fun [V3Dview] [I I]
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return [I I] : the 3d view width and height
+  **/
+fun V3DgetViewSize(viewstr)= [viewstr.V3D_iWinW viewstr.V3D_iWinH];;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Get a 3d view fullscreen state
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return I : 1 if fullscreen, 0 otherwise
+  **/
+fun V3DgetFullScreenState(viewstr)= viewstr.V3D_bFullScreen;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Center the mouse cursor on a 3d view
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return 0
+  **/
+fun V3DcenterMouseCursor(viewstr)=
+  _SETcursorPos viewstr.V3D_win (viewstr.V3D_iWinW / 2) (viewstr.V3D_iWinH / 2);
+  0;;
+  
+
+/*!  @ingroup v3DApi
+  *  \brief Set the mouse cursor position on a 3d view
+  *
+  *  <b>Prototype:</b> fun [V3Dview I I] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : X position
+  *  \param I : Y position
+  *
+  *  \return 0
+  **/
+fun V3DsetMousePosition(viewstr, x, y)=
+  _SETcursorPos viewstr.V3D_win x y;
+  0;;
+
+
+fun V3DsetScreenInfos(viewstr, x, y, width, height, fsize, fcolor)=
+  let fcolor & 255 -> r in
+  let (fcolor>>8) &  255 -> g in
+  let (fcolor>>16) & 255 -> b in  
+  let make_rgba r g b 127 -> crgba in
+    
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let V3DgetDefaultViewport viewstr -> viewportstr in
+    SO3DebugDisplayProperties (V3DgetSession sessionstr) viewportstr.V3D_viewport nil crgba [x y] [width height] fsize;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Show or Hide the 3d view infos
+  *
+  *  <b>Prototype:</b> fun [V3Dview I] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : 1 to show, 0 to hide
+  *
+  *  \return 0
+  **/
+fun V3DenableScreenInfos(viewstr, state)=
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let V3DgetDefaultViewport viewstr -> viewportstr in
+  (
+    SO3DebugSetEnable viewportstr.V3D_viewport state;
+    SO3WorldShowLines (V3DgetSession sessionstr) state;
+   );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a 3D view to window mode
+  *
+  *  <b>Prototype:</b> fun [V3Dview] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *
+  *  \return 0
+  **/
+fun V3DsetWindowedMode(viewstr)=
+  if !viewstr.V3D_bFullScreen then nil else
+  (
+    set viewstr.V3D_iWinW = viewstr.V3D_iOldWinW;
+    set viewstr.V3D_iWinH = viewstr.V3D_iOldWinH;  
+    
+    //_SHOWwindow viewstr.V3D_win WINDOW_UNHIDDEN;
+  
+    SO3BufferSetProperties viewstr.V3D_buffer 0 viewstr.V3D_iWinW viewstr.V3D_iWinH;
+    V3DviewSetFocus viewstr;
+    
+    set viewstr.V3D_bFullScreen = 0;
+  );
+  0;;
+
+
+fun V3DEnableRender(viewstr, state)=
+  set viewstr.V3D_bState = state;
+  0;;
+
+
+fun V3DenableView(viewstr, mode)=
+  if mode then
+  (
+    _SHOWwindow viewstr.V3D_win WINDOW_UNHIDDEN;
+    V3DEnableRender viewstr 1;
+  )
+  else if !mode then
+  (
+    _SHOWwindow viewstr.V3D_win WINDOW_HIDDEN;
+    V3DEnableRender viewstr 0;
+  )
+  else nil;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Set a 3D view to fullscreen
+  *
+  *  <b>Prototype:</b> fun [V3Dview I I] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : width
+  *  \param I : height
+  *
+  *  \return 0
+  **/
+fun V3DsetFullScreenMode(viewstr, w, h)=
+  if viewstr.V3D_bFullScreen then nil else
+  (
+    //_SHOWwindow viewstr.V3D_win WINDOW_HIDDEN;
+    
+    set viewstr.V3D_iOldWinW = viewstr.V3D_iWinW;
+    set viewstr.V3D_iOldWinH = viewstr.V3D_iWinH;  
+    
+    set viewstr.V3D_iWinW = w;
+    set viewstr.V3D_iWinH = h;  
+        
+    SO3BufferSetProperties viewstr.V3D_buffer 1 viewstr.V3D_iWinW viewstr.V3D_iWinH;
+    
+    V3DviewSetFocus viewstr;
+    set viewstr.V3D_bFullScreen = 1;
+  );
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Switch a 3D view fullscreen state
+  *
+  *  <b>Prototype:</b> fun [V3Dview I I] I
+  *
+  *  \param V3Dview : the 3d view structure
+  *  \param I : width
+  *  \param I : height
+  *
+  *  \return 0
+  **/
+fun V3DswitchFullScreenMode(viewstr, w, h)=
+  if viewstr.V3D_bFullScreen then
+    V3DsetWindowedMode viewstr
+  else
+    V3DsetFullScreenMode viewstr w h;
+  0;;
+
+
+fun V3DremoveWidgetControl(viewportstr, widgetctrl)=
+  set viewportstr.V3D_lWidgetControl = remove_from_list viewportstr.V3D_lWidgetControl widgetctrl;
+  0;;
+
+
+fun V3DaddWidgetControl(viewportstr, widgetctrl)=
+  set viewportstr.V3D_lWidgetControl = widgetctrl::(remove_from_list viewportstr.V3D_lWidgetControl widgetctrl);
+  widgetctrl;;
+
+
+fun V3DcreateDefaultLight(sessionstr)=
+  if sessionstr.V3D_defaultLight == nil then nil else
+  (
+    SO3ObjectDestroy sessionstr.V3D_defaultLight;
+  );
+  0;;
+
+
+fun V3DsetViewDestroyCb(viewstr, cb)=
+  set viewstr.V3D_cbDestroy = cb;
+  0;;
+
+
+/*!  @ingroup v3DApi
+  *  \brief Create a 3d view
+  *
+  *  <b>Prototype:</b> fun [Chn ObjWin I I I I fun [V3Dview] I fun [V3Dview] I I] V3Dview
+  *
+  *  \param Chn : the scol channel
+  *  \param ObjWin : the parent scol window
+  *  \param I : X position
+  *  \param I : Y position
+  *  \param I : width
+  *  \param I : height
+  *  \param fun [V3Dview] I : init callback
+  *  \param fun [V3Dview] I : destroy callback
+  *  \param I : 1 to create a default scene, 0 otherwise
+  *
+  *  \return V3Dview : the new 3d view structure
+  **/
+fun V3DcrView(chan, fatherwin, ix, iy, iw, ih, cbinit, cbdestroy, defview)= 
+  let mkV3Dview [nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0 1 1] -> viewstr in
+  let _CRwindow chan fatherwin ix iy iw ih WN_CHILDINSIDE|WN_NOCAPTION|WN_NOBORDER|WN_DRAGDROP strcatn (itoa iV3DIndex)::".v3dwin"::nil -> win in
+  (
+    set viewstr.V3D_channel = chan;
+   
+    if (cHIDECURSOR != nil) then nil else
+    let _LDbitmap chan _checkpack (strcat sV3DDEFAULTRESOURCESPATH sV3DHIDECURSOR) -> bmp in
+    let _GETbitmapSize bmp -> [bw bh] in
+    let _CRcursor chan bmp (bw / 2) (bh / 2) 0x000000 0xffffff -> cursor in
+      set cHIDECURSOR = cursor;
+    
+    // set the buffer window
+    set viewstr.V3D_buffer = SO3BufferCreate chan win 0 0 iw ih;
+    SO3CbBufferPreRender viewstr.V3D_buffer @cbV3DbufferPreRender viewstr;
+    SO3CbBufferPostRender viewstr.V3D_buffer @cbV3DbufferPostRender viewstr;
+    
+    _SHOWwindow win WINDOW_HIDDEN;
+    _CBwinFocus win @cbV3DbufferFocus viewstr;
+    _CBwinKillFocus win @cbV3DkillFocus viewstr;
+    _CBwinSize win @cbV3Dsize viewstr;
+    _CBwinDestroy win @cbV3DwinDestroy viewstr;
+    
+    set viewstr.V3D_win = win;
+    set viewstr.V3D_iWinW = iw;
+    set viewstr.V3D_iWinH = ih;
+    set viewstr.V3D_iWinX = ix;
+    set viewstr.V3D_iWinY = iy;
+    
+    set viewstr.V3D_iCursorDirX = 0;
+    set viewstr.V3D_iCursorDirY = 0;
+    
+    set viewstr.V3D_iMoveClickStatus = V3DCLICK_NO;
+    set viewstr.V3D_iClickStatus = V3DCLICK_NO;
+    set viewstr.V3D_bMouseEnabled = 0;
+    set viewstr.V3D_bKeyboardEnabled = 0;
+    set viewstr.V3D_bPaused = 0;
+    set viewstr.V3D_iRenderTick = _tickcount;
+    
+    set viewstr.V3D_cbDestroy = cbdestroy;
+    set viewstr.V3D_cbInit = cbinit;
+    
+    // default session
+    if !defview then nil else
+      V3DcrSession viewstr "main";
+    
+    
+    set iV3DIndex = iV3DIndex + 1;
+        
+    exec viewstr.V3D_cbInit with [viewstr];
+    
+    viewstr;    
+  );;

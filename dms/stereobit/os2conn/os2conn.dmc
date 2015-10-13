@@ -1,0 +1,10 @@
+name OS2Conn
+version 1 0
+
+serverLoad locked/lib/_mlistlib.pkg ./os2conns.pkg 
+clientNeeded Dms/stereobit/os2conn/os2connc.pkg
+clientScript _load\ "Dms/stereobit/os2conn/os2connc.pkg"
+editorLoad  Dms/L/templateEdit1.pkg ./os2conne.pkg
+
+helpFile ./help/help.htm
+bitmap ./os2conn.bmp
