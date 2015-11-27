@@ -3,6 +3,8 @@ OS3DPICTURE_DESC Display enchanced image ui
 OS3DPICTURE_HELP http://scol.stereobit.gr/en/plugits/stereobit/btscreenplugit.html
 OS3DPICTURE_0001 Apply on texture
 OS3DPICTURE_0002 Bitmap path
+OS3DPICTURE_1002 Images path
+OS3DPICTURE_2002 Fonts path
 OS3DPICTURE_0003 Bottom align
 OS3DPICTURE_0004 Center align
 OS3DPICTURE_0005 Error

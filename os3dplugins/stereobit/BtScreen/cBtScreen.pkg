@@ -69,6 +69,47 @@ var iTexWidth = 512;;
 var iTexHeight = 512;;
 
 
+/*default IMAGES (always on)*/
+typeof lImages = [S r1];;              
+typeof lImagesDisplayed = [ObjBitmap r1];;
+typeof lStoreImages = [[ObjBitmap S I I I I I I I I I I I] r1];; /*bmp name width height xonscreen yonscreen transp status srceenx screeny inzone4click rightalign downalign*/ 
+typeof lStateImages = [[S I] r1];; /*name on/off */
+typeof setImages = I;;
+typeof font = ObjFont;; 
+
+/*FONT bitmaps*/
+/*bmp name width height xonscreen yonscreen alphachannel url inzone*/ 
+typeof linfoImages = [[ObjBitmap S I I I I S I] r1];;
+typeof lfontImages = [[ObjBitmap S I I I I S I] r1];;
+typeof fontMatrix  = [[ObjBitmap I I I I S I I I I S] r1];;
+typeof fontMatrixOpt = [[I I S I] r1];;
+typeof xMatrix = I;;/*matrix width*/
+typeof yMatrix = I;;/*matrix height*/
+typeof mEntry = S;; /*keyboard entry _ is the enter char */
+typeof mEpass = I;; /*if the entry is a password, enable before*/
+var fsep = 10;; /*sep between fonts */
+var fmsizex = 90;; /*x font size*/
+var fmsizey = 90;; /*y font size*/
+
+
+proto _getBitmapI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] ObjBitmap;;
+proto _getInfoI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] [I I I I I I I I];;
+proto setIScreenXY = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S [I I I]] [I I I I I I I I];;
+proto hideI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] [ObjBitmap S I I I I I I I I I I I];;
+proto showI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] [ObjBitmap S I I I I I I I I I I I];;
+
+typeof askPassword = I;; /*ask for pass when init*/
+
+var log=1;;
+var debug=0;;
+
+fun _echo(x,s)= 
+   if (log) then
+	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+   else
+     nil;;
+
+
 fun restoreTexture(pictstr)=
   V3DremoveWidgetControl (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) pictstr.PICT_win;
   SO3WidgetDestroy pictstr.PICT_win;

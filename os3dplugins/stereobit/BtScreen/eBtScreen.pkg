@@ -569,9 +569,9 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     let crEdFrameWindow _channel ewinstr 0 0 iw 80 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_1006") (loc "OS3DPICTURE_0012") -> winfrm in
     let crEdWindow _channel winfrm 0 18 iw 60 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in	
     let crEdCtrlCheck winstr 10 (set ypos = 10) 100 20 (loc "OS3DPICTURE_1028") EDWIN_RESIZE_MW -> ctrlisimgurl in
-    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 url nil EDWIN_RESIZE_MW -> ctrlimgurl in
-    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_0002") nil -> labelobj in
-    let crEdCtrlTextLine winstr 180 ypos 170 20 path nil EDWIN_RESIZE_MW -> ctrlimgpath in
+    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 imgurl nil EDWIN_RESIZE_MW -> ctrlimgurl in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_1002") nil -> labelobj in
+    let crEdCtrlTextLine winstr 180 ypos 170 20 imgpath nil EDWIN_RESIZE_MW -> ctrlimgpath in
     let crEdCtrlButton winstr 360 ypos 55 20 "..." nil -> pickimgfilebtn in
     let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshimgpath in  
 	
@@ -579,9 +579,9 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     let crEdFrameWindow _channel ewinstr 0 0 iw 80 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_2006") (loc "OS3DPICTURE_0012") -> winfrm in
     let crEdWindow _channel winfrm 0 18 iw 60 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in	
     let crEdCtrlCheck winstr 10 (set ypos = 10) 100 20 (loc "OS3DPICTURE_2028") EDWIN_RESIZE_MW -> ctrlisfonturl in
-    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 url nil EDWIN_RESIZE_MW -> ctrlfonturl in
-    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_0002") nil -> labelobj in
-    let crEdCtrlTextLine winstr 180 ypos 170 20 path nil EDWIN_RESIZE_MW -> ctrlfontpath in
+    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 fonturl nil EDWIN_RESIZE_MW -> ctrlfonturl in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_2002") nil -> labelobj in
+    let crEdCtrlTextLine winstr 180 ypos 170 20 fontpath nil EDWIN_RESIZE_MW -> ctrlfontpath in
     let crEdCtrlButton winstr 360 ypos 55 20 "..." nil -> pickfontfilebtn in
     let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshfontpath in  	
     
@@ -632,6 +632,8 @@ fun dynamicedit(ewinstr, inst, viewstr) =
       setEdCtrlCheckState ctrlshow show;
       setEdCtrlCheckState ctrltrans trans;
       setEdCtrlCheckState ctrlisurl isurl;
+	  setEdCtrlCheckState ctrlisimgurl isimgurl;
+	  setEdCtrlCheckState ctrlisfonturl isfonturl;
       
       fillEdCtrlSelect ctrlxalign (loc "OS3DPICTURE_0008")::(loc "OS3DPICTURE_0004")::(loc "OS3DPICTURE_0021")::nil;
       fillEdCtrlSelect ctrlyalign (loc "OS3DPICTURE_0026")::(loc "OS3DPICTURE_0004")::(loc "OS3DPICTURE_0003")::nil;
@@ -689,37 +691,37 @@ fun dynamicedit(ewinstr, inst, viewstr) =
       );
 	  
 	  /*** IMAGES FILE ***/
-      setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickImgFile [inst winstr ctrlimgpath ctrlimgurl ctrlisimgurl];
-      setEdCtrlCheckCbState ctrlisimgurl mkfun3 @cbCheckImgUrl [ctrlimgurl ctrlimgpath pickfilebtn];
+      setEdCtrlButtonCb pickimgfilebtn mkfun2 @cbBtnPickImgFile [inst winstr ctrlimgpath ctrlimgurl ctrlisimgurl];
+      setEdCtrlCheckCbState ctrlisimgurl mkfun3 @cbCheckImgUrl [ctrlimgurl ctrlimgpath pickimgfilebtn];
       setEdCtrlTextLineEnable ctrlimgpath 0;
-      setEdCtrlButtonCb refreshpath mkfun2 @cbRefreshBtn [inst winstr ctrlimgpath];
+      setEdCtrlButtonCb refreshimgpath mkfun2 @cbRefreshBtn [inst winstr ctrlimgpath];
 
       if !isimgurl then
       (
         setEdCtrlTextLineEnable ctrlimgurl 0;
-        setEdCtrlButtonEnable pickfilebtn 1;
+        setEdCtrlButtonEnable pickimgfilebtn 1;
       )
       else
       (
         setEdCtrlTextLineEnable ctrlimgurl 1;
-        setEdCtrlButtonEnable pickfilebtn 0;
+        setEdCtrlButtonEnable pickimgfilebtn 0;
       );	  
 
 	  /*** FONTS FILE ***/  
-      setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickFontFile [inst winstr ctrlfontpath ctrlfonturl ctrlisfonturl];
-      setEdCtrlCheckCbState ctrlisfonturl mkfun3 @cbCheckFontUrl [ctrlfonturl ctrlfontpath pickfilebtn];
+      setEdCtrlButtonCb pickfontfilebtn mkfun2 @cbBtnPickFontFile [inst winstr ctrlfontpath ctrlfonturl ctrlisfonturl];
+      setEdCtrlCheckCbState ctrlisfonturl mkfun3 @cbCheckFontUrl [ctrlfonturl ctrlfontpath pickfontfilebtn];
       setEdCtrlTextLineEnable ctrlfontpath 0;
-      setEdCtrlButtonCb refreshpath mkfun2 @cbRefreshBtn [inst winstr ctrlfontpath];
+      setEdCtrlButtonCb refreshfontpath mkfun2 @cbRefreshBtn [inst winstr ctrlfontpath];
 
       if !isfonturl then
       (
         setEdCtrlTextLineEnable ctrlfonturl 0;
-        setEdCtrlButtonEnable pickfilebtn 1;
+        setEdCtrlButtonEnable pickfontfilebtn 1;
       )
       else
       (
         setEdCtrlTextLineEnable ctrlfonturl 1;
-        setEdCtrlButtonEnable pickfilebtn 0;
+        setEdCtrlButtonEnable pickfontfilebtn 0;
       );	  
 	  
 
