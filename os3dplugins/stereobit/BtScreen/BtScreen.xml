@@ -12,7 +12,13 @@
     <PARAM name="texture" type="value" />
     <PARAM name="isurl" type="value" />
     <PARAM name="url" type="value" />
-    <PARAM name="path" type="file" />
+    <PARAM name="path" type="file" />    
+	<PARAM name="isimgurl" type="value" />
+    <PARAM name="imgurl" type="value" />
+    <PARAM name="imgpath" type="file" />
+    <PARAM name="isfonturl" type="value" />
+    <PARAM name="fonturl" type="value" />
+    <PARAM name="fontpath" type="file" />	
     <PARAM name="scalemode" type="value" />
     <PARAM name="posx" type="value" />
     <PARAM name="posy" type="value" />

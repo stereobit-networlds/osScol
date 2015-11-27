@@ -22,7 +22,7 @@ http://www.gnu.org/copyleft/lesser.txt
 */
 
 fun cbCloseEdit(p)=
-  let p -> [ctrltexture ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlpath ctrlisurl ctrlurl ctrlwidth ctrlheight ctrlposx ctrlposy ctrlxpercent ctrlypercent ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlxalign ctrlyalign ctrlopacity ctrltransition ctrltrans ctrlbackground ctrlshow] in
+  let p -> [ctrltexture ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlpath ctrlisurl ctrlurl ctrlimgpath ctrlisimgurl ctrlimgurl ctrlfontpath ctrlisfonturl ctrlfonturl ctrlwidth ctrlheight ctrlposx ctrlposy ctrlxpercent ctrlypercent ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlxalign ctrlyalign ctrlopacity ctrltransition ctrltrans ctrlbackground ctrlshow] in
   let getEdCtrlCheckState ctrltexture -> istexture in
   let getEdCtrlTextLineValue ctrlobjname -> objname in
   let getSelectedEdCtrlSelect ctrlmatname -> matname in
@@ -70,6 +70,12 @@ fun cbCloseEdit(p)=
     ["isurl" itoa isurl]::
     ["url" url]::
     ["path" path]::
+    ["isimgurl" itoa isimgurl]::
+    ["imgurl" imgurl]::
+    ["imgpath" imgpath]::
+    ["isfonturl" itoa isfonturl]::
+    ["fonturl" fonturl]::
+    ["fontpath" fontpath]::	
     ["posx" itoa posx]::
     ["posy" itoa posy]::
     ["width" itoa width]::
@@ -253,12 +259,54 @@ fun cbDlgGetPath(dlg, p, pfile)=
     (
       setEdCtrlTextLineValue ctrlpath file;
       setEdCtrlTextLineValue ctrlurl nil;
-    	setEdCtrlCheckState ctrlisurl 0;
+      setEdCtrlCheckState ctrlisurl 0;
       0;
     );
     setEdCtrlButtonEnable ctrlbtn 1;
   );
   0;;
+  
+fun cbDlgGetImgPath(dlg, p, pfile)=
+  let p -> [inst ctrlbtn winstr ctrlimgpath ctrlimgurl ctrlisimgurl] in
+  (
+    if pfile == nil then nil else
+    let _PtoScol pfile -> file in
+    if file == nil then
+    (
+      _DLGMessageBox _channel winstr.EDW_win (loc "OS3DPICTURE_0005") (loc "OS3DPICTURE_0030") 0;
+      0;
+    )
+    else
+    (
+      setEdCtrlTextLineValue ctrlimgpath file;
+      setEdCtrlTextLineValue ctrlimgurl nil;
+      setEdCtrlCheckState ctrlisimgurl 0;
+      0;
+    );
+    setEdCtrlButtonEnable ctrlbtn 1;
+  );
+  0;;
+
+fun cbDlgGetFontPath(dlg, p, pfile)=
+  let p -> [inst ctrlbtn winstr ctrlfontpath ctrlfonturl ctrlisfonturl] in
+  (
+    if pfile == nil then nil else
+    let _PtoScol pfile -> file in
+    if file == nil then
+    (
+      _DLGMessageBox _channel winstr.EDW_win (loc "OS3DPICTURE_0005") (loc "OS3DPICTURE_0030") 0;
+      0;
+    )
+    else
+    (
+      setEdCtrlTextLineValue ctrlfontpath file;
+      setEdCtrlTextLineValue ctrlfonturl nil;
+      setEdCtrlCheckState ctrlisfonturl 0;
+      0;
+    );
+    setEdCtrlButtonEnable ctrlbtn 1;
+  );
+  0;;  
 
 
 fun cbBtnPickFile(ctrlbtn, p)=
@@ -270,6 +318,26 @@ fun cbBtnPickFile(ctrlbtn, p)=
     _DLGrflopen _DLGOpenFile _channel winstr.EDW_win fpath fname "Bitmaps\0*.bmp;*.jpg;*.png;*.tga;\0Bitmap\0*.bmp\0Jpeg\0*.jpg\0Png\0*.png\0Targa\0*.tga\0All\0*.*\0\0" @cbDlgGetPath [inst ctrlbtn winstr ctrlpath ctrlurl ctrlisurl];
   );
   0;;
+  
+fun cbBtnPickImgFile(ctrlbtn, p)=
+  let p -> [inst winstr ctrlimgpath ctrlimgurl ctrlisimgurl] in
+  let getEdCtrlTextLineValue ctrlimgpath -> path in
+  let getPathFile path "" -> [fpath fname] in
+  (
+    setEdCtrlButtonEnable ctrlbtn 1;
+    _DLGrflopen _DLGOpenFile _channel winstr.EDW_win fpath fname "Bitmaps\0*.bmp;*.jpg;*.png;*.tga;\0Bitmap\0*.bmp\0Jpeg\0*.jpg\0Png\0*.png\0Targa\0*.tga\0All\0*.*\0\0" @cbDlgGetImgPath [inst ctrlbtn winstr ctrlimgpath ctrlimgurl ctrlisimgurl];
+  );
+  0;;
+
+fun cbBtnPickFontFile(ctrlbtn, p)=
+  let p -> [inst winstr ctrlfontpath ctrlfonturl ctrlisfonturl] in
+  let getEdCtrlTextLineValue ctrlfontpath -> path in
+  let getPathFile path "" -> [fpath fname] in
+  (
+    setEdCtrlButtonEnable ctrlbtn 1;
+    _DLGrflopen _DLGOpenFile _channel winstr.EDW_win fpath fname "Bitmaps\0*.bmp;*.jpg;*.png;*.tga;\0Bitmap\0*.bmp\0Jpeg\0*.jpg\0Png\0*.png\0Targa\0*.tga\0All\0*.*\0\0" @cbDlgGetFontPath [inst ctrlbtn winstr ctrlfontpath ctrlfonturl ctrlisfonturl];
+  );
+  0;;  
 
 
 fun cbCheckUrl(ctrl, state, p)=
@@ -286,6 +354,36 @@ fun cbCheckUrl(ctrl, state, p)=
   	 setEdCtrlButtonEnable pickbtn 1;
   );
   0;;
+  
+fun cbCheckImgUrl(ctrl, state, p)=
+  let p -> [ctrlimgurl ctrlimgpath pickbtn] in
+  if state then
+  (
+  	 setEdCtrlTextLineEnable ctrlimgurl 1 ;
+  	 setEdCtrlTextLineValue ctrlimgpath nil;
+  	 setEdCtrlButtonEnable pickbtn 0;
+  )
+  else
+  (
+     setEdCtrlTextLineEnable ctrlimgurl 0;
+  	 setEdCtrlButtonEnable pickbtn 1;
+  );
+  0;;
+
+fun cbCheckFontUrl(ctrl, state, p)=
+  let p -> [ctrlfonturl ctrlfontpath pickbtn] in
+  if state then
+  (
+  	 setEdCtrlTextLineEnable ctrlfonturl 1 ;
+  	 setEdCtrlTextLineValue ctrlfontpath nil;
+  	 setEdCtrlButtonEnable pickbtn 0;
+  )
+  else
+  (
+     setEdCtrlTextLineEnable ctrlfonturl 0;
+  	 setEdCtrlButtonEnable pickbtn 1;
+  );
+  0;;  
 
 
 fun cbCheckTexture(ctrl, state, p)=
@@ -386,7 +484,17 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     let (getPluginInstanceParam inst "path") -> path in
     let atoi (getPluginInstanceParam inst "isurl") -> isurl in
     let if isurl == nil then 0 else isurl -> isurl in
-    let (getPluginInstanceParam inst "url") -> url in      
+    let (getPluginInstanceParam inst "url") -> url in 
+
+    let (getPluginInstanceParam inst "imgpath") -> imgpath in
+    let atoi (getPluginInstanceParam inst "isimgurl") -> isimgurl in
+    let if isimgurl == nil then 0 else isimgurl -> isimgurl in
+    let (getPluginInstanceParam inst "imgurl") -> imgurl in 
+
+    let (getPluginInstanceParam inst "fontpath") -> fontpath in
+    let atoi (getPluginInstanceParam inst "isfonturl") -> isfonturl in
+    let if isfonturl == nil then 0 else isfonturl -> isfonturl in
+    let (getPluginInstanceParam inst "fonturl") -> fonturl in 	
     
     let atoi (getPluginInstanceParam inst "xpercent") -> xpercent in
     let if xpercent == nil then 0 else xpercent -> xpercent in
@@ -455,7 +563,27 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_0002") nil -> labelobj in
     let crEdCtrlTextLine winstr 180 ypos 170 20 path nil EDWIN_RESIZE_MW -> ctrlpath in
     let crEdCtrlButton winstr 360 ypos 55 20 "..." nil -> pickfilebtn in
-    let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshpath in    
+    let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshpath in   
+	
+    /*IMG UI */
+    let crEdFrameWindow _channel ewinstr 0 0 iw 80 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_1006") (loc "OS3DPICTURE_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 60 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in	
+    let crEdCtrlCheck winstr 10 (set ypos = 10) 100 20 (loc "OS3DPICTURE_1028") EDWIN_RESIZE_MW -> ctrlisimgurl in
+    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 url nil EDWIN_RESIZE_MW -> ctrlimgurl in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_0002") nil -> labelobj in
+    let crEdCtrlTextLine winstr 180 ypos 170 20 path nil EDWIN_RESIZE_MW -> ctrlimgpath in
+    let crEdCtrlButton winstr 360 ypos 55 20 "..." nil -> pickimgfilebtn in
+    let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshimgpath in  
+	
+    /* FONTS UI */
+    let crEdFrameWindow _channel ewinstr 0 0 iw 80 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_2006") (loc "OS3DPICTURE_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 60 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in	
+    let crEdCtrlCheck winstr 10 (set ypos = 10) 100 20 (loc "OS3DPICTURE_2028") EDWIN_RESIZE_MW -> ctrlisfonturl in
+    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 url nil EDWIN_RESIZE_MW -> ctrlfonturl in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_0002") nil -> labelobj in
+    let crEdCtrlTextLine winstr 180 ypos 170 20 path nil EDWIN_RESIZE_MW -> ctrlfontpath in
+    let crEdCtrlButton winstr 360 ypos 55 20 "..." nil -> pickfontfilebtn in
+    let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshfontpath in  	
     
     let crEdFrameWindow _channel ewinstr 0 0 iw 155 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_0020") (loc "OS3DPICTURE_0012") -> winfrm in
     let crEdWindow _channel winfrm 0 18 iw 135 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
@@ -543,6 +671,7 @@ fun dynamicedit(ewinstr, inst, viewstr) =
       setEdCtrlTextLineEnable ctrlobjname 0;
       setEdCtrlButtonCb refreshobjname mkfun2 @cbRefreshBtnSpec [ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex];
       
+	  
       setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickFile [inst winstr ctrlpath ctrlurl ctrlisurl];
       setEdCtrlCheckCbState ctrlisurl mkfun3 @cbCheckUrl [ctrlurl ctrlpath pickfilebtn];
       setEdCtrlTextLineEnable ctrlpath 0;
@@ -558,6 +687,41 @@ fun dynamicedit(ewinstr, inst, viewstr) =
         setEdCtrlTextLineEnable ctrlurl 1;
         setEdCtrlButtonEnable pickfilebtn 0;
       );
+	  
+	  /*** IMAGES FILE ***/
+      setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickImgFile [inst winstr ctrlimgpath ctrlimgurl ctrlisimgurl];
+      setEdCtrlCheckCbState ctrlisimgurl mkfun3 @cbCheckImgUrl [ctrlimgurl ctrlimgpath pickfilebtn];
+      setEdCtrlTextLineEnable ctrlimgpath 0;
+      setEdCtrlButtonCb refreshpath mkfun2 @cbRefreshBtn [inst winstr ctrlimgpath];
+
+      if !isimgurl then
+      (
+        setEdCtrlTextLineEnable ctrlimgurl 0;
+        setEdCtrlButtonEnable pickfilebtn 1;
+      )
+      else
+      (
+        setEdCtrlTextLineEnable ctrlimgurl 1;
+        setEdCtrlButtonEnable pickfilebtn 0;
+      );	  
+
+	  /*** FONTS FILE ***/  
+      setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickFontFile [inst winstr ctrlfontpath ctrlfonturl ctrlisfonturl];
+      setEdCtrlCheckCbState ctrlisfonturl mkfun3 @cbCheckFontUrl [ctrlfonturl ctrlfontpath pickfilebtn];
+      setEdCtrlTextLineEnable ctrlfontpath 0;
+      setEdCtrlButtonCb refreshpath mkfun2 @cbRefreshBtn [inst winstr ctrlfontpath];
+
+      if !isfonturl then
+      (
+        setEdCtrlTextLineEnable ctrlfonturl 0;
+        setEdCtrlButtonEnable pickfilebtn 1;
+      )
+      else
+      (
+        setEdCtrlTextLineEnable ctrlfonturl 1;
+        setEdCtrlButtonEnable pickfilebtn 0;
+      );	  
+	  
 
       if istexture then
       (
@@ -609,6 +773,6 @@ fun dynamicedit(ewinstr, inst, viewstr) =
         setEdCtrlButtonEnable pickbtn 0;
       );
       
-      [mkfun1 @cbCloseEdit [ctrltexture ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlpath ctrlisurl ctrlurl ctrlwidth ctrlheight ctrlposx ctrlposy ctrlxpercent ctrlypercent ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlxalign ctrlyalign ctrlopacity ctrltransition ctrltrans ctrlbackground ctrlshow] nil];
+      [mkfun1 @cbCloseEdit [ctrltexture ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlpath ctrlisurl ctrlurl ctrlimgpath ctrlisimgurl ctrlimgurl ctrlfontpath ctrlisfonturl ctrlfonturl ctrlwidth ctrlheight ctrlposx ctrlposy ctrlxpercent ctrlypercent ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlxalign ctrlyalign ctrlopacity ctrltransition ctrltrans ctrlbackground ctrlshow] nil];
     );
   );;

@@ -1,0 +1,34 @@
+LANGUAGE russian
+LANGCODE ru
+OS3DPICTURE_DESC Отображение локального или веб-изображения
+OS3DPICTURE_HELP http://www.openspace3d.com/documentation/EN/plugits/Media/pictureplugit.HTML
+OS3DPICTURE_0001 Применить на текстуру
+OS3DPICTURE_0002 Путь к
+OS3DPICTURE_0003 Cнизу
+OS3DPICTURE_0004 По центру
+OS3DPICTURE_0005 Ошибка
+OS3DPICTURE_0006 Настройка файла
+OS3DPICTURE_0007 Высота
+OS3DPICTURE_0008 Слева
+OS3DPICTURE_0009 Название материала
+OS3DPICTURE_0010 Материальный параметр
+OS3DPICTURE_0011 Материал техника
+OS3DPICTURE_0012 Свернуть / восстановить
+OS3DPICTURE_0013 Параметр Разное
+OS3DPICTURE_0014 Имя объекта
+OS3DPICTURE_0015 Отступ
+OS3DPICTURE_0016 Непрозрачность
+OS3DPICTURE_0017 Передайте текстуру
+OS3DPICTURE_0018 POS X
+OS3DPICTURE_0019 POS Y
+OS3DPICTURE_0020 Положение / размер параметра
+OS3DPICTURE_0021 Справа
+OS3DPICTURE_0022 Показать / скрыть переход (МС)
+OS3DPICTURE_0023 Показать в фоновом режиме
+OS3DPICTURE_0024 Показать при старте
+OS3DPICTURE_0025 Техника пасс
+OS3DPICTURE_0026 Сверху
+OS3DPICTURE_0027 Прозрачность
+OS3DPICTURE_0028 URL-адрес
+OS3DPICTURE_0029 Ширина
+OS3DPICTURE_0030 Ваш файл должны быть в разделе scol.
