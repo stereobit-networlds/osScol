@@ -59,7 +59,7 @@ fun cbV3DdsMainWin(winstr)=
   *  return 0
   **/
 fun initScene(viewstr, sessionstr)=
-  clearModLinks this;
+  clearModLinks thisOS;  /** thisOS used insted of this **********/
   destroyAllPluginInstances;
   
   V3DenableNavigate sessionstr 1;

@@ -236,8 +236,9 @@ fun removeInstCallBacks(inst)=
   while (i < size) do
   (
     let nth_list inst.INST_plugin.PLUG_lAction i -> action in
-    (
-      _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
+    ( 
+	  /** OS compatibility **************/ 
+      _DMSdefineActionOS _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
     );
     set i = i + 1;
   );
@@ -248,7 +249,8 @@ fun removeInstCallBacks(inst)=
   (
     let nth_list inst.INST_lAction i -> action in
     (
-      _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
+	  /** OS compatibility **************/
+      _DMSdefineActionOS _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
     );
     set i = i + 1;
   );
@@ -1841,8 +1843,9 @@ fun loadPluginInstance(groupstr, instancemark, start)=
       let XMLgetParam linkmark "action" -> action in
       let XMLgetData linkmark -> value in
       let if (!strcmpi value "") || value == nil then "_" else value -> value in
-        setModLink this nil strbuild ((strcatn instname::"."::event::nil)::(strcatn destgroup::"."::destinst::"."::action::nil)::value::"_"::"_"::nil)::nil;
-      
+        setModLink thisOS nil strbuild ((strcatn instname::"."::event::nil)::(strcatn destgroup::"."::destinst::"."::action::nil)::value::"_"::"_"::nil)::nil;
+        /* thisOS used insted of this ****************/
+	  
       set llinkmarks = tl llinkmarks;
     );
     createPluginInstance groupstr plugstr instname lparams laction levent start;
@@ -1952,8 +1955,9 @@ fun loadPluginInstances(groupstr, start)=
               let XMLgetParam linkmark "action" -> action in
               let XMLgetData linkmark -> value in
               let if (!strcmpi value "") || value == nil then "_" else value -> value in
-                setModLink this nil strbuild ((strcatn instname::"."::event::nil)::(strcatn destgroup::"."::destinst::"."::action::nil)::value::"_"::"_"::nil)::nil;
-              
+                setModLink thisOS nil strbuild ((strcatn instname::"."::event::nil)::(strcatn destgroup::"."::destinst::"."::action::nil)::value::"_"::"_"::nil)::nil;
+                /* thisOS used insted of this **************/
+				
               set llinkmarks = tl llinkmarks;
             );
             
@@ -1980,7 +1984,9 @@ fun cbEventOnLoad(trm, p)=
   let p -> [inst event param reply] in
   (
     _deltimer trm;
-    _DMSevent this (getPluginInstanceEvent inst event) param reply;
+	/*************** DMSeventOS version from l/mndhdms/minidhdms.pkg **/
+    _DMSeventOS thisOS (getPluginInstanceEvent inst event) param reply;
+	/* thisOS used insted of this ************/
     0;
   )
   else nil;
@@ -2002,7 +2008,9 @@ fun cbEventOnLoad(trm, p)=
 fun SendPluginEvent(inst, event, param, reply)=
   if bPluginsLoaded then
   (
-    _DMSevent this (getPluginInstanceEvent inst event) param reply;
+    /*************** DMSeventOS version from l/mndhdms/minidhdms.pkg **/
+    _DMSeventOS thisOS (getPluginInstanceEvent inst event) param reply;
+	/* thisOS used insted of this ************/
     0;
   )
   else
@@ -2030,7 +2038,8 @@ fun SendPluginEvent(inst, event, param, reply)=
   *  \return 0
   **/
 fun PluginRegisterAction(inst, action, f)=
-  _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) (mkfun6 @cbPluginAction [inst f]);
+  /** OS compatibility **************/
+  _DMSdefineActionOS _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) (mkfun6 @cbPluginAction [inst f]);
   0;;
 
 
@@ -2045,7 +2054,8 @@ fun PluginRegisterAction(inst, action, f)=
   *  \return 0
   **/
 fun PluginUnRegisterAction(inst, action)=
-  _DMSdefineAction _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
+  /** OS compatibility **************/
+  _DMSdefineActionOS _DMSrootModuleOS (strcatn inst.INST_sName::"."::action::nil) nil;
   0;;
 
 

@@ -1,0 +1,614 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://scol.stereobit.gr
+
+Copyright (c) 2016 stereobit.networlds
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+-----------------------------------------------------------------------------
+*/
+
+fun cbCloseEdit(p)=
+  let p -> [ctrltexture ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlpath ctrlisurl ctrlurl ctrlwidth ctrlheight ctrlposx ctrlposy ctrlxpercent ctrlypercent ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlxalign ctrlyalign ctrlopacity ctrltransition ctrltrans ctrlbackground ctrlshow] in
+  let getEdCtrlCheckState ctrltexture -> istexture in
+  let getEdCtrlTextLineValue ctrlobjname -> objname in
+  let getSelectedEdCtrlSelect ctrlmatname -> matname in
+  let getSelectedEdCtrlSelectPos ctrlmattech -> technique in
+  let getSelectedEdCtrlSelectPos ctrlmatpass -> pass in
+  let getSelectedEdCtrlSelectPos ctrlmattex -> texture in
+  let getEdCtrlTextLineValue ctrlpath -> path in
+  let getEdCtrlCheckState ctrlisurl -> isurl in
+  let getEdCtrlTextLineValue ctrlurl -> url in
+  
+  let getEdCtrlTextLineValue ctrlimgpath -> imgpath in
+  let getEdCtrlCheckState ctrlisimgurl -> isimgurl in
+  let getEdCtrlTextLineValue ctrlimgurl -> imgurl in
+
+  let getEdCtrlTextLineValue ctrlfontpath -> fontpath in
+  let getEdCtrlCheckState ctrlisfonturl -> isfonturl in
+  let getEdCtrlTextLineValue ctrlfonturl -> fonturl in  
+  
+  let ftoi getEdCtrlFloatValue ctrlposx -> posx in
+  let ftoi getEdCtrlFloatValue ctrlposy -> posy in
+  let ftoi getEdCtrlFloatValue ctrlwidth -> width in
+  let ftoi getEdCtrlFloatValue ctrlheight -> height in
+  let getEdCtrlCheckState ctrlxpercent -> xpercent in
+  let getEdCtrlCheckState ctrlypercent -> ypercent in
+  let getEdCtrlCheckState ctrlwpercent -> wpercent in
+  let getEdCtrlCheckState ctrlhpercent -> hpercent in
+  let ftoi getEdCtrlFloatValue ctrlxoffset -> xoffset in
+  let ftoi getEdCtrlFloatValue ctrlyoffset -> yoffset in
+  let ftoi getEdCtrlFloatValue ctrlwoffset -> woffset in
+  let ftoi getEdCtrlFloatValue ctrlhoffset -> hoffset in
+  let getSelectedEdCtrlSelectPos ctrlxalign -> xalign in
+  let getSelectedEdCtrlSelectPos ctrlyalign -> yalign in
+  let getEdCtrlCheckState ctrlbackground -> background in
+  
+  let ftoi getEdCtrlFloatValue ctrlopacity -> opacity in
+  let ftoi getEdCtrlFloatValue ctrltransition -> transition in
+  let getEdCtrlCheckState ctrltrans -> transparency in
+  let getEdCtrlCheckState ctrlshow -> show in
+    ["istexture" itoa istexture]::
+    ["object" objname]::
+    ["material" matname]::
+    ["technique" itoa technique]::
+    ["pass" itoa pass]::
+    ["texture" itoa texture]::
+    ["isurl" itoa isurl]::
+    ["url" url]::
+    ["path" path]::
+    ["posx" itoa posx]::
+    ["posy" itoa posy]::
+    ["width" itoa width]::
+    ["height" itoa height]::
+    ["xpercent" itoa xpercent]::
+    ["ypercent" itoa ypercent]::
+    ["wpercent" itoa wpercent]::
+    ["hpercent" itoa hpercent]::
+    ["xoffset" itoa xoffset]::
+    ["yoffset" itoa yoffset]::
+    ["woffset" itoa woffset]::
+    ["hoffset" itoa hoffset]::
+    ["xalign" itoa xalign]::
+    ["yalign" itoa yalign]::
+    ["background" itoa background]::
+    ["opacity" itoa opacity]::
+    ["transition" itoa transition]::
+    ["transparency" itoa transparency]::
+    ["show" itoa show]::
+    nil;;
+
+
+fun fillMaterialTextureSelector(viewstr, ctrlselect, mat, tech, pass)=
+  if mat == nil then nil else
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let SO3MaterialNumberOfTexturesByTechniqueAndPass mat tech pass -> size in
+  let 0 -> i in
+  let nil -> lmatname in
+  (
+    while i < size do
+    (
+      let SO3MaterialTextureUnitGetNameByIndex mat tech pass i -> matname in
+        set lmatname = lcat lmatname matname::nil;
+      
+      set i = i + 1;
+    );
+    
+    fillEdCtrlSelect ctrlselect lmatname;
+  );
+  0;;
+
+
+fun cbMatPassName(ctrlstr, pos, elem, p)=
+  let p -> [inst viewstr group ctrlmatname ctrlmattech ctrlmattex] in
+  let getSelectedEdCtrlSelectPos ctrlmattech -> tech in
+  let getSelectedEdCtrlSelect ctrlmatname -> matname in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let if matname != nil then SO3SceneGetMaterial (V3DgetSession sessionstr) group matname else nil -> mat in
+    fillMaterialTextureSelector viewstr ctrlmattex mat tech pos;
+  0;;
+
+
+fun fillMaterialPassSelector(viewstr, p, mat, tech)=
+  let p -> [ctrlselect ctrlmatname ctrlmattech ctrlmattex] in
+  if mat == nil then nil else
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let SO3MaterialNumberOfPassesByTechnique mat tech -> size in
+  let 0 -> i in
+  let nil -> lmatname in
+  (
+    while i < size do
+    (
+      let SO3MaterialPassGetNameByIndex mat tech i -> matname in
+        set lmatname = lcat lmatname matname::nil;
+      
+      set i = i + 1;
+    );
+    
+    fillEdCtrlSelect ctrlselect lmatname;
+    fillMaterialTextureSelector viewstr ctrlmattex mat tech 0;
+  );
+  0;;
+
+
+fun cbMatTechniqueName(ctrlstr, pos, elem, p)=
+  let p -> [inst viewstr group ctrlmatname ctrlmatpass ctrlmattex] in
+  let getSelectedEdCtrlSelect ctrlmatname -> matname in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let if matname != nil then SO3SceneGetMaterial (V3DgetSession sessionstr) group matname else nil -> mat in
+    fillMaterialPassSelector viewstr [ctrlmatpass ctrlmatname ctrlstr ctrlmattex] mat pos;
+  0;;
+
+
+fun fillMaterialTechSelector(viewstr, p, mat)=
+  let p -> [ctrlselect ctrlmatname ctrlmatpass ctrlmattex] in
+  if mat == nil then nil else
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let SO3MaterialNumberOfTechniques mat -> size in
+  let 0 -> i in
+  let nil -> lmatname in
+  (
+    while i < size do
+    (
+      let SO3MaterialTechniqueGetNameByIndex mat i -> matname in
+        set lmatname = lcat lmatname matname::nil;
+      
+      set i = i + 1;
+    );
+    
+    fillEdCtrlSelect ctrlselect lmatname;
+    fillMaterialPassSelector viewstr [ctrlmatpass ctrlmatname ctrlselect ctrlmattex] mat 0;
+  );
+  0;;
+
+
+fun cbMatName(ctrlstr, pos, elem, p)=
+  let p -> [inst viewstr group ctrlmattech ctrlmatpass ctrlmattex] in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let if elem != nil then SO3SceneGetMaterial (V3DgetSession sessionstr) group elem else nil -> mat in
+    fillMaterialTechSelector viewstr [ctrlmattech ctrlstr ctrlmatpass ctrlmattex] mat;
+  0;;
+
+
+fun fillMaterialSelector(viewstr, p, objname)=
+  let p -> [inst ctrlselect ctrlmattech ctrlmatpass ctrlmattex] in
+  if objname == nil then nil else
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let SO3SceneGetObject (V3DgetSession sessionstr) objname -> obj in
+  let SO3EntityGetResourceGroup obj -> group in
+  let SO3EntityMaterialList obj -> lmat in
+  let nil -> lmatname in
+  (
+    setEdCtrlSelectCb ctrlselect mkfun4 @cbMatName [inst viewstr group ctrlmattech ctrlmatpass ctrlmattex];
+    setEdCtrlSelectCb ctrlmattech mkfun4 @cbMatTechniqueName [inst viewstr group ctrlselect ctrlmatpass ctrlmattex];
+    setEdCtrlSelectCb ctrlmatpass mkfun4 @cbMatPassName [inst viewstr group ctrlselect ctrlmattech ctrlmattex];
+
+    let sizelist lmat -> size in
+    let 0 -> i in
+    while i < size do
+    (
+      let nth_list lmat i -> mat in
+      let SO3MaterialGetName mat -> matname in
+        set lmatname = lcat lmatname matname::nil;
+      
+      set i = i + 1;
+    );
+    
+    fillEdCtrlSelect ctrlselect lmatname;
+    fillMaterialTechSelector viewstr [ctrlmattech ctrlselect ctrlmatpass ctrlmattex] (SO3SceneGetMaterial (V3DgetSession sessionstr) group (hd lmatname));
+  );
+  0;;
+  
+
+fun cbSelectObj(val, type, p)=
+  let p -> [inst winstr viewstr ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex] in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let SO3SceneGetObject (V3DgetSession sessionstr) val -> obj in
+  if obj == nil then nil else
+  (
+    setEdCtrlTextLineValue ctrlobjname val;
+    fillMaterialSelector viewstr [inst ctrlmatname ctrlmattech ctrlmatpass ctrlmattex] val;
+  );
+  0;;
+
+
+fun cbCloseRes(ctrlbtn)=
+  setEdCtrlButtonEnable ctrlbtn 1;
+  0;;
+
+
+fun cbBtnPickObj(ctrlbtn, p)=
+  let p -> [inst winstr viewstr ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex objname] in
+  (
+    setEdCtrlButtonEnable ctrlbtn 0;
+    dlgSelectPluginInstanceResource inst winstr iTypeEntity objname mkfun3 @cbSelectObj [inst winstr viewstr ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex] mkfun1 @cbCloseRes ctrlbtn 0;
+  );
+  0;;
+
+
+fun cbDlgGetPath(dlg, p, pfile)=
+  let p -> [inst ctrlbtn winstr ctrlpath ctrlurl ctrlisurl] in
+  (
+    if pfile == nil then nil else
+    let _PtoScol pfile -> file in
+    if file == nil then
+    (
+      _DLGMessageBox _channel winstr.EDW_win (loc "OS3DPICTURE_0005") (loc "OS3DPICTURE_0030") 0;
+      0;
+    )
+    else
+    (
+      setEdCtrlTextLineValue ctrlpath file;
+      setEdCtrlTextLineValue ctrlurl nil;
+    	setEdCtrlCheckState ctrlisurl 0;
+      0;
+    );
+    setEdCtrlButtonEnable ctrlbtn 1;
+  );
+  0;;
+
+
+fun cbBtnPickFile(ctrlbtn, p)=
+  let p -> [inst winstr ctrlpath ctrlurl ctrlisurl] in
+  let getEdCtrlTextLineValue ctrlpath -> path in
+  let getPathFile path "" -> [fpath fname] in
+  (
+    setEdCtrlButtonEnable ctrlbtn 1;
+    _DLGrflopen _DLGOpenFile _channel winstr.EDW_win fpath fname "Bitmaps\0*.bmp;*.jpg;*.png;*.tga;\0Bitmap\0*.bmp\0Jpeg\0*.jpg\0Png\0*.png\0Targa\0*.tga\0All\0*.*\0\0" @cbDlgGetPath [inst ctrlbtn winstr ctrlpath ctrlurl ctrlisurl];
+  );
+  0;;
+
+
+fun cbCheckUrl(ctrl, state, p)=
+  let p -> [ctrlurl ctrlpath pickbtn] in
+  if state then
+  (
+  	 setEdCtrlTextLineEnable ctrlurl 1 ;
+  	 setEdCtrlTextLineValue ctrlpath nil;
+  	 setEdCtrlButtonEnable pickbtn 0;
+  )
+  else
+  (
+     setEdCtrlTextLineEnable ctrlurl 0;
+  	 setEdCtrlButtonEnable pickbtn 1;
+  );
+  0;;
+
+
+fun cbCheckTexture(ctrl, state, p)=
+  let p -> [pickbtn ctrlposx ctrlxpercent ctrlxalign ctrlposy ctrlypercent ctrlyalign ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlbackground] in
+  if state then
+  (
+    setEdCtrlFloatEnable ctrlposx 0;
+    setEdCtrlFloatEnable ctrlposy 0;
+    setEdCtrlCheckEnable ctrlxpercent 0;
+    setEdCtrlCheckEnable ctrlypercent 0;
+    setEdCtrlSelectEnable ctrlxalign 0;
+    setEdCtrlSelectEnable ctrlyalign 0;
+    setEdCtrlCheckEnable ctrlwpercent 0;
+    setEdCtrlCheckEnable ctrlhpercent 0;
+    
+    setEdCtrlFloatEnable ctrlxoffset 0;
+    setEdCtrlFloatEnable ctrlyoffset 0;
+    setEdCtrlFloatEnable ctrlwoffset 0;
+    setEdCtrlFloatEnable ctrlhoffset 0;
+    
+    setEdCtrlCheckEnable ctrlbackground 0;
+    
+    setEdCtrlSelectEnable ctrlmatname 1;
+    setEdCtrlSelectEnable ctrlmattech 1;
+    setEdCtrlSelectEnable ctrlmatpass 1;
+    setEdCtrlSelectEnable ctrlmattex 1;
+    
+    setEdCtrlButtonEnable pickbtn 1;
+  )
+  else
+  (
+    setEdCtrlFloatEnable ctrlposx 1;
+    setEdCtrlFloatEnable ctrlposy 1;
+    setEdCtrlCheckEnable ctrlxpercent 1;
+    setEdCtrlCheckEnable ctrlypercent 1;
+    setEdCtrlSelectEnable ctrlxalign 1;
+    setEdCtrlSelectEnable ctrlyalign 1;
+    setEdCtrlCheckEnable ctrlwpercent 1;
+    setEdCtrlCheckEnable ctrlhpercent 1;
+    
+    setEdCtrlFloatEnable ctrlxoffset (getEdCtrlCheckState ctrlxpercent);
+    setEdCtrlFloatEnable ctrlyoffset (getEdCtrlCheckState ctrlypercent);
+    setEdCtrlFloatEnable ctrlwoffset (getEdCtrlCheckState ctrlwpercent);
+    setEdCtrlFloatEnable ctrlhoffset (getEdCtrlCheckState ctrlhpercent);
+    
+    setEdCtrlCheckEnable ctrlbackground 1;
+    
+    setEdCtrlSelectEnable ctrlmatname 0;
+    setEdCtrlSelectEnable ctrlmattech 0;
+    setEdCtrlSelectEnable ctrlmatpass 0;
+    setEdCtrlSelectEnable ctrlmattex 0;
+    
+    setEdCtrlButtonEnable pickbtn 0;
+  );
+  0;;
+
+
+fun cbRefreshBtn(pickbtn, p)=
+  let p -> [inst winstr ctrlobjname] in
+  setEdCtrlTextLineValue ctrlobjname "";
+0;;
+
+
+fun cbRefreshBtnSpec(pickbtn, p)=
+  let p -> [ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex] in
+  (
+    setEdCtrlTextLineValue ctrlobjname "";
+
+    fillEdCtrlSelect ctrlmatname nil;
+    fillEdCtrlSelect ctrlmattech nil;
+    fillEdCtrlSelect ctrlmatpass nil;
+    fillEdCtrlSelect ctrlmattex nil;
+  );
+  0;;
+
+
+fun cbPercentCheck(ctrlstr, state, ctrlfloat)=
+  setEdCtrlFloatEnable ctrlfloat state;
+  0;;
+
+
+fun dynamicedit(ewinstr, inst, viewstr) =
+  let [455 540] -> [iw ih] in
+  let 10 -> ypos in
+  (
+    setEdWindowSize ewinstr iw ih;
+    let (getPluginInstanceParam inst "object") -> objname in
+    let (getPluginInstanceParam inst "material") -> matname in
+    let atoi (getPluginInstanceParam inst "technique") -> technique in
+    let if technique == nil then 0 else technique -> technique in
+    let atoi (getPluginInstanceParam inst "pass") -> pass in
+    let if pass == nil then 0 else pass -> pass in
+    let atoi (getPluginInstanceParam inst "texture") -> texture in
+    let if texture == nil then 0 else texture -> texture in
+    let atoi (getPluginInstanceParam inst "istexture") -> istexture in
+    let if istexture == nil then 0 else istexture -> istexture in
+    
+    let (getPluginInstanceParam inst "path") -> path in
+    let atoi (getPluginInstanceParam inst "isurl") -> isurl in
+    let if isurl == nil then 0 else isurl -> isurl in
+    let (getPluginInstanceParam inst "url") -> url in      
+    
+    let atoi (getPluginInstanceParam inst "xpercent") -> xpercent in
+    let if xpercent == nil then 0 else xpercent -> xpercent in
+    let atoi (getPluginInstanceParam inst "xalign") -> xalign in
+    let if xalign == nil then 0 else xalign -> xalign in
+    let atoi (getPluginInstanceParam inst "posx") -> posx in
+    let if posx == nil then 0 else posx -> posx in
+    let atoi (getPluginInstanceParam inst "ypercent") -> ypercent in
+    let if ypercent == nil then 0 else ypercent -> ypercent in
+    let atoi (getPluginInstanceParam inst "yalign") -> yalign in
+    let if yalign == nil then 0 else yalign -> yalign in
+    let atoi (getPluginInstanceParam inst "posy") -> posy in
+    let if posy == nil then 0 else posy -> posy in
+    let atoi (getPluginInstanceParam inst "wpercent") -> wpercent in
+    let if wpercent == nil then 1 else wpercent -> wpercent in
+    let atoi (getPluginInstanceParam inst "width") -> width in
+    let if width == nil then 100 else width -> width in
+    let atoi (getPluginInstanceParam inst "hpercent") -> hpercent in
+    let if hpercent == nil then 1 else hpercent -> hpercent in
+    let atoi (getPluginInstanceParam inst "height") -> height in
+    let if height == nil then 100 else height -> height in
+    
+    let atoi (getPluginInstanceParam inst "xoffset") -> xoffset in
+    let if xoffset == nil then 0 else xoffset -> xoffset in
+    let atoi (getPluginInstanceParam inst "yoffset") -> yoffset in
+    let if yoffset == nil then 0 else yoffset -> yoffset in  
+    let atoi (getPluginInstanceParam inst "woffset") -> woffset in
+    let if woffset == nil then 0 else woffset -> woffset in
+    let atoi (getPluginInstanceParam inst "hoffset") -> hoffset in
+    let if hoffset == nil then 0 else hoffset -> hoffset in
+    
+    let atoi (getPluginInstanceParam inst "background") -> background in
+    let if (background == nil) then 1 else background -> background in
+    
+    let atoi (getPluginInstanceParam inst "opacity") -> opacity in
+    let if opacity == nil then 100 else opacity -> opacity in
+    let atoi (getPluginInstanceParam inst "transition") -> transition in
+    let if transition == nil then 0 else transition -> transition in
+    
+    let atoi (getPluginInstanceParam inst "transparency") -> trans in
+    let if (trans == nil) then 0 else trans -> trans in
+    
+    let atoi (getPluginInstanceParam inst "show") -> show in
+    let if (show == nil) then 1 else show -> show in
+    
+    let crEdFrameWindow _channel ewinstr 0 0 iw 180 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_0010") (loc "OS3DPICTURE_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 160 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+    let crEdCtrlCheck winstr 10 ypos 280 20 (loc "OS3DPICTURE_0001") EDWIN_RESIZE_MW -> ctrltexture in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 170 20 (loc "OS3DPICTURE_0014") nil -> labelobj in
+    let crEdCtrlTextLine winstr 180 ypos 170 20 objname nil EDWIN_RESIZE_MW -> ctrlobjname in
+    let crEdCtrlButton winstr 360 ypos 55 20 "..." nil -> pickbtn in
+    let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshobjname in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 170 20 (loc "OS3DPICTURE_0009") nil -> labelmat in
+    let crEdCtrlSelect winstr 180 ypos (iw - 180) 120 EDWIN_RESIZE_MW -> ctrlmatname in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 170 20 (loc "OS3DPICTURE_0011") nil -> labeltech in
+    let crEdCtrlSelect winstr 180 ypos (iw - 180) 120 EDWIN_RESIZE_MW -> ctrlmattech in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 170 20 (loc "OS3DPICTURE_0025") nil -> labelpass in
+    let crEdCtrlSelect winstr 180 ypos (iw - 180) 120 EDWIN_RESIZE_MW -> ctrlmatpass in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 170 20 (loc "OS3DPICTURE_0017") nil -> labelpass in
+    let crEdCtrlSelect winstr 180 ypos (iw - 180) 120 EDWIN_RESIZE_MW -> ctrlmattex in
+    
+    let crEdFrameWindow _channel ewinstr 0 0 iw 80 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_0006") (loc "OS3DPICTURE_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 60 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+    let crEdCtrlCheck winstr 10 (set ypos = 10) 100 20 (loc "OS3DPICTURE_0028") EDWIN_RESIZE_MW -> ctrlisurl in
+    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 url nil EDWIN_RESIZE_MW -> ctrlurl in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_0002") nil -> labelobj in
+    let crEdCtrlTextLine winstr 180 ypos 170 20 path nil EDWIN_RESIZE_MW -> ctrlpath in
+    let crEdCtrlButton winstr 360 ypos 55 20 "..." nil -> pickfilebtn in
+    let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshpath in    
+    
+    let crEdFrameWindow _channel ewinstr 0 0 iw 155 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_0020") (loc "OS3DPICTURE_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 135 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+
+    let crEdCtrlCheck winstr 10 (set ypos = 10) 280 20 (loc "OS3DPICTURE_0023") EDWIN_RESIZE_MW -> ctrlbackground in
+    
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 90 20 (loc "OS3DPICTURE_0018") nil -> labelx in
+    let crEdCtrlFloat winstr 110 ypos 60 20 itof posx (-.10000.0) 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlposx in
+    let crEdCtrlCheck winstr 180 ypos 40 20 "(%)" EDWIN_RESIZE_MW -> ctrlxpercent in
+    let crEdCtrlLabel winstr 220 (ypos + 2) 60 20 (loc "OS3DPICTURE_0015") nil -> labelxo in
+    let crEdCtrlFloat winstr 285 ypos 60 20 itof xoffset (-.10000.0) 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlxoffset in
+    let crEdCtrlSelect winstr 355 ypos 100 120 EDWIN_RESIZE_MW -> ctrlxalign in
+    
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 90 20 (loc "OS3DPICTURE_0019") nil -> labely in
+    let crEdCtrlFloat winstr 110 ypos 60 20 itof posy (-.10000.0) 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlposy in
+    let crEdCtrlCheck winstr 180 ypos 40 20 "(%)" EDWIN_RESIZE_MW -> ctrlypercent in
+    let crEdCtrlLabel winstr 220 (ypos + 2) 60 20 (loc "OS3DPICTURE_0015") nil -> labelyo in
+    let crEdCtrlFloat winstr 285 ypos 60 20 itof yoffset (-.10000.0) 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlyoffset in
+    let crEdCtrlSelect winstr 355 ypos 100 120 EDWIN_RESIZE_MW -> ctrlyalign in
+    
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 90 20 (loc "OS3DPICTURE_0029") nil -> labelw in
+    let crEdCtrlFloat winstr 110 ypos 60 20 itof width 0.0 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlwidth in
+    let crEdCtrlCheck winstr 180 ypos 40 20 "(%)" EDWIN_RESIZE_MW -> ctrlwpercent in
+    let crEdCtrlLabel winstr 220 (ypos + 2) 60 20 (loc "OS3DPICTURE_0015") nil -> labelwo in
+    let crEdCtrlFloat winstr 285 ypos 60 20 itof woffset (-.10000.0) 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlwoffset in
+    
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 90 20 (loc "OS3DPICTURE_0007") nil -> labelh in
+    let crEdCtrlFloat winstr 110 ypos 60 20 itof height 0.0 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlheight in
+    let crEdCtrlCheck winstr 180 ypos 40 20 "(%)" EDWIN_RESIZE_MW -> ctrlhpercent in
+    let crEdCtrlLabel winstr 220 (ypos + 2) 60 20 (loc "OS3DPICTURE_0015") nil -> labelho in
+    let crEdCtrlFloat winstr 285 ypos 60 20 itof hoffset (-.10000.0) 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlhoffset in
+    
+    let crEdFrameWindow _channel ewinstr 0 0 iw 135 EDWIN_RESIZE_MW nil (loc "OS3DPICTURE_0013") (loc "OS3DPICTURE_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 110 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+    let crEdCtrlLabel winstr 10 ((set ypos = 10) + 2) 160 20 (loc "OS3DPICTURE_0016") nil -> labelo in
+    let crEdCtrlFloat winstr 180 ypos 100 20 itof opacity 0.0 100.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlopacity in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DPICTURE_0022") nil -> labeltransition in
+    let crEdCtrlFloat winstr 180 ypos 100 20 itof transition 0.0 10000.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrltransition in
+    let crEdCtrlCheck winstr 10 (set ypos = ypos + 25) 280 20 (loc "OS3DPICTURE_0027") EDWIN_RESIZE_MW -> ctrltrans in
+    let crEdCtrlCheck winstr 10 (set ypos = ypos + 25) 280 20 (loc "OS3DPICTURE_0024") EDWIN_RESIZE_MW -> ctrlshow in
+    
+    let V3DgetDefaultSession viewstr -> sessionstr in
+    let SO3SceneGetObject (V3DgetSession sessionstr) objname -> obj in
+    let SO3EntityGetResourceGroup obj -> group in
+    (
+      setEdCtrlCheckState ctrlshow show;
+      setEdCtrlCheckState ctrltrans trans;
+      setEdCtrlCheckState ctrlisurl isurl;
+      
+      fillEdCtrlSelect ctrlxalign (loc "OS3DPICTURE_0008")::(loc "OS3DPICTURE_0004")::(loc "OS3DPICTURE_0021")::nil;
+      fillEdCtrlSelect ctrlyalign (loc "OS3DPICTURE_0026")::(loc "OS3DPICTURE_0004")::(loc "OS3DPICTURE_0003")::nil;
+      selectEdCtrlSelectByPos ctrlxalign xalign;
+      selectEdCtrlSelectByPos ctrlyalign yalign;
+      setEdCtrlCheckState ctrlbackground background;
+          
+      setEdCtrlCheckState ctrltexture istexture;
+      setEdCtrlCheckState ctrlxpercent xpercent;
+      setEdCtrlCheckState ctrlypercent ypercent;
+      setEdCtrlCheckState ctrlwpercent wpercent;
+      setEdCtrlCheckState ctrlhpercent hpercent;
+
+      setEdCtrlCheckCbState ctrlxpercent mkfun3 @cbPercentCheck ctrlxoffset;
+      setEdCtrlCheckCbState ctrlypercent mkfun3 @cbPercentCheck ctrlyoffset;
+      setEdCtrlCheckCbState ctrlwpercent mkfun3 @cbPercentCheck ctrlwoffset;
+      setEdCtrlCheckCbState ctrlhpercent mkfun3 @cbPercentCheck ctrlhoffset;
+      
+      fillMaterialSelector viewstr [inst ctrlmatname ctrlmattech ctrlmatpass ctrlmattex] objname;
+      selectEdCtrlSelect ctrlmatname matname;
+      
+      let SO3SceneGetMaterial (V3DgetSession sessionstr) group matname -> mat in
+      if mat == nil then nil else
+      (
+        fillMaterialTechSelector viewstr [ctrlmattech ctrlmatname ctrlmatpass ctrlmattex] mat;
+        selectEdCtrlSelectByPos ctrlmattech technique;
+        
+        fillMaterialPassSelector viewstr [ctrlmatpass ctrlmatname ctrlmattech ctrlmattex] mat technique;
+        selectEdCtrlSelectByPos ctrlmatpass pass;
+        
+        fillMaterialTextureSelector viewstr ctrlmattex mat technique pass;
+        selectEdCtrlSelectByPos ctrlmattex texture;
+      );
+      
+      setEdCtrlCheckCbState ctrltexture mkfun3 @cbCheckTexture [pickbtn ctrlposx ctrlxpercent ctrlxalign ctrlposy ctrlypercent ctrlyalign ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlbackground];
+      setEdCtrlButtonCb pickbtn mkfun2 @cbBtnPickObj [inst winstr viewstr ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex objname];
+      setEdCtrlTextLineEnable ctrlobjname 0;
+      setEdCtrlButtonCb refreshobjname mkfun2 @cbRefreshBtnSpec [ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex];
+      
+      setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickFile [inst winstr ctrlpath ctrlurl ctrlisurl];
+      setEdCtrlCheckCbState ctrlisurl mkfun3 @cbCheckUrl [ctrlurl ctrlpath pickfilebtn];
+      setEdCtrlTextLineEnable ctrlpath 0;
+      setEdCtrlButtonCb refreshpath mkfun2 @cbRefreshBtn [inst winstr ctrlpath];
+
+      if !isurl then
+      (
+        setEdCtrlTextLineEnable ctrlurl 0;
+        setEdCtrlButtonEnable pickfilebtn 1;
+      )
+      else
+      (
+        setEdCtrlTextLineEnable ctrlurl 1;
+        setEdCtrlButtonEnable pickfilebtn 0;
+      );
+
+      if istexture then
+      (
+        setEdCtrlFloatEnable ctrlposx 0;
+        setEdCtrlFloatEnable ctrlposy 0;
+        setEdCtrlCheckEnable ctrlxpercent 0;
+        setEdCtrlCheckEnable ctrlypercent 0;
+        setEdCtrlSelectEnable ctrlxalign 0;
+        setEdCtrlSelectEnable ctrlyalign 0;
+        setEdCtrlCheckEnable ctrlwpercent 0;
+        setEdCtrlCheckEnable ctrlhpercent 0;
+        
+        setEdCtrlFloatEnable ctrlxoffset 0;
+        setEdCtrlFloatEnable ctrlyoffset 0;
+        setEdCtrlFloatEnable ctrlwoffset 0;
+        setEdCtrlFloatEnable ctrlhoffset 0;
+    
+        setEdCtrlCheckEnable ctrlbackground 0;
+        
+        setEdCtrlSelectEnable ctrlmatname 1;
+        setEdCtrlSelectEnable ctrlmattech 1;
+        setEdCtrlSelectEnable ctrlmatpass 1;
+        setEdCtrlSelectEnable ctrlmattex 1;
+        setEdCtrlButtonEnable pickbtn 1;
+      )
+      else
+      (
+        setEdCtrlFloatEnable ctrlposx 1;
+        setEdCtrlFloatEnable ctrlposy 1;
+        setEdCtrlCheckEnable ctrlxpercent 1;
+        setEdCtrlCheckEnable ctrlypercent 1;
+        setEdCtrlSelectEnable ctrlxalign 1;
+        setEdCtrlSelectEnable ctrlyalign 1;
+        setEdCtrlCheckEnable ctrlwpercent 1;
+        setEdCtrlCheckEnable ctrlhpercent 1;
+        
+        setEdCtrlFloatEnable ctrlxoffset (getEdCtrlCheckState ctrlxpercent);
+        setEdCtrlFloatEnable ctrlyoffset (getEdCtrlCheckState ctrlypercent);
+        setEdCtrlFloatEnable ctrlwoffset (getEdCtrlCheckState ctrlwpercent);
+        setEdCtrlFloatEnable ctrlhoffset (getEdCtrlCheckState ctrlhpercent);
+    
+        setEdCtrlCheckEnable ctrlbackground 1;
+        
+        setEdCtrlSelectEnable ctrlmatname 0;
+        setEdCtrlSelectEnable ctrlmattech 0;
+        setEdCtrlSelectEnable ctrlmatpass 0;
+        setEdCtrlSelectEnable ctrlmattex 0;
+        
+        setEdCtrlButtonEnable pickbtn 0;
+      );
+      
+      [mkfun1 @cbCloseEdit [ctrltexture ctrlobjname ctrlmatname ctrlmattech ctrlmatpass ctrlmattex ctrlpath ctrlisurl ctrlurl ctrlwidth ctrlheight ctrlposx ctrlposy ctrlxpercent ctrlypercent ctrlwpercent ctrlhpercent ctrlxoffset ctrlyoffset ctrlwoffset ctrlhoffset ctrlxalign ctrlyalign ctrlopacity ctrltransition ctrltrans ctrlbackground ctrlshow] nil];
+    );
+  );;

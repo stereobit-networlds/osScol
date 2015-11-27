@@ -1,0 +1,507 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://scol.stereobit.gr
+
+Copyright (c) 2016 stereobit.networlds
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/*******************************************************************************
+ Plugin BtScreen 
+ Client part
+ Version: 1.0
+ Author: stereobit.networlds, Bastien BOURINEAU
+ Date: 21/01/2016
+ Last update: 21/01/2016
+*******************************************************************************/
+
+struct PlugPicture = [
+  PICT_instance                : PInstance,
+  PICT_bOnMaterial             : I,
+  PICT_Material                : SO3_MATERIAL,
+  PICT_iTechnique              : I,
+  PICT_iPass                   : I,
+  PICT_iTexture                : I,
+  
+  PICT_win                     : SO3_WIDGET,
+  PICT_AlphaBuffer             : AlphaBitmap,
+  
+  PICT_iPosX                   : I,
+  PICT_iPosY                   : I,
+  PICT_iWidth                  : I,
+  PICT_iHeight                 : I,
+  PICT_tPercent                : [I I I I I I I I],
+  PICT_tAlign                  : [I I],
+  
+  PICT_bTransparency           : I,
+  PICT_iOpacity                : I,
+  PICT_iTransition             : I,
+  PICT_fTransOpacity           : F,
+  
+  PICT_bUrl                    : I,
+  PICT_sPath                   : S,  
+  PICT_bBackground             : I,
+  PICT_bShow                   : I,
+  PICT_httpReq                 : ObjCURL
+
+  ] MkPlugPicture;;
+
+
+var sTmpDownloadPath = "tmp/pictures/";;
+
+var iTexWidth = 512;;
+var iTexHeight = 512;;
+
+
+fun restoreTexture(pictstr)=
+  V3DremoveWidgetControl (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) pictstr.PICT_win;
+  SO3WidgetDestroy pictstr.PICT_win;
+  set pictstr.PICT_win = nil;
+  _DSalphaBitmap pictstr.PICT_AlphaBuffer;
+  set pictstr.PICT_AlphaBuffer = nil;
+  0;;
+
+
+fun cbControlPreRenderShow(inst, sessionstr, etime, pictstr)=
+  let (itof pictstr.PICT_iOpacity) /. (itof pictstr.PICT_iTransition) -> step in
+  (
+    set pictstr.PICT_fTransOpacity = pictstr.PICT_fTransOpacity +. (step *. (itof etime));
+    if pictstr.PICT_fTransOpacity >=. (itof pictstr.PICT_iOpacity) then
+    (
+      SO3WidgetSetOpacity pictstr.PICT_win (itof pictstr.PICT_iOpacity) *. 0.01;
+      setPluginInstanceCbScenePreRender inst nil;
+      SendPluginEvent inst "Shown" nil nil;
+      0;
+    )
+    else
+    (
+      SO3WidgetSetOpacity pictstr.PICT_win (pictstr.PICT_fTransOpacity *. 0.01);
+      0;
+    );
+  );
+  0;;
+
+
+fun cbControlPreRenderHide(inst, sessionstr, etime, pictstr)=
+  let (itof pictstr.PICT_iOpacity) /. (itof pictstr.PICT_iTransition) -> step in
+  (
+    set pictstr.PICT_fTransOpacity = pictstr.PICT_fTransOpacity -. (step *. (itof etime));
+    if pictstr.PICT_fTransOpacity <=. 0.0 then
+    (
+      SO3WidgetSetOpacity pictstr.PICT_win 0.0;
+      setPluginInstanceCbScenePreRender inst nil;
+      SO3WidgetSetVisibility pictstr.PICT_win 0;
+      SendPluginEvent inst "Hidden" nil nil;
+      0;
+    )
+    else
+    (
+      SO3WidgetSetOpacity pictstr.PICT_win (pictstr.PICT_fTransOpacity *. 0.01);
+      0;
+    );
+  );
+  0;;
+
+
+fun cbShow(inst, from, action, param, reply, pictstr)=
+  if (pictstr.PICT_iTransition == 0) then
+  (
+    SO3WidgetSetVisibility pictstr.PICT_win 1;
+    
+    //force render update (used for loading screens)
+    if (pictstr.PICT_bOnMaterial) then nil else
+    let V3DgetSessionView c3dXsession -> viewstr in
+      SO3BufferUpdate viewstr.V3D_buffer;
+    
+    SendPluginEvent inst "Shown" nil nil;
+    0;
+  )
+  else
+  (
+    SO3WidgetSetOpacity pictstr.PICT_win (pictstr.PICT_fTransOpacity *. 0.01);
+    SO3WidgetSetVisibility pictstr.PICT_win 1;
+    setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderShow pictstr;
+    0;
+  );
+  
+  set pictstr.PICT_bShow = 1;
+  0;;
+
+
+fun cbHide(inst, from, action, param, reply, pictstr)=
+  if (pictstr.PICT_iTransition == 0) then
+  (
+    SO3WidgetSetVisibility pictstr.PICT_win 0;
+    
+    //force render update (used for loading screens)
+    //let V3DgetSessionView c3dXsession -> viewstr in
+      //SO3BufferUpdate viewstr.V3D_buffer;
+    SendPluginEvent inst "Hidden" nil nil;
+    0;
+  )
+  else
+  (
+    SO3WidgetSetOpacity pictstr.PICT_win (pictstr.PICT_fTransOpacity *. 0.01);
+    setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderHide pictstr;
+    0;
+  );
+  
+  set pictstr.PICT_bShow = 0;
+  0;;
+
+
+fun computePosSize(pictstr, vw, vh)=
+  let pictstr.PICT_tPercent -> [px py pw ph xo yo wo ho] in
+  let pictstr.PICT_tAlign -> [ax ay] in
+  let if pw then (ftoi (((itof pictstr.PICT_iWidth) /. 100.0) *. (itof vw))) + wo else pictstr.PICT_iWidth -> pw in
+  let if ph then (ftoi (((itof pictstr.PICT_iHeight) /. 100.0) *. (itof vh))) + ho else pictstr.PICT_iHeight -> ph in
+  let if px then (ftoi (((itof pictstr.PICT_iPosX) /. 100.0) *. (itof vw))) + xo else pictstr.PICT_iPosX -> px in
+  let if (ax == 1) then ((vw / 2) - (pw / 2)) + px else if (ax == 2) then (vw - pw) - px  else px -> px in
+  let if py then (ftoi (((itof pictstr.PICT_iPosY) /. 100.0) *. (itof vh))) + yo else pictstr.PICT_iPosY -> py in
+  let if (ay == 1) then ((vh / 2) - (ph / 2)) + py else if (ay == 2) then (vh - ph) - py else py -> py in
+    [px py pw ph];;
+
+
+fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
+  if pictstr.PICT_win == nil || pictstr.PICT_bOnMaterial then nil else
+  let computePosSize pictstr vw vh -> [px py pw ph] in
+  (
+    SO3WidgetSetPosition pictstr.PICT_win px py;
+    SO3WidgetSetSize pictstr.PICT_win pw ph;
+    SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+  );
+  0;;
+
+
+fun createPicture(inst, pictstr)=
+  let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
+  if pictstr.PICT_win != nil then nil else
+  (
+    V3DremoveWidgetControl viewportstr pictstr.PICT_win;
+    SO3WidgetDestroy pictstr.PICT_win;
+    if pictstr.PICT_bOnMaterial then
+    (
+      set pictstr.PICT_win = SO3BitmapWidgetCreateOnMaterial (V3DgetSession c3dXsession) pictstr.PICT_Material (strcat (getPluginInstanceName inst) "_pictureCtrl") pictstr.PICT_iWidth pictstr.PICT_iHeight pictstr.PICT_iTechnique pictstr.PICT_iPass pictstr.PICT_iTexture;
+    	0;
+    )
+    else if pictstr.PICT_bBackground then
+    (
+      let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
+      let computePosSize pictstr vw vh -> [px py pw ph] in
+        set pictstr.PICT_win = SO3BitmapWidgetCreateBackground (V3DgetSession c3dXsession) viewportstr.V3D_viewport (strcat (getPluginInstanceName inst) "_pictureCtrl") px py pw ph;
+      0;
+    )
+    else
+    (
+      let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
+      let computePosSize pictstr vw vh -> [px py pw ph] in
+        set pictstr.PICT_win = SO3BitmapWidgetCreate (V3DgetSession c3dXsession) viewportstr.V3D_viewport (strcat (getPluginInstanceName inst) "_pictureCtrl") px py pw ph 100;
+
+      SO3WidgetSetTopOnFocus pictstr.PICT_win 0;
+      SO3WidgetSetForeground pictstr.PICT_win 1;
+      0;
+    );
+    
+    V3DaddWidgetControl viewportstr pictstr.PICT_win;
+    SO3WidgetSetKeyboardEnable pictstr.PICT_win 0;
+    SO3WidgetSetMouseEnable pictstr.PICT_win 0;
+    SO3WidgetSetTransparency pictstr.PICT_win pictstr.PICT_bTransparency;
+    SO3WidgetSetOpacity pictstr.PICT_win (itof pictstr.PICT_iOpacity) *. 0.01;
+    SO3WidgetSetVisibility pictstr.PICT_win 0;
+  );
+  0;;
+
+
+fun cbDownloaded(file, data, pictstr)=
+  if data == nil then nil else
+  let strcatn sTmpDownloadPath::(getPluginInstanceName pictstr.PICT_instance)::".tmp"::nil -> tmpfile in
+  (
+    _storepack data tmpfile;
+    let G2DloadAlphaBmp _channel tmpfile -> bmp in
+    if bmp == nil then nil else
+    (
+      _DSalphaBitmap pictstr.PICT_AlphaBuffer;
+      set pictstr.PICT_AlphaBuffer = bmp;
+      
+      SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+    );
+  );
+  0;;
+
+
+fun cbSetPosition(inst, from, action, param, reply, pictstr)=
+if param == nil then nil else
+  let strextr param -> lp in
+  let (nth_list (hd lp) 0) -> sx in
+  let (nth_list (hd lp) 1) -> sy in
+  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [vw vh] in
+  (
+    let 0 -> xpercent in
+    let if (!strcmp "%" (substr sx ((strlen sx) - 1) 1)) then
+        (
+          set xpercent = 1;
+          atoi sx;
+        )
+        else
+          atoi sx
+    -> px in
+    let 0 -> ypercent in
+    let if (!strcmp "%" (substr sy ((strlen sy) - 1) 1)) then
+        (
+          set ypercent = 1;
+          atoi sy;
+        )
+        else
+          atoi sy
+    -> py in
+    let [(if px == nil then 0 else px) (if py == nil then 0 else py)] -> [px py] in
+    (
+      mutate pictstr.PICT_tPercent <- [xpercent ypercent _ _ _ _ _ _];
+      set pictstr.PICT_iPosX = px;
+      set pictstr.PICT_iPosY = py;
+      
+      let computePosSize pictstr vw vh -> [px py pw ph] in
+      (
+        SO3WidgetSetPosition pictstr.PICT_win px py;
+        SO3WidgetSetSize pictstr.PICT_win pw ph;
+      );
+    );
+  );
+  0;;
+
+
+fun cbSetSize(inst, from, action, param, reply, pictstr)=
+  if param == nil then nil else
+  let strextr param -> lp in
+  let (nth_list (hd lp) 0) -> sx in
+  let (nth_list (hd lp) 1) -> sy in
+  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [vw vh] in
+  (
+    let 0 -> wpercent in
+    let if (!strcmp "%" (substr sx ((strlen sx) - 1) 1)) then
+        (
+          set wpercent = 1;
+          atoi sx;
+        )
+        else
+          atoi sx
+    -> px in
+    let 0 -> hpercent in
+    let if (!strcmp "%" (substr sy ((strlen sy) - 1) 1)) then
+        (
+          set hpercent = 1;
+          atoi sy;
+        )
+        else
+          atoi sy
+    -> py in
+    let [(if px == nil then 0 else px) (if py == nil then 0 else py)] -> [px py] in
+    (
+      mutate pictstr.PICT_tPercent <- [_ _ wpercent hpercent _ _ _ _];
+      set pictstr.PICT_iWidth = px;
+      set pictstr.PICT_iHeight = py;
+      
+      let computePosSize pictstr vw vh -> [px py pw ph] in
+      (
+        SO3WidgetSetPosition pictstr.PICT_win px py;
+        SO3WidgetSetSize pictstr.PICT_win pw ph;
+      );
+    );
+  );
+  0;;
+
+
+fun cbSetOpacity(inst, from, action, param, reply, pictstr)=
+  if (param == nil) || (!strcmp "" strtrim param) || ((atoi param) == nil) then nil else
+  let atoi param -> opacity in
+  (
+    set pictstr.PICT_iOpacity = opacity;
+    SO3WidgetSetOpacity pictstr.PICT_win (itof pictstr.PICT_iOpacity) *. 0.01;
+  );
+  0;;
+
+
+fun cbChangeData(inst, from, action, param, reply, pictstr)=
+  if (param == nil) then nil else
+  let !strcmpi (substr param 0 1) "Z" -> iszip in
+  let (strfindi "_" param 2) -> fp in
+  let atoi (substr param 2 fp - 2) -> width in
+  let (strfind "_" param fp + 1) -> fp2 in
+  let atoi (substr param (fp + 1) (fp2 - fp - 1)) -> height in
+  let if !iszip then substr param (fp2 + 1) (strlen param) else unzip substr param (fp2 + 1) (strlen param) -> data in
+  let G2DconvertBmpToAlphaBmp _channel (_BTUnCompBitmap data (_FILLbitmap _CRbitmap _channel width height 0)) -> bmp in
+  if bmp == nil then nil else
+  (
+    _DSalphaBitmap pictstr.PICT_AlphaBuffer;
+    set pictstr.PICT_AlphaBuffer = bmp;
+    
+    SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+  );
+  0;;
+
+
+fun cbChange(inst, from, action, param, reply, pictstr)=
+  let if param == nil then pictstr.PICT_bUrl else strIsUrl param -> isurl in
+  let if param == nil then pictstr.PICT_sPath else param -> url in
+  if !isurl then
+  (
+    let G2DloadAlphaBmp _channel url -> bmp in
+    if bmp == nil then nil else
+    (
+      _DSalphaBitmap pictstr.PICT_AlphaBuffer;
+      set pictstr.PICT_AlphaBuffer = bmp;
+      
+      SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+    );
+    0;
+  )
+  else
+  (
+    if (pictstr.PICT_httpReq == nil) then nil else
+    (
+      killHttpRequest pictstr.PICT_httpReq;
+      set pictstr.PICT_httpReq = nil;
+    );
+      
+    set pictstr.PICT_httpReq = downloadFile url mkfun3 @cbDownloaded pictstr;
+    0;
+  );
+  0;;
+
+
+// Destroy instance
+fun deleteOb(inst, pictstr)=
+  setPluginInstanceCbScenePreRender inst nil;
+  if (pictstr.PICT_httpReq == nil) then nil else
+  (
+    killHttpRequest pictstr.PICT_httpReq;
+    set pictstr.PICT_httpReq = nil;
+  );
+  restoreTexture pictstr;
+  0;;
+
+
+fun cbNewOb(inst)=
+  let (getPluginInstanceParam inst "object") -> objname in
+  let (getPluginInstanceParam inst "material") -> matname in
+  let atoi (getPluginInstanceParam inst "technique") -> technique in
+  let if (technique == nil) || (technique < 0) then 0 else technique -> technique in
+  let atoi (getPluginInstanceParam inst "pass") -> pass in
+  let if (pass == nil) || (pass < 0) then 0 else pass -> pass in
+  let atoi (getPluginInstanceParam inst "texture") -> texture in
+  let if (texture == nil) || (texture < 0) then 0 else texture -> texture in
+  let atoi (getPluginInstanceParam inst "istexture") -> istexture in
+  let if istexture == nil then 0 else istexture -> istexture in
+  
+  let (getPluginInstanceParam inst "path") -> path in
+  let atoi (getPluginInstanceParam inst "isurl") -> isurl in
+  let if isurl == nil then 0 else isurl -> isurl in
+  let (getPluginInstanceParam inst "url") -> url in      
+  
+  let atoi (getPluginInstanceParam inst "xpercent") -> xpercent in
+  let if xpercent == nil then 0 else xpercent -> xpercent in
+  let atoi (getPluginInstanceParam inst "xalign") -> xalign in
+  let if xalign == nil then 0 else xalign -> xalign in
+  let atoi (getPluginInstanceParam inst "posx") -> posx in
+  let if posx == nil then 0 else posx -> posx in
+  let atoi (getPluginInstanceParam inst "ypercent") -> ypercent in
+  let if ypercent == nil then 0 else ypercent -> ypercent in
+  let atoi (getPluginInstanceParam inst "yalign") -> yalign in
+  let if yalign == nil then 0 else yalign -> yalign in
+  let atoi (getPluginInstanceParam inst "posy") -> posy in
+  let if posy == nil then 0 else posy -> posy in
+  let atoi (getPluginInstanceParam inst "wpercent") -> wpercent in
+  let if wpercent == nil then 1 else wpercent -> wpercent in
+  let atoi (getPluginInstanceParam inst "width") -> width in
+  let if width == nil then 100 else width -> width in
+  let atoi (getPluginInstanceParam inst "hpercent") -> hpercent in
+  let if hpercent == nil then 1 else hpercent -> hpercent in
+  let atoi (getPluginInstanceParam inst "xoffset") -> xoffset in
+  let if xoffset == nil then 0 else xoffset -> xoffset in
+  let atoi (getPluginInstanceParam inst "yoffset") -> yoffset in
+  let if yoffset == nil then 0 else yoffset -> yoffset in
+  let atoi (getPluginInstanceParam inst "woffset") -> woffset in
+  let if woffset == nil then 0 else woffset -> woffset in
+  let atoi (getPluginInstanceParam inst "hoffset") -> hoffset in
+  let if hoffset == nil then 0 else hoffset -> hoffset in
+  let atoi (getPluginInstanceParam inst "height") -> height in
+  let if height == nil then 100 else height -> height in
+  
+  let atoi (getPluginInstanceParam inst "background") -> background in
+  let if (background == nil) then 1 else background -> background in
+  
+  let atoi (getPluginInstanceParam inst "opacity") -> opacity in
+  let if opacity == nil then 100 else opacity -> opacity in
+  let atoi (getPluginInstanceParam inst "transition") -> transition in
+  let if transition == nil then 0 else transition -> transition in
+    
+  let atoi (getPluginInstanceParam inst "transparency") -> trans in
+  let if (trans == nil) then 0 else trans -> trans in
+  
+  let atoi (getPluginInstanceParam inst "show") -> show in
+  let if (show == nil) then 1 else show -> show in
+  let if !isurl then path else url -> file in
+
+  let SO3SceneGetObject (V3DgetSession c3dXsession) objname -> obj in
+  let if !istexture then nil else SO3SceneGetMaterial (V3DgetSession c3dXsession) (SO3EntityGetResourceGroup obj) matname -> mat in
+  let MkPlugPicture [inst istexture mat technique pass texture nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil] -> pictstr in
+  (
+    createPicture inst pictstr;
+    
+    if pictstr.PICT_bOnMaterial then nil else
+      setPluginInstanceCbResizeView inst mkfun5 @cbResizeCtrl pictstr;
+    
+      if !pictstr.PICT_bUrl then
+      (
+        let G2DloadAlphaBmp _channel pictstr.PICT_sPath -> bmp in
+        if bmp == nil then nil else
+        (
+          set pictstr.PICT_AlphaBuffer = bmp;
+          
+          SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+        );
+        0;
+      )
+      else
+      (
+        set pictstr.PICT_httpReq = downloadFile pictstr.PICT_sPath mkfun3 @cbDownloaded pictstr;
+        0;
+      );
+    
+    if pictstr.PICT_bShow then
+      cbShow inst nil nil nil nil pictstr
+    else
+      cbHide inst nil nil nil nil pictstr;
+    
+    PluginRegisterAction inst "Show" mkfun6 @cbShow pictstr;
+    PluginRegisterAction inst "Hide" mkfun6 @cbHide pictstr;
+    PluginRegisterAction inst "Change" mkfun6 @cbChange pictstr;
+    PluginRegisterAction inst "Change data" mkfun6 @cbChangeData pictstr;
+    PluginRegisterAction inst "Set position" mkfun6 @cbSetPosition pictstr;
+    PluginRegisterAction inst "Set size" mkfun6 @cbSetSize pictstr;
+    PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
+  	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
+  );
+  0;;
+
+
+fun IniPlug(file) =
+  PlugRegister @cbNewOb nil;
+  setPluginEditor @dynamicedit;
+  0;;
