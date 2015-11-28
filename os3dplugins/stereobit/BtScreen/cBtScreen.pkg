@@ -69,19 +69,11 @@ var iTexWidth = 512;;
 var iTexHeight = 512;;
 
 
-/*default IMAGES (always on)*/
-typeof lImages = [S r1];;              
-typeof lImagesDisplayed = [ObjBitmap r1];;
-typeof lStoreImages = [[ObjBitmap S I I I I I I I I I I I] r1];; /*bmp name width height xonscreen yonscreen transp status srceenx screeny inzone4click rightalign downalign*/ 
-typeof lStateImages = [[S I] r1];; /*name on/off */
-typeof setImages = I;;
-typeof font = ObjFont;; 
-
 /*FONT bitmaps*/
 /*bmp name width height xonscreen yonscreen alphachannel url inzone*/ 
-typeof linfoImages = [[ObjBitmap S I I I I S I] r1];;
-typeof lfontImages = [[ObjBitmap S I I I I S I] r1];;
-typeof fontMatrix  = [[ObjBitmap I I I I S I I I I S] r1];;
+typeof linfoImages = [[AlphaBitmap S I I I I S I] r1];;
+typeof lfontImages = [[AlphaBitmap S I I I I S I] r1];;
+typeof fontMatrix  = [[AlphaBitmap I I I I S I I I I S] r1];;
 typeof fontMatrixOpt = [[I I S I] r1];;
 typeof xMatrix = I;;/*matrix width*/
 typeof yMatrix = I;;/*matrix height*/
@@ -91,12 +83,6 @@ var fsep = 10;; /*sep between fonts */
 var fmsizex = 90;; /*x font size*/
 var fmsizey = 90;; /*y font size*/
 
-
-proto _getBitmapI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] ObjBitmap;;
-proto _getInfoI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] [I I I I I I I I];;
-proto setIScreenXY = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S [I I I]] [I I I I I I I I];;
-proto hideI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] [ObjBitmap S I I I I I I I I I I I];;
-proto showI = fun [[[ObjBitmap S I I I I I I I I I I I] r1] S] [ObjBitmap S I I I I I I I I I I I];;
 
 typeof askPassword = I;; /*ask for pass when init*/
 
@@ -127,80 +113,12 @@ fun searchSlash(string, pos)=
   else
     pos;;
 	
-fun lastslash(s)=
-  let 0-> i in
-  let 0-> l in
-  (
-    while i<strlen s do
-    (
-      if (nth_char s i) == '/ then 
-        set l=i
-      else 0;
-      set i=i+1
-    );
-    l
-  );;	
-  
-fun extension(fi) =
-	let 0->j in
-	let 0->find in
-	(
-	  while ((set find=strfind "." fi j)!=nil) do 
-	  (
-		  set j=find+1
-	  );
-	  substr fi j (strlen fi)-j
-	)
-;; 	 
-  
-fun lcat(p, q)=
-  if p==nil then
-    q
-  else
-    (hd p)::lcat (tl p) q;;
-	
-/* re-reverse read of _listoffiles which reads reverse the files from z to a */ 
-fun getReverseFiles(dir, ext)=
-  let _listoffiles dir -> files in
-  let nil -> lfiles in
-  let sizelist files -> size in
-  let (size-1) -> i in
-  (
-    while i >= 0 do
-    (
-      let nth_list files i -> file in
-	  if (ext != nil) && (!strcmp (extension file) ext) then
-        set lfiles = lcat lfiles file::nil
-	  else if (ext==nil) then
-	    set lfiles = lcat lfiles file::nil
-      else 
-	    nil;	  
-	    
-      set i = i - 1;
-    );
-    lfiles;
-  );;   
-  
-fun getInfoImages(path)=
-  set infofiles = getReverseFiles path "png";
-  //_RSregisterfiles this infofiles RSfile+RScontrol; //.... no server (server part)
-  0;;  
 
-fun getFontImages(path)=
-  set fontfiles = getReverseFiles path "png";
-  //_RSregisterfiles this fontfiles RSfile+RScontrol; //.... no server (server part)
-  0;; 
-	 
-fun destroyImage(bmp)= _DSbitmap bmp;;  
-fun createImage(ch,w,h) = _CRbitmap ch w h;;
-fun bltImage(win, bmp, x, y) = _BLTbitmap win bmp x y;;
-fun setImage(bmp,data) = _SETbitmap bmp data;;
-fun LoadImage(ch, bmp) = _LDbitmap ch bmp;; 
-fun LoadJpg(ch, jpg) = _LDjpeg ch jpg;; 
-fun LoadTga(ch, tga) = _LDtga ch tga;; 
-fun imageSize(img) = let _GETbitmapSize img -> [w h] in [w h];;
-fun scpImage(dest, dx1, dy1, dx2, dy2, source, sx1, sy1, sx2, sy2, trans) =  _SCPbitmap dest dx1 dy1 dx2 dy2 source sx1 sy1 sx2 sy2 trans;; 
+fun createImage(ch,w,h) = _CRbitmap ch w h;; 
 fun cpyImage(dest, dx, dy, source, sx, sy, sw, sh, trans)= _CPbitmap24 dest 0 0 source sx sy sw sh trans;; 
+
+fun createAlphaImage(ch,w,h) = _CRalphaBitmap ch (_CRbitmap ch w h) (_CRbitmap8 ch w h) nil 0;;
+
 	 
 	 
 /************** font images *********************/
@@ -213,8 +131,8 @@ fun setMatrix(matrix, wMatrix, hMatrix, xbox, ybox, sep, i ,j)=
   ( let (i*xbox)+(i*sep)+sep -> xs in 
 	let (j*ybox)+(j*sep)+sep -> ys in 
 	(//_echo strcatn "CMATRIX:"::(itoa i)::","::(itoa j)::","::(itoa xs)::","::(itoa ys)::nil
-	 let createImage _channel xbox ybox -> bmp in
-	 mutate hd matrix <- [bmp i j xs ys "" 0 0 0 0 ""];
+	 let createAlphaImage _channel xbox ybox -> abmp in
+	 mutate hd matrix <- [abmp i j xs ys "" 0 0 0 0 ""];
 	 let if (i<wMatrix) then (i+1) else (set j=j+1; 0) -> x in
      setMatrix tl matrix wMatrix hMatrix xbox ybox sep x j;
     0)	
@@ -237,30 +155,23 @@ fun makeFontMatrix(xbox, ybox, sep) =
     [matrix wMatrix hMatrix]
   );; 
 
-fun createFontMatrix(param) =
-  if (param==nil) then
-   nil
-  else	  
-   if (lfontImages!=nil) then  
-   (
-	//let getView3dSize w3d -> [ScreenW ScreenH] in	
+fun createFontMatrix() =  
+   if (lfontImages==nil) then nil
+   else
 	let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
 	let makeFontMatrix fmsizex fmsizey fsep -> [matrix mx my] in
 	(
 	  set fontMatrix = matrix;
 	  set xMatrix = mx+1;
 	  set yMatrix = my;
-	  set fontMatrixOpt = nil; /*reset opt matrix*/
-	  //_echo strcatn "MATRIX:"::(itoa mx)::","::(itoa my)::","::(itoa sizelist matrix)::nil	  
+	  set fontMatrixOpt = nil;	  
 	  0
-	)
-   )else nil;;
+    );;
 
 /*reinit at resize without dnload*/   
 fun reCreateFontMatrix(o) = 
-   if (lfontImages!=nil) then  
-   (
-	//let getView3dSize w3d -> [ScreenW ScreenH] in	
+   if (lfontImages==nil) then nil 
+   else
 	let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
 	let makeFontMatrix fmsizex fmsizey fsep -> [matrix mx my] in
 	(
@@ -270,8 +181,7 @@ fun reCreateFontMatrix(o) =
 	  set fontMatrixOpt = nil; /*reset opt matrix*/
 	  //_echo strcatn "MATRIX:"::(itoa mx)::","::(itoa my)::","::(itoa sizelist matrix)::nil	  
 	  0
-	)
-   )else nil;; 
+	);; 
 
 /** web server version **/   
 fun endDownloadFontImage(file, data, x)= 
@@ -281,20 +191,18 @@ fun endDownloadFontImage(file, data, x)=
   let strcatn sTmpDownloadPath::file::".tmp"::nil -> tmpfile in
   (
     _storepack data tmpfile;
-    let G2DloadAlphaBmp _channel tmpfile -> bmp in
-    if bmp == nil then nil else
+    let G2DloadAlphaBmp _channel tmpfile -> abmp in 
+    if abmp == nil then nil else
 	(
-	    let _GETalphaBitmapSize bmp -> [w h] in
-	    let _GETalphaBitmaps bmp -> [bmp b8] in 
+	    let _GETalphaBitmapSize abmp -> [w h] in
 	    ( 
-	      _DSbitmap8 b8;
           let substr file 0 r -> s in
           let searchSlash s 0 -> poslastslash in
           let substr s poslastslash strlen s -> name in		  
-          set lfontImages = [bmp name w h 0 0 nil 0]::lfontImages;	
+          set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
 		  0
 	    );
-        if (i < fsize-1) then nil else createFontMatrix 1		
+        if (i < fsize-1) then nil else createFontMatrix		
 	);
   );;	
   
@@ -321,20 +229,19 @@ fun endDownloadFontImageS(file, data, x)=
   let strfind ".png" file 0 -> r in 
   let x -> [i fsize _] in
 	
-  let _LDalphaBitmap _channel _checkpack file ->alphabmp in
-  if alphabmp == nil then nil else
+  //let _LDalphaBitmap _channel _checkpack file -> abmp in
+  let G2DloadAlphaBmp _channel file -> abmp in
+  if abmp == nil then nil else
   (  
-    let _GETalphaBitmapSize alphabmp -> [w h] in
-    let _GETalphaBitmaps alphabmp -> [bmp b8] in 
+    let _GETalphaBitmapSize abmp -> [w h] in
     ( 
-      _DSbitmap8 b8;
       let substr file 0 r -> s in
       let searchSlash s 0 -> poslastslash in
       let substr s poslastslash strlen s -> name in
-      set lfontImages = [bmp name w h 0 0 nil 0]::lfontImages;	
+      set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
 	  0
     );	
-	if (i < fsize-1) then nil else createFontMatrix 1;
+	if (i < fsize-1) then nil else createFontMatrix;
 	0
   );;		
   
@@ -350,7 +257,7 @@ fun downloadFontImages(files, z)=
   )
   else if isfonturl then
   ( /* web server load */
-    //downloadFile fonturl mkfun3 @endDownloadFontFile z
+    downloadFile fonturl mkfun3 @endDownloadFontFile z;
 	nil
   )
   else
@@ -361,18 +268,17 @@ fun downloadFontImages(files, z)=
     while i < fsize do
       let nth_list files i -> file in
 	  let strfind ".png" file 0 -> r in
-	  let G2DloadAlphaBmp _channel file -> bmp in
-      if (bmp == nil) then nil else
-		let _GETalphaBitmapSize bmp -> [w h] in
-        let _GETalphaBitmaps bmp -> [bmp b8] in
-        ( 
-           _DSbitmap8 b8;
+	  let G2DloadAlphaBmp _channel file -> abmp in
+      if (abmp == nil) then nil else
+		let _GETalphaBitmapSize abmp -> [w h] in
+        (   
+		   //_fooS strcat file "\n";
            let substr file 0 r -> s in
            let searchSlash s 0 -> poslastslash in
            let substr s poslastslash strlen s -> name in
-           set lfontImages = [bmp name w h 0 0 nil 0]::lfontImages;	
+           set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
            set i = i+1;
-		   if (i < fsize-1) then nil else createFontMatrix 1		   
+		   if (i < fsize-1) then nil else createFontMatrix		   
         );
 		0;;	  
    
@@ -392,9 +298,9 @@ fun copyFontImage(list,n)=
   if list == nil then
     nil
   else 
-    let hd list -> [bmp name _ _ _ _ _ _] in
+    let hd list -> [abmp name _ _ _ _ _ _] in
     if !strcmp n name then
-      bmp
+      abmp
     else	 
       copyFontImage tl list n;; 
 	  
@@ -402,7 +308,7 @@ fun copyFontImage(list,n)=
 fun slideCycle(slide,maxslide) =
   if (slide>=0) && (slide <= maxslide) then
     slide
-  else if (slide<0) /*&& (slide <= maxslide)*/ then	
+  else if (slide<0) then	
     slideCycle (slide+maxslide) maxslide
   else
     slideCycle (slide-maxslide) maxslide;;  
@@ -412,25 +318,23 @@ fun copyFontSlide(list,n,slide_no)=
   if list == nil then
     nil
   else 
-    let hd list -> [bmp name w h x y _ _] in
+    let hd list -> [abmp name w h x y _ _] in
     if !strcmp n name then
-	( let createImage _channel fmsizex fmsizey -> slide in
-	  if /*(slide_no>0) &&*/ (w/fmsizex >= 2) then /*x dim slides*/
+	( let createAlphaImage _channel fmsizex fmsizey -> slide in
+	  if (w/fmsizex >= 2) then /*x dim slides*/
 	  ( 
 	    let slideCycle slide_no (w/fmsizex) -> sld in 
-		cpyImage slide 0 0 bmp (sld*fmsizex) 0 fmsizex fmsizey (make_rgb 0 0 255);
-        //destroyImage slide;
+		//cpyImage slide 0 0 bmp (sld*fmsizex) 0 fmsizex fmsizey (make_rgb 0 0 255); //DISABLED
 		slide
 	  )
-	  else if /*(slide_no>0) &&*/ (h/fmsizey >= 2) then /*y dim slides*/
+	  else if (h/fmsizey >= 2) then /*y dim slides*/
 	  ( 
 	    let slideCycle slide_no (h/fmsizey) -> sld in  
-		cpyImage slide 0 0 bmp 0 (sld*fmsizey) fmsizex fmsizey (make_rgb 0 0 255);
-        //destroyImage slide;
+		//cpyImage slide 0 0 bmp 0 (sld*fmsizey) fmsizex fmsizey (make_rgb 0 0 255); //DISABLED
 		slide
 	  )
 	  else /* 1 slide */
-        bmp
+        abmp
 	)  
     else	 
       copyFontSlide (tl list) n slide_no;; 	  
@@ -517,11 +421,213 @@ fun symbolsliderd(r,d,s,b,t,st)=writeFontMatrix fontMatrix (xMatrix-r) (yMatrix-
 /************************************************************************/
 	 
 	 
-fun createImages(inst, z)= 0;;
+/*string conversions*/					   
+fun maConvert(s) = 
+  let substr s 0 xMatrix -> ss in /*not bigger than screen max x*/
+  strlowercase ss;;	              /*lowercase */
+
+fun showFontList(list,i,j)=
+  if list == nil then
+    nil
+  else 
+  ( let hd list -> [_ name _ _ _ _ _ _] in
+    if (strlen name) == 1 then
+      writexy i j name 0 0
+    else	 
+	  symbolxy i j name 0 0;  
+	  
+	let if (i<xMatrix-1) then i+1 else (set j=j+1; 0) -> i in	
+    (showFontList tl list i j;
+	0)
+  );;    		
+
+fun enterPasscode() =
+  set mEntry = ""; /*reset*/
+  set mEpass = 1; /*enable passcode mode */
+  writexyu 1 1 "1" 0 0 "1"; writexyu 2 1 "2" 0 0 "2"; writexyu 3 1 "3" 0 0 "3";
+  writexyu 1 2 "4" 0 0 "4"; writexyu 2 2 "5" 0 0 "5"; writexyu 3 2 "6" 0 0 "6";						   
+  writexyu 1 3 "7" 0 0 "7"; writexyu 2 3 "8" 0 0 "8"; writexyu 3 3 "9" 0 0 "9";  
+  symbolxyu 1 4 "bspace" 0 0 "^"; writexyu 2 4 "0" 0 0 "0"; symbolxyu 3 4 "enter" 0 0 "~";
+
+  //showFontList lfontImages 0 0;  
+  0;;  
+   
+fun clsFontMatrix(list) =
+  if list == nil then
+    nil
+  else 
+  (
+	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 ""];
+      clsFontMatrix tl list;
+	  0
+  );;  
+
+fun cls(o) = 
+  clsFontMatrix fontMatrix;
+  set fontMatrixOpt = nil; /*reset opt matrix*/
+  
+  /*OB_ReleaseMouse o;
+  OB_ReleaseCursor o;
+  OB_SetCursor o StdCursor;
+  _SETfocus w3d.V3dwin; ********************/
+  0;; 
+  
+fun clsFontMatrixLine(list,line) =
+  if list == nil then
+    nil
+  else 
+  ( let (xMatrix*line)+1 -> xy in
+    let 0 -> i in
+    while (i<xMatrix) do
+	( mutate nth_list list i <- [_ _ _ _ _ _ 0 0 0 0 ""];
+	  set i = i + 1;
+	  0
+	);	
+  0);;
+
+/*lines without urls (opt)*/ 
+fun clsline(o, line) = 
+
+  clsFontMatrixLine fontMatrix line;
+  //set fontMatrixOpt = nil; /*reset opt matrix!!!!*/
+  
+  //OB_ReleaseMouse o; /**********************/
+  //OB_ReleaseCursor o;
+  //OB_SetCursor o StdCursor;
+  //_SETfocus w3d.V3dwin;
+  0;;   
+  
+
+fun fillFontMatrix(list, b, t, u)= 
+  if list == nil then
+    nil
+  else 
+  ( let hd list -> [_ x y _ _ _ _ _ _ _ _] in
+	//writexyu x y "a" b t u;
+	symbolxyu x y "enter" b t u; 
+    fillFontMatrix tl list b t u;
+	0
+  );;   
+
+/*alias*/
+fun fill(b, t, u) = fillFontMatrix fontMatrix b t u;;   
+
+fun clearFontImages(o) =
+  
+  set lfontImages = nil;
+  set fontMatrixOpt = nil; /*reset opt matrix*/
+  
+  /*OB_ReleaseMouse o;
+  OB_ReleaseCursor o;
+  OB_SetCursor o StdCursor;  
+  _SETfocus w3d.V3dwin;   */
+  0;;    
+
+fun setSpace(s, sp) =  
+  if s<=0 then sp
+  else setSpace (s-1) (strcat " " sp);; 
+  
+/*10 or 13 char sep string*/  
+fun writeText(x,y,s,b,t) =
+  let lineextr s -> lines in
+  let 0 -> i in
+  while (i < sizelist lines) do
+  (
+    //symbolxy x (y+i) s b t; 
+	
+    let setSpace xMatrix nil -> delparam in
+    writexy x (y+i) delparam 0 0;
+	
+	writexy x (y+i) (nth_list lines i) b t;
+	set i = i + 1;
+  0);;
+  
+fun writeScore(x,y,s,b,t) = 
+  //symbolslidexd 0 5 "scorelist" 0 0 (atoi s);
+  writexd 0 5 s b t;;
+  
+fun showFramerate(param)=  
+  //let substr (ftoa M3getFrameRate session) 0 2 -> fr in
+  let "99" -> fr in //............................
+  writeText 1 0 fr 0 0;
+  0;;    
+
+fun showCompass(param)=  
+  if (debug==1) then
+  (
+    let setSpace 3 nil -> delparam in
+    writexy 0 1 delparam 0 0;
+    writexy 0 1 param 0 0;
+	0
+  ) else nil;	
+  symbolslidexd 0 4 "compasslist" 0 0 (atoi param);
+  showFramerate param ;
+  0;;
 
 fun createFonts(inst, z) = downloadFontImages nil z;;	
 //if server respond registered file list
 //downloadFontImages flist z;;
+
+fun blitFontMatrix(matrix, pictstr) =  	
+  if matrix == nil then
+    nil
+  else
+  ( 
+    let hd matrix -> [bmp _ _ sx sy c v b t _ _] in
+    if ((strlen c)==1) && ((v==1)||(b>0)) then 
+    (
+	  let _tickcount -> currenttick in
+	  //_echo strcat "blitTimer:" (itoa _tickcount)
+	  
+	  let if (b>0) && ((currenttick-b)>500) then 
+	  ( set b = currenttick; 
+	    !v) 
+	  else 
+	  v -> viewblink in /*blink*/	
+	  
+	  if (b>0) && (t>0) then
+	  (
+	    let if ((b>0) && (viewblink==1)) & ((t>0) && ((currenttick-t)<3000)) then 
+	    ( //_Bitmap2Surface surf sx sy bmp 0 0 fmsizex fmsizey (make_rgb 0 0 255); 
+		  SO3WidgetSetPosition pictstr.PICT_win sx sy;
+          SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
+		  SO3BitmapWidgetBlitAlpha pictstr.PICT_win bmp;
+		  1) 
+	    else 
+	      0 -> view in /*ms check tickcount*/
+	    (
+	      /*reset blinking/timer after 3000ms*/ 		
+	      if ((currenttick-t)>=3000) then (set b=0; set t=0; 0) else nil;
+	      mutate hd matrix <- [_ _ _ _ _ _ view b t _ _];
+	    0)
+	  )
+	  else if (t>0) then
+	  (
+	    let if ((currenttick-t)<3000) then 
+	    ( //_Bitmap2Surface surf sx sy bmp 0 0 fmsizex fmsizey (make_rgb 0 0 255); 
+	      SO3WidgetSetPosition pictstr.PICT_win sx sy;
+          SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
+		  SO3BitmapWidgetBlitAlpha pictstr.PICT_win bmp;
+		  1) 
+	    else 
+	      0 -> view in /*ms check tickcount*/	
+	    (
+	      /*reset blinking/timer after 3000ms*/ 		
+	      if ((currenttick-t)>=3000) then (set t=0; 0) else nil;
+	      mutate hd matrix <- [_ _ _ _ _ _ view _ t _ _];
+	    0)		  
+	  ) 
+	  else 
+	  ( //_Bitmap2Surface surf sx sy bmp 0 0 fmsizex fmsizey (make_rgb 0 0 255);
+	    SO3WidgetSetPosition pictstr.PICT_win sx sy;
+        SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
+		SO3BitmapWidgetBlitAlpha pictstr.PICT_win bmp;
+	    0) 
+    )
+    else nil;	
+    blitFontMatrix tl matrix pictstr;
+	0
+  );;
 
 
 /***********************************************************************/
@@ -643,6 +749,8 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
     SO3WidgetSetPosition pictstr.PICT_win px py;
     SO3WidgetSetSize pictstr.PICT_win pw ph;
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+	
+	blitFontMatrix fontMatrix pictstr;
   );
   0;;
 
@@ -810,6 +918,8 @@ fun cbChangeData(inst, from, action, param, reply, pictstr)=
     set pictstr.PICT_AlphaBuffer = bmp;
     
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+	
+	blitFontMatrix fontMatrix pictstr;
   );
   0;;
 
@@ -826,6 +936,8 @@ fun cbChange(inst, from, action, param, reply, pictstr)=
       set pictstr.PICT_AlphaBuffer = bmp;
       
       SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+	  
+	  blitFontMatrix fontMatrix pictstr;
     );
     0;
   )
@@ -853,6 +965,65 @@ fun deleteOb(inst, pictstr)=
   );
   restoreTexture pictstr;
   0;;
+  
+fun cbWrite(inst, from, action, param, reply, pictstr)= writexy 0 0 maConvert "A" 0 0;;  
+  
+fun activate(inst, from, action, param, reply, pictstr)=  
+  if !strcmp action "write" then
+  (	if (mEpass!=1) && (param!=nil) then
+      writexy 0 0 maConvert param 0 0 /*left up corner, permanent until cls*/	
+	else  
+  0)  
+  else if !strcmp action "writer" then
+  (	if (mEpass!=1) && (param!=nil) then
+      writeyr 0 (strcat maConvert param "   ") 0 0 /*right up corner - logo, permanent until cls*/	
+	else  
+  0)  	
+  else if !strcmp action "writetime" then
+  ( if (mEpass!=1) && (param!=nil) then
+      writecc maConvert param 0 1  /*centered and time depend*/	
+	else
+  0)   
+  else if !strcmp action "writeblink" then
+  (	if (mEpass!=1) && (param!=nil) then
+    ( let setSpace xMatrix nil -> delString in
+	  writecc delString 0 0; /*xMatrix max char erase string*/
+      writecc maConvert param 1 1 /*centered, blink and time depend*/ 
+	)
+	else  
+  0)   	
+  else if !strcmp action "writecls" then
+  (	if (mEpass!=1) then
+      cls nil /*clear screen*/
+	else  
+  0) 	
+  else if !strcmp action "writesymbol" then
+  (	if (mEpass!=1) && (param!=nil) then
+      symbolxy 0 0 maConvert param 0 0 /*left up corner, permanent until cls*/	
+	else  
+  0) 	
+  else if !strcmp action "writetext" then
+  (	if (mEpass!=1) && (param!=nil) then
+      writeText	0 0 (maConvert param) 0 0 /*paragraph text sep by 10 or 13 char*/
+	else  
+  0) 		
+  else if !strcmp action "writescore" then
+  (	if (mEpass!=1) && (param!=nil) then
+      writeScore 0 0 (maConvert param) 0 0 /*paragraph text sep by 10 or 13 char*/
+	else  
+  0) 	  
+  else if !strcmp action "ShowCompass" then
+  (	if (mEpass!=1) && (param!=nil) then
+      showCompass param 
+	else  
+  0) 
+  else if !strcmp action "ShowFramerate" then
+  (	if (mEpass!=1) && (param!=nil) then
+      showFramerate param 
+	else  
+  0)   
+  else
+    0;;	 
 
 
 fun cbNewOb(inst)=
@@ -931,6 +1102,9 @@ fun cbNewOb(inst)=
   let MkPlugPicture [inst istexture mat technique pass texture nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil] -> pictstr in
   (
     createPicture inst pictstr;
+	
+	SendPluginEvent inst "startLoad" nil nil;
+    createFonts inst [fontpath isfonturl fonturl];		
     
     if pictstr.PICT_bOnMaterial then nil else
       setPluginInstanceCbResizeView inst mkfun5 @cbResizeCtrl pictstr;
@@ -943,6 +1117,8 @@ fun cbNewOb(inst)=
           set pictstr.PICT_AlphaBuffer = bmp;
           
           SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
+		  
+		  blitFontMatrix fontMatrix pictstr; 
         );
         0;
       )
@@ -964,17 +1140,27 @@ fun cbNewOb(inst)=
     PluginRegisterAction inst "Set position" mkfun6 @cbSetPosition pictstr;
     PluginRegisterAction inst "Set size" mkfun6 @cbSetSize pictstr;
     PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
+	
+	PluginRegisterAction inst "write" mkfun6 @cbWrite pictstr;	
+	PluginRegisterAction inst "writer" mkfun6 @activate pictstr;	
+	PluginRegisterAction inst "writecls" mkfun6 @activate pictstr;		
+	PluginRegisterAction inst "writetime" mkfun6 @activate pictstr;		
+	PluginRegisterAction inst "writeblink" mkfun6 @activate pictstr;		
+	PluginRegisterAction inst "writesymbol" mkfun6 @activate pictstr;		
+	PluginRegisterAction inst "writetext" mkfun6 @activate pictstr;	
+	PluginRegisterAction inst "writescore" mkfun6 @activate pictstr;
+	PluginRegisterAction inst "ShowCompass" mkfun6 @activate pictstr;	
+	PluginRegisterAction inst "ShowFramerate" mkfun6 @activate pictstr;
+	
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
 	
+	SendPluginEvent inst "endLoad" nil nil;
 	
     /*instance ui values*/
     /*let atoi hd UgetParam ObUi o "initPass" -> ipass in
     set askPassword = ipass; */
-
-	let [imgpath isimgurl imgurl] -> imgp in 
-    createImages inst imgp;
-	let [fontpath isfonturl fonturl] -> fntp in 	
-    createFonts inst fntp;  	
+	
+	SendPluginEvent inst "started" nil nil;
   );
   0;;
 

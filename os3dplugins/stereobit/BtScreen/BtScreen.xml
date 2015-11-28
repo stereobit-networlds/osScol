@@ -63,6 +63,25 @@
     </ACTION>
     <ACTION name="Set opacity" />
     <EVENT name="Shown" />
-    <EVENT name="Hidden" />
+    <EVENT name="click" />
+    <EVENT name="keyboardEntry" />	
+	<EVENT name="validPass" />
+	<EVENT name="invalidPass" />
+	<EVENT name="startLoad" />
+	<EVENT name="endLoad" />
+	<EVENT name="loading" />
+	<EVENT name="started" />
+	<ACTION name="write" />
+	<ACTION name="writer" />
+	<ACTION name="writecls" />
+	<ACTION name="writetime" />
+	<ACTION name="writeblink" />
+	<ACTION name="writesymbol" />
+	<ACTION name="writetext" />
+	<ACTION name="writescore" />
+	<ACTION name="start" />
+	<ACTION name="obClicked" />
+	<ACTION name="passCheck" />
+	<ACTION name="passEntry" />
   </CLIENT>
 </PLUGIN>
