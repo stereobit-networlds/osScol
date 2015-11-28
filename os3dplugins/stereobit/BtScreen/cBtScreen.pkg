@@ -273,23 +273,16 @@ fun reCreateFontMatrix(o) =
 	)
    )else nil;; 
 
-fun endDownloadFontImages(file, data, x)=
-  let strfind ".png" file 0 -> r in 
-  let x -> [i fsize z] in
-  let z -> [fontpath isfonturl fonturl] in
-  let if !isfonturl then fontpath else fonturl -> url in
+/** web server version **/   
+fun endDownloadFontImage(file, data, x)= 
+  let strfind ".png" file 0 -> r in  
+  let x -> [i fsize _] in  
+  if data == nil then nil else
+  let strcatn sTmpDownloadPath::file::".tmp"::nil -> tmpfile in
   (
-    let G2DloadAlphaBmp _channel url -> bmp in	
-	
-    // dnload from web or scol server if flag is on but not a url	
-    let if server then 
-	  _LDalphaBitmap _channel _checkpack file 
-	else 
-	   G2DloadAlphaBmp _channel url 
-	-> bmp in
-				
-    if bmp == nil then nil 
-	else
+    _storepack data tmpfile;
+    let G2DloadAlphaBmp _channel tmpfile -> bmp in
+    if bmp == nil then nil else
 	(
 	    let _GETalphaBitmapSize bmp -> [w h] in
 	    let _GETalphaBitmaps bmp -> [bmp b8] in 
@@ -300,43 +293,89 @@ fun endDownloadFontImages(file, data, x)=
           let substr s poslastslash strlen s -> name in		  
           set lfontImages = [bmp name w h 0 0 nil 0]::lfontImages;	
 		  0
-	    ); 	
+	    );
+        if (i < fsize-1) then nil else createFontMatrix 1		
 	);
-	if (i < fsize-1) then nil else createFontMatrix 1
   );;	
   
+/*** web server dnload description file (images list) ***/
 fun endDownloadFontFile(file, data, z)=
   if data == nil then nil else
   let lineextr data -> files in /*start dnload font files from list file readed before */
   let z -> [fontpath isfonturl fonturl] in
+  let getFileDirectory fonturl -> url in
   let 0 -> i in  
   let (sizelist files) -> fsize in
   while i < fsize do 
     let nth_list files i -> file in
     (
 	 //_echo strcat "Download web fonts...............:" file
-	 let strcatn fonturl::"/"::file::nil -> url in
-	 downloadFile url mkfun3 @endDownloadFontImages [i fsize z];
+	 let strcatn url::"/"::file::nil -> url in
+	 downloadFile url mkfun3 @endDownloadFontImage [i fsize z];
      set i = i+1
-	);;     
-  
-fun downloadFontImages(url, files, z)=
-  let 0 -> i in
-  if (files==nil) then
+	); 
+	0;; 
+	
+/** scol server version **/   	
+fun endDownloadFontImageS(file, data, x)=
+  let strfind ".png" file 0 -> r in 
+  let x -> [i fsize _] in
+	
+  let _LDalphaBitmap _channel _checkpack file ->alphabmp in
+  if alphabmp == nil then nil else
   (  
-    /*no scol server, ask for font file list from web srv*/
-    downloadFile url mkfun3 @endDownloadFontFile z;
-	0;
-  )	
+    let _GETalphaBitmapSize alphabmp -> [w h] in
+    let _GETalphaBitmaps alphabmp -> [bmp b8] in 
+    ( 
+      _DSbitmap8 b8;
+      let substr file 0 r -> s in
+      let searchSlash s 0 -> poslastslash in
+      let substr s poslastslash strlen s -> name in
+      set lfontImages = [bmp name w h 0 0 nil 0]::lfontImages;	
+	  0
+    );	
+	if (i < fsize-1) then nil else createFontMatrix 1;
+	0
+  );;		
+  
+fun downloadFontImages(files, z)=
+  let 0 -> i in
+  let z -> [fontpath isfonturl fonturl] in
+  
+  if files then
+  (  /*scol server*/
+	 //_echo strcat "Download server fonts...............:" file
+	 //_RSCdownload this file file mkfun3 @endDownloadFontImageS [i fsize z]; //....................... no server
+	 nil
+  )
+  else if isfonturl then
+  ( /* web server load */
+    //downloadFile fonturl mkfun3 @endDownloadFontFile z
+	nil
+  )
   else
+    /* local load */
+    let getFileDirectory fontpath -> path in
+    let getFilesFromDir path "png"::nil -> files in 
     let (sizelist files) -> fsize in
     while i < fsize do
-    let nth_list files i -> file in
-    (
-	 //_echo strcat "Download server fonts...............:" file
-	 //_RSCdownload this file file mkfun3 @endDownloadFontImages [i fsize z]; //....................... no server
-     set i = i+1
-	);;  
+      let nth_list files i -> file in
+	  let strfind ".png" file 0 -> r in
+	  let G2DloadAlphaBmp _channel file -> bmp in
+      if (bmp == nil) then nil else
+		let _GETalphaBitmapSize bmp -> [w h] in
+        let _GETalphaBitmaps bmp -> [bmp b8] in
+        ( 
+           _DSbitmap8 b8;
+           let substr file 0 r -> s in
+           let searchSlash s 0 -> poslastslash in
+           let substr s poslastslash strlen s -> name in
+           set lfontImages = [bmp name w h 0 0 nil 0]::lfontImages;	
+           set i = i+1;
+		   if (i < fsize-1) then nil else createFontMatrix 1		   
+        );
+		0;;	  
+   
    
 fun getFont(list,n)=
   if list == nil then
@@ -480,24 +519,9 @@ fun symbolsliderd(r,d,s,b,t,st)=writeFontMatrix fontMatrix (xMatrix-r) (yMatrix-
 	 
 fun createImages(inst, z)= 0;;
 
-fun createFonts(inst, z)=	
-  let z -> [fontpath isfonturl fonturl] in
-  if !isfonturl then
-  (
-    /* local call */
-	//let getReverseFiles fontpath "png" -> flist in
-	let getFilesFromDir fontpath "png"::nil -> flist in
-	//downloadFontImages fontpath flist z;
-	//createFontMatrix flist; //....moved at the end of dnload
-    0;
-  )
-  else
-  (
-    /* download from web or scol server...*/
-	//downloadFontImages fonturl nil z;
-	//createFontMatrix nil; //....moved at the end of dnload
-    0;
-  );;
+fun createFonts(inst, z) = downloadFontImages nil z;;	
+//if server respond registered file list
+//downloadFontImages flist z;;
 
 
 /***********************************************************************/
