@@ -139,7 +139,6 @@ fun setMatrix(matrix, wMatrix, hMatrix, xbox, ybox, sep, i ,j)=
   );;
 
 fun makeFontMatrix(xbox, ybox, sep) = 
-  //let getView3dSize w3d -> [ScreenW ScreenH] in
   let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
   let (ScreenW/(xbox+sep)) -> wMatrix in
   let (ScreenH/(ybox+sep))+2 -> hMatrix in
@@ -246,22 +245,26 @@ fun endDownloadFontImageS(file, data, x)=
   );;		
   
 fun downloadFontImages(files, z)=
+  _fooS "DnLoading: start\n";
   let 0 -> i in
   let z -> [fontpath isfonturl fonturl] in
-  
-  if files then
-  (  /*scol server*/
+  if (files!=nil) then
+  (  
+     _fooS "(SCOL Server)\n";
 	 //_echo strcat "Download server fonts...............:" file
 	 //_RSCdownload this file file mkfun3 @endDownloadFontImageS [i fsize z]; //....................... no server
 	 nil
   )
   else if isfonturl then
   ( /* web server load */
+    _fooS "(WEB Server)\n";
     downloadFile fonturl mkfun3 @endDownloadFontFile z;
 	nil
   )
   else
+  (
     /* local load */
+	_fooS "(LOCAL)\n";
     let getFileDirectory fontpath -> path in
     let getFilesFromDir path "png"::nil -> files in 
     let (sizelist files) -> fsize in
@@ -272,7 +275,7 @@ fun downloadFontImages(files, z)=
       if (abmp == nil) then nil else
 		let _GETalphaBitmapSize abmp -> [w h] in
         (   
-		   //_fooS strcat file "\n";
+		   _fooS strcat "DnLoading font:" file;
            let substr file 0 r -> s in
            let searchSlash s 0 -> poslastslash in
            let substr s poslastslash strlen s -> name in
@@ -280,16 +283,17 @@ fun downloadFontImages(files, z)=
            set i = i+1;
 		   if (i < fsize-1) then nil else createFontMatrix		   
         );
-		0;;	  
+		0
+  );;	  
    
    
 fun getFont(list,n)=
   if list == nil then
     nil
   else 
-    let hd list -> [bmp name w h x y _ _] in
+    let hd list -> [abmp name w h x y _ _] in
     if !strcmp n name then
-      [bmp w h]
+      [abmp w h]
     else	 
       getFont tl list n;;  
 
@@ -352,11 +356,11 @@ fun writeFontMatrix(list,x,y,s,b,t,url,issymbol,slide) =
 	   let if (b>0) then _tickcount else 0 -> blink in
 	   let nth_list list (xy+i) -> [_ x y sx sy _ _ _ _ _ _] in
 	   let substr s i 1 -> c in
-       //let getFont lfontImages s -> [bmp w h] in 
-	   //let copyFontImage lfontImages s -> bmp in 
-	   let copyFontSlide lfontImages s slide -> bmp in
+       //let getFont lfontImages s -> [abmp w h] in 
+	   //let copyFontImage lfontImages s -> abmp in 
+	   let copyFontSlide lfontImages s slide -> abmp in
 	   ( 
-	     mutate nth_list list (xy+i) <- [bmp _ _ _ _ c 1 blink timer _ url];	
+	     mutate nth_list list (xy+i) <- [abmp _ _ _ _ c 1 blink timer _ url];	
 		 /*optimize move and click, add opt element, only when url is filled*/
 	     if (url!=nil) then	 
 		   set fontMatrixOpt = [sx sy url 0]::fontMatrixOpt
@@ -370,9 +374,9 @@ fun writeFontMatrix(list,x,y,s,b,t,url,issymbol,slide) =
 	   let if (b>0) then _tickcount else 0 -> blink in
 	   let nth_list list (xy+i) -> [_ x y sx sy _ _ _ _ _ _] in
 	   let substr s i 1 -> c in
-       let getFont lfontImages c -> [bmp w h] in 
+       let getFont lfontImages c -> [abmp w h] in 
 	   ( 
-	     mutate nth_list list (xy+i) <- [bmp _ _ _ _ c 1 blink timer _ url];	
+	     mutate nth_list list (xy+i) <- [abmp _ _ _ _ c 1 blink timer _ url];	
 		 /*optimize move and click, add opt element, only when url is filled*/
 	     if (url!=nil) then	 
 		   set fontMatrixOpt = [sx sy url 0]::fontMatrixOpt
@@ -422,9 +426,9 @@ fun symbolsliderd(r,d,s,b,t,st)=writeFontMatrix fontMatrix (xMatrix-r) (yMatrix-
 	 
 	 
 /*string conversions*/					   
-fun maConvert(s) = 
-  let substr s 0 xMatrix -> ss in /*not bigger than screen max x*/
-  strlowercase ss;;	              /*lowercase */
+fun maConvert(s) = s;;  /*** DISABLED ****/
+  //let substr s 0 xMatrix -> ss in /*not bigger than screen max x*/
+  //strlowercase ss;;	              /*lowercase */
 
 fun showFontList(list,i,j)=
   if list == nil then
@@ -589,8 +593,8 @@ fun blitFontMatrix(matrix, pictstr) =
 	  (
 	    let if ((b>0) && (viewblink==1)) & ((t>0) && ((currenttick-t)<3000)) then 
 	    ( //_Bitmap2Surface surf sx sy bmp 0 0 fmsizex fmsizey (make_rgb 0 0 255); 
-		  SO3WidgetSetPosition pictstr.PICT_win sx sy;
-          SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
+		  //SO3WidgetSetPosition pictstr.PICT_win sx sy;
+          //SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
 		  SO3BitmapWidgetBlitAlpha pictstr.PICT_win bmp;
 		  1) 
 	    else 
@@ -605,8 +609,8 @@ fun blitFontMatrix(matrix, pictstr) =
 	  (
 	    let if ((currenttick-t)<3000) then 
 	    ( //_Bitmap2Surface surf sx sy bmp 0 0 fmsizex fmsizey (make_rgb 0 0 255); 
-	      SO3WidgetSetPosition pictstr.PICT_win sx sy;
-          SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
+	      //SO3WidgetSetPosition pictstr.PICT_win sx sy;
+          //SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
 		  SO3BitmapWidgetBlitAlpha pictstr.PICT_win bmp;
 		  1) 
 	    else 
@@ -619,8 +623,8 @@ fun blitFontMatrix(matrix, pictstr) =
 	  ) 
 	  else 
 	  ( //_Bitmap2Surface surf sx sy bmp 0 0 fmsizex fmsizey (make_rgb 0 0 255);
-	    SO3WidgetSetPosition pictstr.PICT_win sx sy;
-        SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
+	    //SO3WidgetSetPosition pictstr.PICT_win sx sy;
+        //SO3WidgetSetSize pictstr.PICT_win fmsizex fmsizey;
 		SO3BitmapWidgetBlitAlpha pictstr.PICT_win bmp;
 	    0) 
     )
@@ -753,7 +757,20 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
 	blitFontMatrix fontMatrix pictstr;
   );
   0;;
+  
+  
+fun cbControlPreRenderBlitFontMatrix(inst, sessionstr, etime, pictstr) = 
+  blitFontMatrix fontMatrix pictstr;
+  0;;  
+  
+fun cb3dClick(inst, viewstr, x, y, b, pictstr)= 
+  setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderBlitFontMatrix pictstr;
+  0;; 
 
+fun cb3dDbClick(inst, viewstr, x, y, b, pictstr)= 
+  setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderBlitFontMatrix pictstr;
+  0;;
+  
 
 fun createPicture(inst, pictstr)=
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
@@ -966,65 +983,23 @@ fun deleteOb(inst, pictstr)=
   restoreTexture pictstr;
   0;;
   
-fun cbWrite(inst, from, action, param, reply, pictstr)= writexy 0 0 maConvert "A" 0 0;;  
-  
-fun activate(inst, from, action, param, reply, pictstr)=  
-  if !strcmp action "write" then
-  (	if (mEpass!=1) && (param!=nil) then
-      writexy 0 0 maConvert param 0 0 /*left up corner, permanent until cls*/	
-	else  
-  0)  
-  else if !strcmp action "writer" then
-  (	if (mEpass!=1) && (param!=nil) then
-      writeyr 0 (strcat maConvert param "   ") 0 0 /*right up corner - logo, permanent until cls*/	
-	else  
-  0)  	
-  else if !strcmp action "writetime" then
-  ( if (mEpass!=1) && (param!=nil) then
-      writecc maConvert param 0 1  /*centered and time depend*/	
-	else
-  0)   
-  else if !strcmp action "writeblink" then
-  (	if (mEpass!=1) && (param!=nil) then
+fun cbWrite(inst, from, action, param, reply, pictstr)= writexy 0 0 maConvert param 0 0;;  
+fun cbWriter(inst, from, action, param, reply, pictstr)= writeyr 0 (strcat maConvert param "   ") 0 0;; /*right up corner - logo, permanent until cls*/
+fun cbWriteTime(inst, from, action, param, reply, pictstr)= writecc maConvert param 0 1;;  /*centered and time depend*/
+fun cbWriteBlink(inst, from, action, param, reply, pictstr)=
+    if (mEpass!=1) && (param!=nil) then
     ( let setSpace xMatrix nil -> delString in
 	  writecc delString 0 0; /*xMatrix max char erase string*/
       writecc maConvert param 1 1 /*centered, blink and time depend*/ 
 	)
-	else  
-  0)   	
-  else if !strcmp action "writecls" then
-  (	if (mEpass!=1) then
-      cls nil /*clear screen*/
-	else  
-  0) 	
-  else if !strcmp action "writesymbol" then
-  (	if (mEpass!=1) && (param!=nil) then
-      symbolxy 0 0 maConvert param 0 0 /*left up corner, permanent until cls*/	
-	else  
-  0) 	
-  else if !strcmp action "writetext" then
-  (	if (mEpass!=1) && (param!=nil) then
-      writeText	0 0 (maConvert param) 0 0 /*paragraph text sep by 10 or 13 char*/
-	else  
-  0) 		
-  else if !strcmp action "writescore" then
-  (	if (mEpass!=1) && (param!=nil) then
-      writeScore 0 0 (maConvert param) 0 0 /*paragraph text sep by 10 or 13 char*/
-	else  
-  0) 	  
-  else if !strcmp action "ShowCompass" then
-  (	if (mEpass!=1) && (param!=nil) then
-      showCompass param 
-	else  
-  0) 
-  else if !strcmp action "ShowFramerate" then
-  (	if (mEpass!=1) && (param!=nil) then
-      showFramerate param 
-	else  
-  0)   
-  else
-    0;;	 
-
+	else 0;;
+fun cbWriteCls(inst, from, action, param, reply, pictstr)= if (mEpass!=1) then cls nil else 0;;
+fun cbWriteSymbol(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then symbolxy 0 0 maConvert param 0 0 else 0;; /*left up corner, permanent until cls*/
+fun cbWriteText(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then writeText 0 0 (maConvert param) 0 0 else 0;; /*paragraph text sep by 10 or 13 char*/
+fun cbWriteScore(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then writeScore 0 0 (maConvert param) 0 0 else 0;; /*paragraph text sep by 10 or 13 char*/ 
+fun cbShowCompass(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then showCompass param else 0;;
+fun cbShowFramerate(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then showFramerate param else 0;;
+  
 
 fun cbNewOb(inst)=
   let (getPluginInstanceParam inst "object") -> objname in
@@ -1102,12 +1077,14 @@ fun cbNewOb(inst)=
   let MkPlugPicture [inst istexture mat technique pass texture nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil] -> pictstr in
   (
     createPicture inst pictstr;
-	
+	//_fooS "Start";
 	SendPluginEvent inst "startLoad" nil nil;
     createFonts inst [fontpath isfonturl fonturl];		
     
     if pictstr.PICT_bOnMaterial then nil else
       setPluginInstanceCbResizeView inst mkfun5 @cbResizeCtrl pictstr;
+	  setPluginInstanceCbClick inst mkfun6 @cb3dClick pictstr;         /*add click callback */
+	  setPluginInstanceCbDbClick inst mkfun6 @cb3dDbClick pictstr;     /*add db click callback */
     
       if !pictstr.PICT_bUrl then
       (
@@ -1142,15 +1119,15 @@ fun cbNewOb(inst)=
     PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
 	
 	PluginRegisterAction inst "write" mkfun6 @cbWrite pictstr;	
-	PluginRegisterAction inst "writer" mkfun6 @activate pictstr;	
-	PluginRegisterAction inst "writecls" mkfun6 @activate pictstr;		
-	PluginRegisterAction inst "writetime" mkfun6 @activate pictstr;		
-	PluginRegisterAction inst "writeblink" mkfun6 @activate pictstr;		
-	PluginRegisterAction inst "writesymbol" mkfun6 @activate pictstr;		
-	PluginRegisterAction inst "writetext" mkfun6 @activate pictstr;	
-	PluginRegisterAction inst "writescore" mkfun6 @activate pictstr;
-	PluginRegisterAction inst "ShowCompass" mkfun6 @activate pictstr;	
-	PluginRegisterAction inst "ShowFramerate" mkfun6 @activate pictstr;
+	PluginRegisterAction inst "writer" mkfun6 @cbWriter pictstr;	
+	PluginRegisterAction inst "writecls" mkfun6 @cbWriteCls pictstr;		
+	PluginRegisterAction inst "writetime" mkfun6 @cbWriteTime pictstr;		
+	PluginRegisterAction inst "writeblink" mkfun6 @cbWriteBlink pictstr;		
+	PluginRegisterAction inst "writesymbol" mkfun6 @cbWriteSymbol pictstr;		
+	PluginRegisterAction inst "writetext" mkfun6 @cbWriteText pictstr;	
+	PluginRegisterAction inst "writescore" mkfun6 @cbWriteScore pictstr;
+	PluginRegisterAction inst "ShowCompass" mkfun6 @cbShowCompass pictstr;	
+	PluginRegisterAction inst "ShowFramerate" mkfun6 @cbShowFramerate pictstr;
 	
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
 	
