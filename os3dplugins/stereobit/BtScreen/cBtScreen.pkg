@@ -168,12 +168,6 @@ fun setMatrix(viewportstr, matrix, wMatrix, hMatrix, xbox, ybox, sep, dim, x)=
 	let hd matrix -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
 	(
 	 //_echo strcatn "CMATRIX:"::(itoa i)::","::(itoa j)::","::(itoa xs)::","::(itoa ys)::nil
-	 
-	 //SO3WidgetSetPosition mxwidget xs ys;
-     //SO3WidgetSetSize mxwidget xbox ybox;
-     //SO3WidgetSetVisibility mxwidget 1;	
-	 //SO3BitmapWidgetBlitAlpha mxwidget abmp;
-	 
 	 mutate hd matrix <- [abmp i j xs ys "" 0 0 0 0 createMXWidget viewportstr (strcat itoa i itoa j) xs ys dw dh];
 	 
 	 let if (i<wMatrix-1) then [(i+1) j] else [0 (j+1)] -> x in
@@ -190,23 +184,15 @@ fun makeFontMatrix(pictstr, xbox, ybox, sep, rx, ry, dim) =
   let (ScreenH/(dh+sep)) -> hMatrix in
   let (wMatrix*hMatrix) -> sMatrix in
   
-/*  let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
-  let if (rx!=nil)||(ry!=nil) then [rx ry] else V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-  let (ScreenW/(xbox+sep)) -> wMatrix in
-  let (ScreenH/(ybox+sep)) -> hMatrix in
-  let (wMatrix*hMatrix) -> sMatrix in*/
-  
   let nil -> matrix in  
   let 0 -> i in    
   ( /*init matrix*/
     while (i<sMatrix) do
 	(
-	 //set matrix = [nil 0 0 0 0 nil 0 0 0 0 createMXWidget viewportstr i wMatrix hMatrix xbox ybox]::matrix;
 	 set matrix = [nil 0 0 0 0 nil 0 0 0 0 nil]::matrix;
 	 set i = i + 1;
 	 0
 	);
-    //setMatrix viewportstr matrix wMatrix hMatrix xbox ybox sep [0 0];
 	setMatrix viewportstr matrix wMatrix hMatrix dw dh sep dim [0 0];
     [matrix wMatrix hMatrix]
   );; 
@@ -244,7 +230,10 @@ fun endDownloadFontImage(file, data, x)=
           set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
 		  0
 	    );
-        if (i < fsize) then nil else createFontMatrix pictstr nil nil nil	
+        if (i < fsize) then nil else 
+		  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+		  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
+		  createFontMatrix pictstr nil nil [px py pw ph]
 	);
   );;	
   
@@ -259,6 +248,7 @@ fun endDownloadFontFile(file, data, pictstr)=
     let nth_list files i -> file in
     (
 	 //_echo strcat "Download web fonts...............:" file
+	 _fooS strcat "DnLoading web file:" file;
 	 let strcatn url::"/"::file::nil -> url in
 	 downloadFile url mkfun3 @endDownloadFontImage [i fsize pictstr];
      set i = i+1
@@ -280,8 +270,10 @@ fun endDownloadFontImageS(file, data, x)=
       set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
 	  0
     );	
-	if (i < fsize) then nil else createFontMatrix pictstr nil nil nil;
-	0
+	if (i < fsize) then nil else 
+	  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+	  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
+	  createFontMatrix pictstr nil nil [px py pw ph]
   );;		
   
 fun downloadFontImages(files, pictstr)=
@@ -321,7 +313,10 @@ fun downloadFontImages(files, pictstr)=
 		   (
              set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
              set i = i+1;
-		     if (i < fsize) then nil else createFontMatrix pictstr nil nil nil		   
+		     if (i < fsize) then nil else 
+			   let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+			   let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
+			   createFontMatrix pictstr nil nil [px py pw ph] 		   
 		   )
         );
 		//set pictstr.PICT_lfontImages = lfontImages;
@@ -495,21 +490,18 @@ fun showFontList(list,i,j)=
 fun clsFontMatrix(list) =
   if list == nil then
     nil
-  else 
-  (
-	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 _];
+  else
+    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
+    ( 
+      SO3WidgetSetVisibility mxwidget 0;
+	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 mxwidget];
       clsFontMatrix tl list;
 	  0
-  );;  
+    );;  
 
-fun cls(o) = 
+fun cls(fontMatrix) = 
   clsFontMatrix fontMatrix;
   set fontMatrixOpt = nil; /*reset opt matrix*/
-  
-  /*OB_ReleaseMouse o;
-  OB_ReleaseCursor o;
-  OB_SetCursor o StdCursor;
-  _SETfocus w3d.V3dwin; ********************/
   0;; 
   
 fun clsFontMatrixLine(list,line) =
@@ -527,14 +519,8 @@ fun clsFontMatrixLine(list,line) =
 
 /*lines without urls (opt)*/ 
 fun clsline(o, line) = 
-
   clsFontMatrixLine fontMatrix line;
   //set fontMatrixOpt = nil; /*reset opt matrix!!!!*/
-  
-  //OB_ReleaseMouse o; /**********************/
-  //OB_ReleaseCursor o;
-  //OB_SetCursor o StdCursor;
-  //_SETfocus w3d.V3dwin;
   0;;   
   
 
@@ -581,6 +567,20 @@ fun clearFontImages(pictstr) =
   //set pictstr.PICT_lfontImages = nil; //????
   set fontMatrixOpt = nil; /*reset opt matrix*/
   0;;   
+  
+fun refreshMXWidget(list, viewportstr) = 
+  if list == nil then
+    nil
+  else 
+    let hd list -> [abmp _ _ _ _ _ _ _ _ _ mxwidget] in
+    (   
+      V3DremoveWidgetControl viewportstr mxwidget;
+      SO3WidgetDestroy mxwidget;
+      SO3BitmapWidgetBlitAlpha mxwidget abmp;
+	  mutate hd list <- [_ _ _ _ _ _ _ _ _ _ mxwidget];
+	  refreshMXWidget tl list viewportstr;
+	  0
+    );;	   
 
   
 fun deleteMXWidget(list, viewportstr) = 
@@ -611,16 +611,6 @@ fun resizeFontMatrix(pictstr, rx, ry, dim) =
   deleteFontMatrix pictstr; 
   createFontMatrix pictstr rx ry dim;
   0;;
-  
-  /*  cls o;
-    let makeFontMatrix fmsizex fmsizey fsep rx ry -> [matrix mx my] in
-    (
-	  set fontMatrix = matrix;
-	  set xMatrix = mx+1;
-	  set yMatrix = my;
-	  //_echo strcatn "RESIZE MATRIX:"::(itoa mx)::","::(itoa my)::","::(itoa sizelist matrix)::nil	  
-	  0
-    );;  */   
 
 fun setSpace(s, sp) =  
   if s<=0 then sp
@@ -835,12 +825,14 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
 	
 	resizeFontMatrix pictstr vw vh [px py pw ph];
 	set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix;
+	_fooS strcat "blitBlt fonts :" "resize\n";
   );
   0;;
   
   
 fun cbControlPreRenderBlitFontMatrix(inst, sessionstr, etime, pictstr) = 
   set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix;
+  _fooS strcat "blitBlt fonts:" "PreRender\n";
   0;;  
   
 fun cb3dClick(inst, viewstr, x, y, b, pictstr)= 
@@ -1016,7 +1008,8 @@ fun cbChangeData(inst, from, action, param, reply, pictstr)=
     
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
-	//set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix;
+	set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix;
+	_fooS strcat "blitBlt fonts:" "changed data\n";
   );
   0;;
 
@@ -1034,7 +1027,8 @@ fun cbChange(inst, from, action, param, reply, pictstr)=
       
       SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	  
-	  //set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix;
+	  set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix;
+	  _fooS strcat "blitBlt fonts:" "change\n";
     );
     0;
   )
@@ -1064,17 +1058,17 @@ fun deleteOb(inst, pictstr)=
   0;;
   
 fun cbWrite(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr.PICT_fontMatrix 0 0 maConvert param 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
-fun cbWriter(inst, from, action, param, reply, pictstr)= writeyr 0 (strcat maConvert param "   ") 0 0;; /*right up corner - logo, permanent until cls*/
-fun cbWriteTime(inst, from, action, param, reply, pictstr)= writecc maConvert param 0 1;;  /*centered and time depend*/
+fun cbWriter(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr.PICT_fontMatrix xMatrix-(strlen param) 0 (strcat maConvert param "   ") 0 0 nil nil 0;;//writeyr 0 (strcat maConvert param "   ") 0 0;; /*right up corner - logo, permanent until cls*/
+fun cbWriteTime(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr.PICT_fontMatrix ((xMatrix-(strlen param))/2) (yMatrix/2)-1 maConvert param 0 1 nil nil 0;;//writecc maConvert param 0 1;;  /*centered and time depend*/
 fun cbWriteBlink(inst, from, action, param, reply, pictstr)=
     if (mEpass!=1) && (param!=nil) then
     ( let setSpace xMatrix nil -> delString in
-	  writecc delString 0 0; /*xMatrix max char erase string*/
-      writecc maConvert param 1 1 /*centered, blink and time depend*/ 
+	  writeFontMatrix pictstr.PICT_fontMatrix ((xMatrix-(strlen param))/2) (yMatrix/2)-1 delString 0 0 nil nil 0; //writecc delString 0 0; /*xMatrix max char erase string*/
+      writeFontMatrix pictstr.PICT_fontMatrix ((xMatrix-(strlen param))/2) (yMatrix/2)-1 maConvert param 1 1 nil nil 0;//writecc maConvert param 1 1 /*centered, blink and time depend*/ 
 	)
 	else 0;;
-fun cbWriteCls(inst, from, action, param, reply, pictstr)= if (mEpass!=1) then cls nil else 0;;
-fun cbWriteSymbol(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then symbolxy 0 0 maConvert param 0 0 else 0;; /*left up corner, permanent until cls*/
+fun cbWriteCls(inst, from, action, param, reply, pictstr)= if (mEpass!=1) then cls pictstr.PICT_fontMatrix else 0;;
+fun cbWriteSymbol(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then writeFontMatrix pictstr.PICT_fontMatrix 0 0 (maConvert param) 0 0 nil 1 0 else 0;; /*left up corner, permanent until cls*/
 fun cbWriteText(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then writeText 0 0 (maConvert param) 0 0 else 0;; /*paragraph text sep by 10 or 13 char*/
 fun cbWriteScore(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then writeScore 0 0 (maConvert param) 0 0 else 0;; /*paragraph text sep by 10 or 13 char*/ 
 fun cbShowCompass(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then showCompass param else 0;;
@@ -1175,7 +1169,8 @@ fun cbNewOb(inst)=
           
           SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 		  
-		  //set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix; 
+		  set pictstr.PICT_fontMatrix = blitFontMatrix pictstr.PICT_fontMatrix; 
+		  _fooS strcat "blitBlt fonts:" "init\n";
         );
         0;
       )
