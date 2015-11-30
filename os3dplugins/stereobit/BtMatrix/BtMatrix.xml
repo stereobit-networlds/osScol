@@ -12,7 +12,9 @@
     <PARAM name="texture" type="value" />
     <PARAM name="isurl" type="value" />
     <PARAM name="url" type="value" />
-    <PARAM name="path" type="file" />    
+    <PARAM name="path" type="file" /> 
+    <PARAM name="btnstates" type="value" />
+    <PARAM name="nbframes" type="value" />	
 	<PARAM name="isimgurl" type="value" />
     <PARAM name="imgurl" type="value" />
     <PARAM name="imgpath" type="file" />
@@ -39,6 +41,8 @@
     <PARAM name="transition" type="value" />
     <PARAM name="transparency" type="value" />
     <PARAM name="show" type="value" />
+    <PARAM name="cursor" type="value" />
+    <PARAM name="enablemouse" type="value" />	
   </EDITOR>
   <CLIENT minstance="true">
     <SCRIPT path="./cBtMatrix.pkg" />

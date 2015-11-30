@@ -67,7 +67,24 @@ struct PlugPicture = [
   PICT_xMatrix                 : I,
   PICT_yMatrix                 : I,  
   PICT_fontMatrix              : [[AlphaBitmap I I I I S I I I I SO3_WIDGET] r1],
-  PICT_matrixCursor            : I
+  
+  //PICT_bUrl                    : I,
+  //PICT_sPath                   : S,  
+  PICT_iClick                  : I,
+  PICT_bLastCursor             : I,
+  PICT_bShowCursor             : I,
+  PICT_bEnableMouse            : I,
+  //PICT_bShow                   : I,
+  PICT_iAvStates               : I,
+  PICT_iState                  : I,
+  PICT_iNbFrames               : I,
+  PICT_iCurFrame               : I,
+  PICT_iTick                   : I,
+  PICT_iLastInputState         : I,
+  PICT_tLastPos                : [I I],
+  PICT_lInputs                 : [[S [I I]] r1],
+  PICT_trmMouseState           : Timer // to enable the mouse after touch manipulation
+  //PICT_httpReq                 : ObjCURL  
 
   ] MkPlugPicture;;
 
@@ -117,6 +134,7 @@ fun createImage(ch,w,h) = _CRbitmap ch w h;;
 fun cpyImage(dest, dx, dy, source, sx, sy, sw, sh, trans)= _CPbitmap24 dest 0 0 source sx sy sw sh trans;; 
 
 fun createAlphaImage(ch,w,h) = _CRalphaBitmap ch (_CRbitmap ch w h) (_CRbitmap8 ch w h) nil 0;;
+
 
 fun computePosSize(pictstr, vw, vh)=
   let pictstr.PICT_tPercent -> [px py pw ph xo yo wo ho] in
@@ -540,12 +558,7 @@ fun writeFontMatrix(pictstr,x,y,s,b,t,url,issymbol,slide) =
 	   let if (b>0) then _tickcount else 0 -> blink in
 	   let nth_list pictstr.PICT_fontMatrix (xy+i) -> [_ x y sx sy _ _ _ _ _ mxwidget] in
 	   let substr s i 1 -> c in
-	   if (c==" ") then
-	   (
-	     set i = i + 1;
-		 set pictstr.PICT_matrixCursor = i
-	   )	 
-	   else
+	   if (c==" ") then  set i = i + 1  else
        let getFont lfontImages c -> [abmp w h] in 
 	   ( 
 	     //_fooS strcat "Write char:" c;
@@ -560,87 +573,11 @@ fun writeFontMatrix(pictstr,x,y,s,b,t,url,issymbol,slide) =
 		   set fontMatrixOpt = [sx sy url 0]::fontMatrixOpt
 		 else 
 		   nil;		   */
-	     set i = i + 1;
-	     set pictstr.PICT_matrixCursor = i;		 
+	     set i = i + 1; 
 	   0) 
 	);;
 	//print_r pictstr.PICT_fontMatrix;;	
 	
-	
-/*alias*/	
-/*
-fun writexy(x,y,s,b,t)=writeFontMatrix pictstr x y s b t nil nil 0;;
-fun writexd(x,d,s,b,t)=writeFontMatrix pictstr x (yMatrix-d) s b t nil nil 0;;
-fun writery(r,y,s,b,t)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil nil 0;;
-fun writexyu(x,y,s,b,t,u)=writeFontMatrix pictstr x y s b t u nil 0;;	
-fun writeyr(y,s,b,t) = let pictstr.PICT_xMatrix-(strlen s) -> x in 
-                       writeFontMatrix pictstr x y s b t nil nil 0;;	
-fun writeyc(y,s,b,t) = let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in 
-                       writeFontMatrix pictstr x y s b t nil nil 0;;	
-fun writecc(s,b,t)   = let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in
-                       let (pictstr.PICT_yMatrix/2)-1 -> y in
-                       writeFontMatrix pictstr x y s b t nil nil 0;;	
-fun writeccurl(s,b,t,u)= let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in
-                       let (pictstr.PICT_yMatrix/2)-1 -> y in
-                       writeFontMatrix pictstr x y s b t u nil 0;;	
-			
-fun symbolxy(x,y,s,b,t)=writeFontMatrix pictstr x y s b t nil 1 0;;
-fun symbolxd(x,d,s,b,t)=writeFontMatrix pictstr x (pictstr.PICT_yMatrix-d) s b t nil 1 0;;
-fun symbolry(r,y,s,b,t)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil 1 0;;
-fun symbolxyu(x,y,s,b,t,u)= writeFontMatrix pictstr x y s b t u 1 0;;
-fun symbolyr(y,s,b,t) = let pictstr.PICT_xMatrix-1 -> x in 
-                        writeFontMatrix pictstr x y s b t nil 1 0;;
-fun symbolyc(y,s,b,t) = let (pictstr.PICT_xMatrix/2)-1 -> x in 
-                        writeFontMatrix pictstr x y s b t nil 1 0;;	
-fun symbolcc(s,b,t)    = let (pictstr.PICT_xMatrix/2)-1 -> x in
-                        let (pictstr.PICT_yMatrix/2)-1 -> y in
-                        writeFontMatrix pictstr x y s b t nil 1 0;;	
-fun symbolccurl(s,b,t,u)= let (pictstr.PICT_xMatrix/2)-1 -> x in
-                       let (pictstr.PICT_yMatrix/2)-1 -> y in
-                       writeFontMatrix pictstr x y s b t u 1 0;;	
-
-fun symbolslidexy(x,y,s,b,t,st)=writeFontMatrix pictstr x y s b t nil 1 st;;					   
-fun symbolslidexd(x,d,s,b,t,st)=writeFontMatrix pictstr x (pictstr.PICT_yMatrix-d) s b t nil 1 st;;
-fun symbolslidery(r,y,s,b,t,st)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil 1 st;;
-fun symbolsliderd(r,d,s,b,t,st)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) (pictstr.PICT_yMatrix-d) s b t nil 1 st;;	 
-*/
-/************************************************************************/
-	 
-	 
-/*string conversions*/					   
-fun maConvert(s) = s;;  /*** DISABLED PICTSTR****/
-  //let substr s 0 pictstr.PICT_xMatrix -> ss in /*not bigger than screen max x*/
-  //strlowercase ss;;	              /*lowercase */
-
-/*  
-fun showFontList(list,i,j)=
-  if list == nil then
-    nil
-  else 
-  ( let hd list -> [_ name _ _ _ _ _ _] in
-    if (strlen name) == 1 then
-      writexy i j name 0 0
-    else	 
-	  symbolxy i j name 0 0;  
-	  
-	let if (i<xMatrix-1) then i+1 else (set j=j+1; 0) -> i in	
-    (showFontList tl list i j;
-	0)
-  );;    		
-  
-
-fun fillFontMatrix(list, b, t, u)= 
-  if list == nil then
-    nil
-  else 
-  ( let hd list -> [_ x y _ _ _ _ _ _ _ _] in
-	//writexyu x y "a" b t u;
-	symbolxyu x y "enter" b t u; 
-    fillFontMatrix tl list b t u;
-	0
-  );; 
-
-*/  
   
 fun hideFontMatrix(list) =
   if list == nil then
@@ -667,11 +604,6 @@ fun showFontMatrix(list) =
 	  0
     );;   
 
-/*alias*/
-/*
-fun fill(b, t, u) = fillFontMatrix fontMatrix b t u;;   
-*/
-
 fun clearFontImages(pictstr) =
   //set pictstr.PICT_lfontImages = nil; //????
   set fontMatrixOpt = nil; /*reset opt matrix*/
@@ -683,50 +615,7 @@ fun resizeFontMatrix(pictstr, rx, ry, dim) =
   //createFontMatrix pictstr rx ry dim;
   resetFontMatrix pictstr rx ry dim;
   0;;
-
-fun setSpace(s, sp) =  
-  if s<=0 then sp
-  else setSpace (s-1) (strcat " " sp);; 
   
-/*10 or 13 char sep string*/  
-/*
-fun writeText(x,y,s,b,t) =
-  let lineextr s -> lines in
-  let 0 -> i in
-  while (i < sizelist lines) do
-  (
-    //symbolxy x (y+i) s b t; 
-	
-    let setSpace xMatrix nil -> delparam in
-    writexy x (y+i) delparam 0 0;
-	
-	writexy x (y+i) (nth_list lines i) b t;
-	set i = i + 1;
-  0);;
-  
-fun writeScore(x,y,s,b,t) = 
-  //symbolslidexd 0 5 "scorelist" 0 0 (atoi s);
-  writexd 0 5 s b t;;
-  
-fun showFramerate(param)=  
-  //let substr (ftoa M3getFrameRate session) 0 2 -> fr in
-  let "99" -> fr in //............................
-  writeText 1 0 fr 0 0;
-  0;;    
-
-fun showCompass(param)=  
-  if (debug==1) then
-  (
-    let setSpace 3 nil -> delparam in
-    writexy 0 1 delparam 0 0;
-    writexy 0 1 param 0 0;
-	0
-  ) else nil;	
-  symbolslidexd 0 4 "compasslist" 0 0 (atoi param);
-  showFramerate param ;
-  0;;
-  
-*/  	
 
 fun blitFontMatrix(matrix, pictstr) = 
   if matrix == nil then
@@ -813,17 +702,17 @@ fun createFonts(inst, pictstr) = downloadFontImages nil pictstr;;
 
 /**************......ANIM to be implemented into pre renders
 // button animation is updated at 10 FPS
-fun cbControlPreRenderAnim(inst, sessionstr, etime, btnstr)=
-  let (set btnstr.PBTN_iTick = btnstr.PBTN_iTick + etime) -> rtick in
+fun cbControlPreRenderAnim(inst, sessionstr, etime, pictstr)=
+  let (set pictstr.PICT_iTick = pictstr.PICT_iTick + etime) -> rtick in
   if (rtick < (1000 / 10)) then nil else
   (
-    set btnstr.PBTN_iCurFrame = btnstr.PBTN_iCurFrame + 1;
+    set pictstr.PICT_iCurFrame = pictstr.PICT_iCurFrame + 1;
     
-    if (btnstr.PBTN_iCurFrame < (btnstr.PBTN_iNbFrames - 1)) then nil else
-      set btnstr.PBTN_iCurFrame = 0;
+    if (pictstr.PICT_iCurFrame < (pictstr.PICT_iNbFrames - 1)) then nil else
+      set pictstr.PICT_iCurFrame = 0;
     
-    updateButton btnstr;
-    set btnstr.PBTN_iTick = 0;
+    updateButton pictstr;
+    set pictstr.PICT_iTick = 0;
   );
   0;;
 */
@@ -949,16 +838,50 @@ fun cb3dDbClick(inst, viewstr, x, y, b, pictstr)=
   0;;
   
   
+  
+  
+fun updateButton(btnstr)=0;;
+/*
+  if (pictstr.PICT_win == nil) then nil else
+  let _GETalphaBitmapSize pictstr.PICT_AlphaBuffer -> [bw bh] in
+  let _GETalphaBitmapSize pictstr.PICT_AlphaDraw -> [dbw dbh] in
+  let bw / pictstr.PICT_iNbFrames -> width in
+  let bh / (pictstr.PICT_iAvStates + 1) -> height in
+  let (bw / pictstr.PICT_iNbFrames) * pictstr.PICT_iCurFrame -> wpos in
+  let if (!pictstr.PICT_iAvStates) then 0 else height * pictstr.PICT_iState -> ypos in
+  (
+    if ((pictstr.PICT_AlphaDraw == nil) || (dbw != width) || (dbh != height)) then
+    (
+      _DSalphaBitmap pictstr.PICT_AlphaDraw;
+      
+      let _CRbitmap _channel width height -> bmp24 in
+      let _CRbitmap8 _channel width height -> bmp8 in
+        set pictstr.PICT_AlphaDraw = _CRalphaBitmap _channel bmp24 bmp8 nil nil;
+    )
+    else nil;
+    
+    let _GETalphaBitmaps pictstr.PICT_AlphaBuffer -> [colorLayer alphaLayer] in 
+    let _GETalphaBitmaps pictstr.PICT_AlphaDraw -> [colorDraw alphaDraw] in
+    (
+      _CPbitmap24 colorDraw 0 0 colorLayer wpos ypos width height nil;
+      _CPbitmap8 alphaDraw 0 0 alphaLayer wpos ypos width height nil;
+    );
+    
+    drawLabel pictstr.PICT_AlphaDraw btnstr;
+    SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaDraw;
+  );
+  0;;*/  
+  
 /** Mouse *************************************************************************/  
 
-fun cbMouseIn(widget, btnstr)=
-  if(btnstr.PBTN_iState == 3) || (btnstr.PBTN_iClick != 0) then nil else
+fun cbMouseIn(widget, pictstr)=
+  if(pictstr.PICT_iState == 3) || (pictstr.PICT_iClick != 0) then nil else
   (
-    set btnstr.PBTN_iState = 1;
+    set pictstr.PICT_iState = 1;
     let V3DgetSessionView c3dXsession -> viewstr in
-    if (!btnstr.PBTN_bShowCursor || btnstr.PBTN_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
+    if (!pictstr.PICT_bShowCursor || pictstr.PICT_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
     (
-      set btnstr.PBTN_bLastCursor = 1;
+      set pictstr.PICT_bLastCursor = 1;
       let V3DgetCursor viewstr -> pcursor in
       if (pcursor == cHandCursor) then nil else
         set cPrevCursor = pcursor;
@@ -967,189 +890,189 @@ fun cbMouseIn(widget, btnstr)=
     );
     
     //update bitmap
-    if(btnstr.PBTN_iAvStates <= 0) then nil else
+    if(pictstr.PICT_iAvStates <= 0) then nil else
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
     
-    SendPluginEvent btnstr.PBTN_instance "MouseOver" nil nil;
+    SendPluginEvent pictstr.PICT_instance "MouseOver" nil nil;
   );
   0;;
 
 
-fun cbMouseOut(widget, btnstr)=
-  if(btnstr.PBTN_iState == 3) then nil else
+fun cbMouseOut(widget, pictstr)=
+  if(pictstr.PICT_iState == 3) then nil else
   (
-    if (btnstr.PBTN_iClick != 0) then nil else
+    if (pictstr.PICT_iClick != 0) then nil else
     (
       let V3DgetSessionView c3dXsession -> viewstr in
-      if (!btnstr.PBTN_bShowCursor || !btnstr.PBTN_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
+      if (!pictstr.PICT_bShowCursor || !pictstr.PICT_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
       (
-        set btnstr.PBTN_bLastCursor = 0;
+        set pictstr.PICT_bLastCursor = 0;
         V3DsetCursor viewstr cPrevCursor;
         set cPrevCursor = nil;
       );
     
-      set btnstr.PBTN_iState = 0;
+      set pictstr.PICT_iState = 0;
       
       //update bitmap
-      if(btnstr.PBTN_iAvStates <= 0) then nil else
+      if(pictstr.PICT_iAvStates <= 0) then nil else
       (
-        updateButton btnstr;
+        updateButton pictstr;
         0;
       );
       
-      //SendPluginEvent btnstr.PBTN_instance "Released" nil nil;
-      SendPluginEvent btnstr.PBTN_instance "MouseOut" nil nil;
+      //SendPluginEvent pictstr.PICT_instance "Released" nil nil;
+      SendPluginEvent pictstr.PICT_instance "MouseOut" nil nil;
     );
   );
   0;;
 
 
-fun cbClick(widget, btnstr, x, y, btn)=
-  if(btnstr.PBTN_iState == 3) then nil else
+fun cbClick(widget, pictstr, x, y, btn)=
+  if(pictstr.PICT_iState == 3) then nil else
   (
-    if (btnstr.PBTN_iState == 2) && (btnstr.PBTN_iClick == 0) then nil else
+    if (pictstr.PICT_iState == 2) && (pictstr.PICT_iClick == 0) then nil else
     (
-      SendPluginEvent btnstr.PBTN_instance "Pushed" nil nil;
-      set btnstr.PBTN_tLastPos = [x y];
+      SendPluginEvent pictstr.PICT_instance "Pushed" nil nil;
+      set pictstr.PICT_tLastPos = [x y];
     );
     
-    set btnstr.PBTN_iClick = btnstr.PBTN_iClick|btn;
-    set btnstr.PBTN_iState = 2;
+    set pictstr.PICT_iClick = pictstr.PICT_iClick|btn;
+    set pictstr.PICT_iState = 2;
     
-    if(btnstr.PBTN_iAvStates <= 1) then nil else
+    if(pictstr.PICT_iAvStates <= 1) then nil else
     //update bitmap
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
   );
   0;;
 
 
-fun cbUnClick(widget, btnstr, x, y, btn)=
-  if (btnstr.PBTN_iState == 3) then nil else
+fun cbUnClick(widget, pictstr, x, y, btn)=
+  if (pictstr.PICT_iState == 3) then nil else
   (
-    if (btnstr.PBTN_iState != 2) then nil else
+    if (pictstr.PICT_iState != 2) then nil else
     (
-      set btnstr.PBTN_tLastPos = nil;
-      SendPluginEvent btnstr.PBTN_instance "Released" nil nil;
-      if (SO3WidgetIsMouseOver btnstr.PBTN_win) then nil else
+      set pictstr.PICT_tLastPos = nil;
+      SendPluginEvent pictstr.PICT_instance "Released" nil nil;
+      if (SO3WidgetIsMouseOver pictstr.PICT_win) then nil else
       (
-        SendPluginEvent btnstr.PBTN_instance "MouseOut" nil nil;
+        SendPluginEvent pictstr.PICT_instance "MouseOut" nil nil;
       );
     );
     
-    if (!SO3WidgetIsMouseOver btnstr.PBTN_win) then
+    if (!SO3WidgetIsMouseOver pictstr.PICT_win) then
     (
       let V3DgetSessionView c3dXsession -> viewstr in
-      if (!btnstr.PBTN_bShowCursor || !btnstr.PBTN_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
+      if (!pictstr.PICT_bShowCursor || !pictstr.PICT_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
       (
-        set btnstr.PBTN_bLastCursor = 0;
+        set pictstr.PICT_bLastCursor = 0;
         V3DsetCursor viewstr cPrevCursor;
         set cPrevCursor = nil;
       );
-      SendPluginEvent btnstr.PBTN_instance "MouseOut" nil nil;
+      SendPluginEvent pictstr.PICT_instance "MouseOut" nil nil;
       0;
     )
     else
     (
       if btn == 1 then
-        SendPluginEvent btnstr.PBTN_instance "LeftClick" nil nil
+        SendPluginEvent pictstr.PICT_instance "LeftClick" nil nil
       else if btn == 2 then
-        SendPluginEvent btnstr.PBTN_instance "RightClick" nil nil
+        SendPluginEvent pictstr.PICT_instance "RightClick" nil nil
       else if btn == 16 then
-        SendPluginEvent btnstr.PBTN_instance "MiddleClick" nil nil
+        SendPluginEvent pictstr.PICT_instance "MiddleClick" nil nil
       else nil;
       0;
     );
     
-    set btnstr.PBTN_iState = if (SO3WidgetIsMouseOver btnstr.PBTN_win) then 1 else 0;
+    set pictstr.PICT_iState = if (SO3WidgetIsMouseOver pictstr.PICT_win) then 1 else 0;
 
     //update bitmap
-    if(btnstr.PBTN_iAvStates <= 0) then nil else
+    if(pictstr.PICT_iAvStates <= 0) then nil else
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
   );
-  set btnstr.PBTN_iClick = 0;
+  set pictstr.PICT_iClick = 0;
   0;;
 
 
-fun cbMouseMove(widget, btnstr, x, y, btn)=
-  if (btnstr.PBTN_iClick == 0) || (btnstr.PBTN_tLastPos == nil) then nil else
-  let btnstr.PBTN_tLastPos -> [px py] in
-  let (min btnstr.PBTN_iWidth btnstr.PBTN_iHeight) -> msize in
+fun cbMouseMove(widget, pictstr, x, y, btn)=
+  if (pictstr.PICT_iClick == 0) || (pictstr.PICT_tLastPos == nil) then nil else
+  let pictstr.PICT_tLastPos -> [px py] in
+  let (min pictstr.PICT_iWidth pictstr.PICT_iHeight) -> msize in
   let (itof (x - px)) /. (itof msize) -> fx in
   let if (fx >. 1.0) then 1.0 else if (fx <. (-.1.0)) then (-.1.0) else fx -> fx in
   let (itof (py - y)) /. (itof msize) -> fy in
   let if (fy >. 1.0) then 1.0 else if (fy <. (-.1.0)) then (-.1.0) else fy -> fy in
   (
-    SendPluginEvent btnstr.PBTN_instance "Pushed move" strcatn (ftoa fx)::" "::(ftoa fy)::nil nil;
+    SendPluginEvent pictstr.PICT_instance "Pushed move" strcatn (ftoa fx)::" "::(ftoa fy)::nil nil;
   );
   0;;
 
 
-fun cbFocused(widget, btnstr, state)=
-  if (state || (btnstr.PBTN_iState != 2) || (btnstr.PBTN_iClick == 0)) then nil else
+fun cbFocused(widget, pictstr, state)=
+  if (state || (pictstr.PICT_iState != 2) || (pictstr.PICT_iClick == 0)) then nil else
   (
-    set btnstr.PBTN_tLastPos = nil;
-    SendPluginEvent btnstr.PBTN_instance "Released" nil nil;
+    set pictstr.PICT_tLastPos = nil;
+    SendPluginEvent pictstr.PICT_instance "Released" nil nil;
 
     let V3DgetSessionView c3dXsession -> viewstr in
-    if (!btnstr.PBTN_bShowCursor || !btnstr.PBTN_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
+    if (!pictstr.PICT_bShowCursor || !pictstr.PICT_bLastCursor || (!V3DgetCursorVisible viewstr)) then nil else
     (
-      set btnstr.PBTN_bLastCursor = 0;
+      set pictstr.PICT_bLastCursor = 0;
       V3DsetCursor viewstr cPrevCursor;
       set cPrevCursor = nil;
     );
     
-    SendPluginEvent btnstr.PBTN_instance "MouseOut" nil nil;
+    SendPluginEvent pictstr.PICT_instance "MouseOut" nil nil;
     
-    set btnstr.PBTN_iClick = 0;
-    set btnstr.PBTN_iState = 0;
+    set pictstr.PICT_iClick = 0;
+    set pictstr.PICT_iState = 0;
 
     //update bitmap
-    if(btnstr.PBTN_iAvStates <= 0) then nil else
+    if(pictstr.PICT_iAvStates <= 0) then nil else
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
   );
   0;;
 
-fun cbSendLeftClick(inst, from, action, param, reply, btnstr)=
-  if (!btnstr.PBTN_bShow) then nil else
-    SendPluginEvent btnstr.PBTN_instance "LeftClick" nil nil;
+fun cbSendLeftClick(inst, from, action, param, reply, pictstr)=
+  if (!pictstr.PICT_bShow) then nil else
+    SendPluginEvent pictstr.PICT_instance "LeftClick" nil nil;
   0;;
 
 
-fun cbSendRightClick(inst, from, action, param, reply, btnstr)=
-  if (!btnstr.PBTN_bShow) then nil else
-    SendPluginEvent btnstr.PBTN_instance "RightClick" nil nil;
+fun cbSendRightClick(inst, from, action, param, reply, pictstr)=
+  if (!pictstr.PICT_bShow) then nil else
+    SendPluginEvent pictstr.PICT_instance "RightClick" nil nil;
   0;;
 
 
-fun cbSendMiddleClick(inst, from, action, param, reply, btnstr)=
-  if (!btnstr.PBTN_bShow) then nil else
-    SendPluginEvent btnstr.PBTN_instance "MiddleClick" nil nil;
+fun cbSendMiddleClick(inst, from, action, param, reply, pictstr)=
+  if (!pictstr.PICT_bShow) then nil else
+    SendPluginEvent pictstr.PICT_instance "MiddleClick" nil nil;
   0;;
 
 
-fun cbSetState(inst, from, action, param, reply, btnstr)=
+fun cbSetState(inst, from, action, param, reply, pictstr)=
   let strtrim param -> param in
   if (!strcmpi param "Active") || ((atoi param) == 1) then
   (
     // active state
-    set btnstr.PBTN_iState = 0;
+    set pictstr.PICT_iState = 0;
     
-    if(btnstr.PBTN_iAvStates <= 0) then nil else
+    if(pictstr.PICT_iAvStates <= 0) then nil else
     //update bitmap
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
     0;
@@ -1157,12 +1080,12 @@ fun cbSetState(inst, from, action, param, reply, btnstr)=
   else if (!strcmpi param "Hover") || ((atoi param) == 2) then
   (
     // hover state
-    set btnstr.PBTN_iState = 1;
+    set pictstr.PICT_iState = 1;
     
-    if(btnstr.PBTN_iAvStates <= 0) then nil else
+    if(pictstr.PICT_iAvStates <= 0) then nil else
     //update bitmap
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
     0;
@@ -1170,12 +1093,12 @@ fun cbSetState(inst, from, action, param, reply, btnstr)=
   else if (!strcmpi param "Down") || ((atoi param) == 3) then
   (
     // hover state
-    set btnstr.PBTN_iState = 2;
+    set pictstr.PICT_iState = 2;
     
-    if(btnstr.PBTN_iAvStates <= 0) then nil else
+    if(pictstr.PICT_iAvStates <= 0) then nil else
     //update bitmap
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
     0;
@@ -1183,12 +1106,12 @@ fun cbSetState(inst, from, action, param, reply, btnstr)=
   else if (!strcmpi param "Disable") || ((atoi param) == 4) then
   (
     // disable state
-    set btnstr.PBTN_iState = 3;
+    set pictstr.PICT_iState = 3;
     
-    if(btnstr.PBTN_iAvStates <= 1) then nil else
+    if(pictstr.PICT_iAvStates <= 1) then nil else
     //update bitmap
     (
-      updateButton btnstr;
+      updateButton pictstr;
       0;
     );
     0;
@@ -1197,35 +1120,35 @@ fun cbSetState(inst, from, action, param, reply, btnstr)=
   0;;
   
 // multi touch
-fun cbAddCursor(inst, viewstr, id, sx, sy, btnstr)=
-  if (!btnstr.PBTN_bShow) || (btnstr.PBTN_win == nil) then nil else
+fun cbAddCursor(inst, viewstr, id, sx, sy, pictstr)=
+  if (!pictstr.PICT_bShow) || (pictstr.PICT_win == nil) then nil else
   (
-    if (btnstr.PBTN_trmMouseState == nil) then nil else
+    if (pictstr.PICT_trmMouseState == nil) then nil else
     (
-      _deltimer btnstr.PBTN_trmMouseState;
-      set btnstr.PBTN_trmMouseState = nil;
+      _deltimer pictstr.PICT_trmMouseState;
+      set pictstr.PICT_trmMouseState = nil;
     );
     
     //disable mouse
-    SO3WidgetEnterEventCb btnstr.PBTN_win nil nil;
-    SO3WidgetExitEventCb btnstr.PBTN_win nil nil;
-    SO3WidgetMouseDownEventCb btnstr.PBTN_win nil nil;
-    SO3WidgetMouseUpEventCb btnstr.PBTN_win nil nil;
-    SO3WidgetMouseMoveEventCb btnstr.PBTN_win nil nil;
-    SO3WidgetFocusEventCb btnstr.PBTN_win @cbFocused nil;
-    set btnstr.PBTN_iClick = 0;
+    SO3WidgetEnterEventCb pictstr.PICT_win nil nil;
+    SO3WidgetExitEventCb pictstr.PICT_win nil nil;
+    SO3WidgetMouseDownEventCb pictstr.PICT_win nil nil;
+    SO3WidgetMouseUpEventCb pictstr.PICT_win nil nil;
+    SO3WidgetMouseMoveEventCb pictstr.PICT_win nil nil;
+    SO3WidgetFocusEventCb pictstr.PICT_win @cbFocused nil;
+    set pictstr.PICT_iClick = 0;
     
     let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
     let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
-    let computePosSize btnstr vw vh -> [px py pw ph] in
+    let computePosSize pictstr vw vh -> [px py pw ph] in
     (
       if ((sx > px) && (sx < (px + pw)) && (sy > py) && (sy < (py + ph))) then
-      let switchstr btnstr.PBTN_lInputs (itoa id) -> icontrol in
+      let switchstr pictstr.PICT_lInputs (itoa id) -> icontrol in
       (
         // if not already int the list we add it
         if (icontrol == nil) then
         (
-          set btnstr.PBTN_lInputs = [(itoa id) [sx sy]]::btnstr.PBTN_lInputs;
+          set pictstr.PICT_lInputs = [(itoa id) [sx sy]]::pictstr.PICT_lInputs;
           0;
         )
         else
@@ -1234,26 +1157,26 @@ fun cbAddCursor(inst, viewstr, id, sx, sy, btnstr)=
           0;
         );
         
-        if (btnstr.PBTN_iState == 3) || (btnstr.PBTN_iState == 2) then nil else
+        if (pictstr.PICT_iState == 3) || (pictstr.PICT_iState == 2) then nil else
         (
-          set btnstr.PBTN_iState = 1;
+          set pictstr.PICT_iState = 1;
           //update bitmap
-          if(btnstr.PBTN_iAvStates <= 0) then nil else
+          if(pictstr.PICT_iAvStates <= 0) then nil else
           (
-            updateButton btnstr;
+            updateButton pictstr;
             0;
           );
-          SendPluginEvent btnstr.PBTN_instance "MouseOver" nil nil;
+          SendPluginEvent pictstr.PICT_instance "MouseOver" nil nil;
           
-          set btnstr.PBTN_iState = 2;      
+          set pictstr.PICT_iState = 2;      
           //update bitmap
-          if(btnstr.PBTN_iAvStates <= 1) then nil else
+          if(pictstr.PICT_iAvStates <= 1) then nil else
           (
-            updateButton btnstr;
+            updateButton pictstr;
             0;
           );
-          SendPluginEvent btnstr.PBTN_instance "Pushed" nil nil;
-          set btnstr.PBTN_tLastPos = [sx sy];
+          SendPluginEvent pictstr.PICT_instance "Pushed" nil nil;
+          set pictstr.PICT_tLastPos = [sx sy];
         );
       )
       else nil;
@@ -1262,24 +1185,24 @@ fun cbAddCursor(inst, viewstr, id, sx, sy, btnstr)=
   0;;
 
 
-fun cbUpdateCursor(inst, viewstr, id, sx, sy, vx, vy, btnstr)=
-  if (!btnstr.PBTN_bShow) || (btnstr.PBTN_win == nil) then nil else
+fun cbUpdateCursor(inst, viewstr, id, sx, sy, vx, vy, pictstr)=
+  if (!pictstr.PICT_bShow) || (pictstr.PICT_win == nil) then nil else
   (
-    let switchstr btnstr.PBTN_lInputs (itoa id) -> icontrol in
-    if (icontrol == nil) || (btnstr.PBTN_tLastPos == nil) then nil else
+    let switchstr pictstr.PICT_lInputs (itoa id) -> icontrol in
+    if (icontrol == nil) || (pictstr.PICT_tLastPos == nil) then nil else
     (
       let icontrol -> [ppx ppy] in
       if ((ppx == sx) && (ppy == sy)) then nil else
       (
         mutate icontrol <- [sx sy];
         
-        let btnstr.PBTN_tLastPos -> [px py] in
-        let (min btnstr.PBTN_iWidth btnstr.PBTN_iHeight) -> msize in
+        let pictstr.PICT_tLastPos -> [px py] in
+        let (min pictstr.PICT_iWidth pictstr.PICT_iHeight) -> msize in
         let (itof (sx - px)) /. (itof msize) -> fx in
         let if (fx >. 1.0) then 1.0 else if (fx <. (-.1.0)) then (-.1.0) else fx -> fx in
         let (itof (py - sy)) /. (itof msize) -> fy in
         let if (fy >. 1.0) then 1.0 else if (fy <. (-.1.0)) then (-.1.0) else fy -> fy in
-          SendPluginEvent btnstr.PBTN_instance "Pushed move" strcatn (ftoa fx)::" "::(ftoa fy)::nil nil;
+          SendPluginEvent pictstr.PICT_instance "Pushed move" strcatn (ftoa fx)::" "::(ftoa fy)::nil nil;
        );
     );
   );
@@ -1287,46 +1210,46 @@ fun cbUpdateCursor(inst, viewstr, id, sx, sy, vx, vy, btnstr)=
   /*
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
-  let computePosSize btnstr vw vh -> [px py pw ph] in
+  let computePosSize pictstr vw vh -> [px py pw ph] in
   (
-    let switchstr btnstr.PBTN_lInputs (itoa id) -> icontrol in
+    let switchstr pictstr.PICT_lInputs (itoa id) -> icontrol in
     if (icontrol == nil) then nil else
     if ((sx > px) && (sx < (px + pw)) && (sy > py) && (sy < (py + ph))) then
     (
       mutate icontrol <- [sx sy];
       
-      if (btnstr.PBTN_iState == 3) || (btnstr.PBTN_iState == 2) then nil else
+      if (pictstr.PICT_iState == 3) || (pictstr.PICT_iState == 2) then nil else
       (
-        set btnstr.PBTN_iState = 1;
+        set pictstr.PICT_iState = 1;
         //update bitmap
-        if(btnstr.PBTN_iAvStates <= 0) then nil else
+        if(pictstr.PICT_iAvStates <= 0) then nil else
         (
-          updateButton btnstr;
+          updateButton pictstr;
           0;
         );
-        SendPluginEvent btnstr.PBTN_instance "MouseOver" nil nil;
+        SendPluginEvent pictstr.PICT_instance "MouseOver" nil nil;
        
-        set btnstr.PBTN_iState = 2;
+        set pictstr.PICT_iState = 2;
         //update bitmap
-        if(btnstr.PBTN_iAvStates <= 1) then nil else
+        if(pictstr.PICT_iAvStates <= 1) then nil else
         (
-          updateButton btnstr;
+          updateButton pictstr;
           0;
         );
-        SendPluginEvent btnstr.PBTN_instance "Pushed" nil nil;
+        SendPluginEvent pictstr.PICT_instance "Pushed" nil nil;
       );
     )
     else
     (
       mutate icontrol <- [sx sy];
             
-      let sizelist btnstr.PBTN_lInputs -> size in
+      let sizelist pictstr.PICT_lInputs -> size in
       let 0 -> i in
       let 0 -> over in
       (
         while (i < size) do
         (
-          let nth_list btnstr.PBTN_lInputs i -> [n [sx sy]] in
+          let nth_list pictstr.PICT_lInputs i -> [n [sx sy]] in
           if ((sx > px) && (sx < (px + pw)) && (sy > py) && (sy < (py + ph))) then
             set over = 1
           else nil;
@@ -1336,18 +1259,18 @@ fun cbUpdateCursor(inst, viewstr, id, sx, sy, vx, vy, btnstr)=
       
         if (over == 1) then nil else
         (
-          if(btnstr.PBTN_iState == 3) || (btnstr.PBTN_iState == 0) then nil else
+          if(pictstr.PICT_iState == 3) || (pictstr.PICT_iState == 0) then nil else
           (
-            set btnstr.PBTN_iState = 0;
+            set pictstr.PICT_iState = 0;
             //update bitmap     
-            if(btnstr.PBTN_iAvStates <= 0) then nil else
+            if(pictstr.PICT_iAvStates <= 0) then nil else
             (
-              updateButton btnstr;
+              updateButton pictstr;
               0;
             );
             
-            SendPluginEvent btnstr.PBTN_instance "Released" nil nil;
-            SendPluginEvent btnstr.PBTN_instance "MouseOut" nil nil;
+            SendPluginEvent pictstr.PICT_instance "Released" nil nil;
+            SendPluginEvent pictstr.PICT_instance "MouseOut" nil nil;
           );
         );
       );
@@ -1356,33 +1279,33 @@ fun cbUpdateCursor(inst, viewstr, id, sx, sy, vx, vy, btnstr)=
   0;;
 
 
-fun cbResetMouse(trm, btnstr)=
+fun cbResetMouse(trm, pictstr)=
   _deltimer trm;
-  set btnstr.PBTN_trmMouseState = nil;
+  set pictstr.PICT_trmMouseState = nil;
   
-  SO3WidgetEnterEventCb btnstr.PBTN_win @cbMouseIn btnstr;
-  SO3WidgetExitEventCb btnstr.PBTN_win @cbMouseOut btnstr;
-  SO3WidgetMouseDownEventCb btnstr.PBTN_win @cbClick btnstr;
-  SO3WidgetMouseUpEventCb btnstr.PBTN_win @cbUnClick btnstr;
-  SO3WidgetMouseMoveEventCb btnstr.PBTN_win @cbMouseMove btnstr;
-  SO3WidgetFocusEventCb btnstr.PBTN_win @cbFocused btnstr;
+  SO3WidgetEnterEventCb pictstr.PICT_win @cbMouseIn pictstr;
+  SO3WidgetExitEventCb pictstr.PICT_win @cbMouseOut pictstr;
+  SO3WidgetMouseDownEventCb pictstr.PICT_win @cbClick pictstr;
+  SO3WidgetMouseUpEventCb pictstr.PICT_win @cbUnClick pictstr;
+  SO3WidgetMouseMoveEventCb pictstr.PICT_win @cbMouseMove pictstr;
+  SO3WidgetFocusEventCb pictstr.PICT_win @cbFocused pictstr;
   0;;  
   
-fun cbRemoveCursor(inst, viewstr, id, btnstr)=
-  let switchstr btnstr.PBTN_lInputs (itoa id) -> icontrol in
+fun cbRemoveCursor(inst, viewstr, id, pictstr)=
+  let switchstr pictstr.PICT_lInputs (itoa id) -> icontrol in
   if (icontrol == nil) then nil else
   let icontrol -> [sx sy] in
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   let SO3ViewportGetPixelPositionSize viewportstr.V3D_viewport -> [_ _ vw vh] in
-  let computePosSize btnstr vw vh -> [px py pw ph] in
+  let computePosSize pictstr vw vh -> [px py pw ph] in
   (
-    let sizelist btnstr.PBTN_lInputs -> size in
+    let sizelist pictstr.PICT_lInputs -> size in
     let 0 -> i in
     let 0 -> over in
     (
       while (i < size) do
       (
-        let nth_list btnstr.PBTN_lInputs i -> [n [sx sy]] in
+        let nth_list pictstr.PICT_lInputs i -> [n [sx sy]] in
         if ((sx > px) && (sx < (px + pw)) && (sy > py) && (sy < (py + ph)) && (id != (atoi n))) then
           set over = 1
         else nil;
@@ -1392,27 +1315,36 @@ fun cbRemoveCursor(inst, viewstr, id, btnstr)=
     
       if (over == 1) then nil else
       (
-        if (btnstr.PBTN_iState == 3) || (btnstr.PBTN_iState == 0) then nil else
+        if (pictstr.PICT_iState == 3) || (pictstr.PICT_iState == 0) then nil else
         (
-          set btnstr.PBTN_iState = 0;          
-          if(btnstr.PBTN_iAvStates <= 0) then nil else
+          set pictstr.PICT_iState = 0;          
+          if(pictstr.PICT_iAvStates <= 0) then nil else
           //update bitmap
           (
-            updateButton btnstr;
+            updateButton pictstr;
             0;
           );
-          SendPluginEvent btnstr.PBTN_instance "Released" nil nil;
-          SendPluginEvent btnstr.PBTN_instance "MouseOut" nil nil;
+          SendPluginEvent pictstr.PICT_instance "Released" nil nil;
+          SendPluginEvent pictstr.PICT_instance "MouseOut" nil nil;
           
           if ((sx > px) && (sx < (px + pw)) && (sy > py) && (sy < (py + ph))) then
-            SendPluginEvent btnstr.PBTN_instance "LeftClick" nil nil
+            SendPluginEvent pictstr.PICT_instance "LeftClick" nil nil
           else nil;
           
-          set btnstr.PBTN_tLastPos = nil;
+          set pictstr.PICT_tLastPos = nil;
         );
       );
     );
-  );  
+  );
+  
+  set pictstr.PICT_lInputs = remove_sid_from_list pictstr.PICT_lInputs (itoa id);
+
+  //enable mouse again
+  if ((sizelist pictstr.PICT_lInputs) > 0) then nil else
+  (
+    set pictstr.PICT_trmMouseState = _rfltimer _starttimer _channel 500 @cbResetMouse pictstr;
+  );
+  0;;  
   
 /*************************************************************************************/  
   
@@ -1433,12 +1365,12 @@ fun createPicture(inst, pictstr)=
       0;
     );
 	
-    SO3WidgetEnterEventCb btnstr.PBTN_win @cbMouseIn btnstr;
-    SO3WidgetExitEventCb btnstr.PBTN_win @cbMouseOut btnstr;
-    SO3WidgetMouseDownEventCb btnstr.PBTN_win @cbClick btnstr;
-    SO3WidgetMouseUpEventCb btnstr.PBTN_win @cbUnClick btnstr;
-    SO3WidgetMouseMoveEventCb btnstr.PBTN_win @cbMouseMove btnstr;
-    SO3WidgetFocusEventCb btnstr.PBTN_win @cbFocused btnstr;	
+    SO3WidgetEnterEventCb pictstr.PICT_win @cbMouseIn pictstr;
+    SO3WidgetExitEventCb pictstr.PICT_win @cbMouseOut pictstr;
+    SO3WidgetMouseDownEventCb pictstr.PICT_win @cbClick pictstr;
+    SO3WidgetMouseUpEventCb pictstr.PICT_win @cbUnClick pictstr;
+    SO3WidgetMouseMoveEventCb pictstr.PICT_win @cbMouseMove pictstr;
+    SO3WidgetFocusEventCb pictstr.PICT_win @cbFocused pictstr;	
     
     V3DaddWidgetControl viewportstr pictstr.PICT_win;
     SO3WidgetSetKeyboardEnable pictstr.PICT_win 0;
@@ -1611,6 +1543,10 @@ fun cbChange(inst, from, action, param, reply, pictstr)=
     0;
   );
   0;;
+  
+fun cbObClicked(inst, from, action, param, reply, pictstr) = 0;;  //<<<<<<<<<<<<<<<<<<<<<<<<
+
+fun cbOpenUrl(inst, from, action, param, reply, pictstr) = 0;;    //<<<<<<<<<<<<<<<<<<<<<<<<  
 
 
 // Destroy instance
@@ -1623,9 +1559,6 @@ fun deleteOb(inst, pictstr)=
   );
   0;;
   
-fun cbObClicked = null;  //<<<<<<<<<<<<<<<<<<<<<<<<
-
-fun cbOpenUrl = null;    //<<<<<<<<<<<<<<<<<<<<<<<<
   
 
 fun cbNewOb(inst)=
@@ -1643,7 +1576,12 @@ fun cbNewOb(inst)=
   let (getPluginInstanceParam inst "path") -> path in
   let atoi (getPluginInstanceParam inst "isurl") -> isurl in
   let if isurl == nil then 0 else isurl -> isurl in
-  let (getPluginInstanceParam inst "url") -> url in      
+  let (getPluginInstanceParam inst "url") -> url in   
+
+  let atoi (getPluginInstanceParam inst "btnstates") -> btnstates in
+  let if btnstates == nil then 0 else btnstates -> btnstates in
+  let atoi (getPluginInstanceParam inst "nbframes") -> nbframes in
+  let if (nbframes == nil) || (nbframes < 1) then 1 else nbframes -> nbframes in  
   
   let (getPluginInstanceParam inst "imgpath") -> imgpath in
   let atoi (getPluginInstanceParam inst "isimgurl") -> isimgurl in
@@ -1695,13 +1633,19 @@ fun cbNewOb(inst)=
   let atoi (getPluginInstanceParam inst "transparency") -> trans in
   let if (trans == nil) then 0 else trans -> trans in
   
+  let atoi (getPluginInstanceParam inst "enablemouse") -> enablemouse in
+  let if enablemouse == nil then 1 else enablemouse -> enablemouse in
+  
+  let atoi (getPluginInstanceParam inst "cursor") -> cursor in
+  let if cursor == nil then 1 else cursor -> cursor in  
+  
   let atoi (getPluginInstanceParam inst "show") -> show in
   let if (show == nil) then 1 else show -> show in
   let if !isurl then path else url -> file in
 
   let SO3SceneGetObject (V3DgetSession c3dXsession) objname -> obj in
   let if !istexture then nil else SO3SceneGetMaterial (V3DgetSession c3dXsession) (SO3EntityGetResourceGroup obj) matname -> mat in
-  let MkPlugPicture [inst istexture mat /*technique pass texture*/10 90 90 nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil fontpath isfonturl fonturl nil nil nil nil 0] -> pictstr in
+  let MkPlugPicture [inst istexture mat /*technique pass texture*/10 90 90 nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil fontpath isfonturl fonturl nil nil nil nil 0 0 cursor enablemouse btnstates 0 nbframes 0 0 0 nil nil nil ] -> pictstr in
   (
     createPicture inst pictstr;
 	//_fooS "Start";
@@ -1746,14 +1690,14 @@ fun cbNewOb(inst)=
     PluginRegisterAction inst "Set size" mkfun6 @cbSetSize pictstr;
     PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
 	
-    PluginRegisterAction inst "Set state" mkfun6 @cbSetState btnstr;
-    PluginRegisterAction inst "Send left click" mkfun6 @cbSendLeftClick btnstr;
-    PluginRegisterAction inst "Send right click" mkfun6 @cbSendRightClick btnstr;
-    PluginRegisterAction inst "Send middle click" mkfun6 @cbSendMiddleClick btnstr;	
+    PluginRegisterAction inst "Set state" mkfun6 @cbSetState pictstr;
+    PluginRegisterAction inst "Send left click" mkfun6 @cbSendLeftClick pictstr;
+    PluginRegisterAction inst "Send right click" mkfun6 @cbSendRightClick pictstr;
+    PluginRegisterAction inst "Send middle click" mkfun6 @cbSendMiddleClick pictstr;	
 	
-    setPluginInstanceCbTouchPointAdd inst mkfun6 @cbAddCursor btnstr;
-    setPluginInstanceCbTouchPointRemove inst mkfun4 @cbRemoveCursor btnstr;
-    setPluginInstanceCbTouchPointUpdate inst mkfun8 @cbUpdateCursor btnstr;
+    setPluginInstanceCbTouchPointAdd inst mkfun6 @cbAddCursor pictstr;
+    setPluginInstanceCbTouchPointRemove inst mkfun4 @cbRemoveCursor pictstr;
+    setPluginInstanceCbTouchPointUpdate inst mkfun8 @cbUpdateCursor pictstr;
 	
 	PluginRegisterAction inst "ShowCompass" mkfun6 @cbObClicked pictstr;	
 	PluginRegisterAction inst "ShowFramerate" mkfun6 @cbOpenUrl pictstr;	

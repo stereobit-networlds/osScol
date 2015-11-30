@@ -66,8 +66,7 @@ struct PlugPicture = [
   PICT_lfontimages             : [[AlphaBitmap S I I I I S I] r1], 
   PICT_xMatrix                 : I,
   PICT_yMatrix                 : I,  
-  PICT_fontMatrix              : [[AlphaBitmap I I I I S I I I I SO3_WIDGET] r1],
-  PICT_matrixCursor            : I
+  PICT_fontMatrix              : [[AlphaBitmap I I I I S I I I I SO3_WIDGET] r1]
 
   ] MkPlugPicture;;
 
@@ -535,12 +534,7 @@ fun writeFontMatrix(pictstr,x,y,s,b,t,url,issymbol,slide) =
 	   let if (b>0) then _tickcount else 0 -> blink in
 	   let nth_list pictstr.PICT_fontMatrix (xy+i) -> [_ x y sx sy _ _ _ _ _ mxwidget] in
 	   let substr s i 1 -> c in
-	   if (c==" ") then
-	   (
-	     set i = i + 1;
-		 set pictstr.PICT_matrixCursor = i
-	   )	 
-	   else
+	   if (c==" ") then set i = i + 1 else
        let getFont lfontImages c -> [abmp w h] in 
 	   ( 
 	     //_fooS strcat "Write char:" c;
@@ -555,87 +549,12 @@ fun writeFontMatrix(pictstr,x,y,s,b,t,url,issymbol,slide) =
 		   set fontMatrixOpt = [sx sy url 0]::fontMatrixOpt
 		 else 
 		   nil;		   */
-	     set i = i + 1;
-	     set pictstr.PICT_matrixCursor = i;		 
+	     set i = i + 1;	 
 	   0) 
 	);;
 	//print_r pictstr.PICT_fontMatrix;;	
-	
-	
-/*alias*/	
-/*
-fun writexy(x,y,s,b,t)=writeFontMatrix pictstr x y s b t nil nil 0;;
-fun writexd(x,d,s,b,t)=writeFontMatrix pictstr x (yMatrix-d) s b t nil nil 0;;
-fun writery(r,y,s,b,t)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil nil 0;;
-fun writexyu(x,y,s,b,t,u)=writeFontMatrix pictstr x y s b t u nil 0;;	
-fun writeyr(y,s,b,t) = let pictstr.PICT_xMatrix-(strlen s) -> x in 
-                       writeFontMatrix pictstr x y s b t nil nil 0;;	
-fun writeyc(y,s,b,t) = let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in 
-                       writeFontMatrix pictstr x y s b t nil nil 0;;	
-fun writecc(s,b,t)   = let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in
-                       let (pictstr.PICT_yMatrix/2)-1 -> y in
-                       writeFontMatrix pictstr x y s b t nil nil 0;;	
-fun writeccurl(s,b,t,u)= let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in
-                       let (pictstr.PICT_yMatrix/2)-1 -> y in
-                       writeFontMatrix pictstr x y s b t u nil 0;;	
-			
-fun symbolxy(x,y,s,b,t)=writeFontMatrix pictstr x y s b t nil 1 0;;
-fun symbolxd(x,d,s,b,t)=writeFontMatrix pictstr x (pictstr.PICT_yMatrix-d) s b t nil 1 0;;
-fun symbolry(r,y,s,b,t)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil 1 0;;
-fun symbolxyu(x,y,s,b,t,u)= writeFontMatrix pictstr x y s b t u 1 0;;
-fun symbolyr(y,s,b,t) = let pictstr.PICT_xMatrix-1 -> x in 
-                        writeFontMatrix pictstr x y s b t nil 1 0;;
-fun symbolyc(y,s,b,t) = let (pictstr.PICT_xMatrix/2)-1 -> x in 
-                        writeFontMatrix pictstr x y s b t nil 1 0;;	
-fun symbolcc(s,b,t)    = let (pictstr.PICT_xMatrix/2)-1 -> x in
-                        let (pictstr.PICT_yMatrix/2)-1 -> y in
-                        writeFontMatrix pictstr x y s b t nil 1 0;;	
-fun symbolccurl(s,b,t,u)= let (pictstr.PICT_xMatrix/2)-1 -> x in
-                       let (pictstr.PICT_yMatrix/2)-1 -> y in
-                       writeFontMatrix pictstr x y s b t u 1 0;;	
-
-fun symbolslidexy(x,y,s,b,t,st)=writeFontMatrix pictstr x y s b t nil 1 st;;					   
-fun symbolslidexd(x,d,s,b,t,st)=writeFontMatrix pictstr x (pictstr.PICT_yMatrix-d) s b t nil 1 st;;
-fun symbolslidery(r,y,s,b,t,st)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil 1 st;;
-fun symbolsliderd(r,d,s,b,t,st)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) (pictstr.PICT_yMatrix-d) s b t nil 1 st;;	 
-*/
-/************************************************************************/
 	 
 	 
-/*string conversions*/					   
-fun maConvert(s) = s;;  /*** DISABLED PICTSTR****/
-  //let substr s 0 pictstr.PICT_xMatrix -> ss in /*not bigger than screen max x*/
-  //strlowercase ss;;	              /*lowercase */
-
-/*  
-fun showFontList(list,i,j)=
-  if list == nil then
-    nil
-  else 
-  ( let hd list -> [_ name _ _ _ _ _ _] in
-    if (strlen name) == 1 then
-      writexy i j name 0 0
-    else	 
-	  symbolxy i j name 0 0;  
-	  
-	let if (i<xMatrix-1) then i+1 else (set j=j+1; 0) -> i in	
-    (showFontList tl list i j;
-	0)
-  );;    		
-  
-
-fun fillFontMatrix(list, b, t, u)= 
-  if list == nil then
-    nil
-  else 
-  ( let hd list -> [_ x y _ _ _ _ _ _ _ _] in
-	//writexyu x y "a" b t u;
-	symbolxyu x y "enter" b t u; 
-    fillFontMatrix tl list b t u;
-	0
-  );; 
-
-*/  
   
 fun hideFontMatrix(list) =
   if list == nil then
@@ -662,13 +581,7 @@ fun showFontMatrix(list) =
 	  0
     );;   
 
-/*alias*/
-/*
-fun fill(b, t, u) = fillFontMatrix fontMatrix b t u;;   
-*/
-
 fun clearFontImages(pictstr) =
-  //set pictstr.PICT_lfontImages = nil; //????
   set fontMatrixOpt = nil; /*reset opt matrix*/
   0;;   
    
@@ -679,49 +592,6 @@ fun resizeFontMatrix(pictstr, rx, ry, dim) =
   resetFontMatrix pictstr rx ry dim;
   0;;
 
-fun setSpace(s, sp) =  
-  if s<=0 then sp
-  else setSpace (s-1) (strcat " " sp);; 
-  
-/*10 or 13 char sep string*/  
-/*
-fun writeText(x,y,s,b,t) =
-  let lineextr s -> lines in
-  let 0 -> i in
-  while (i < sizelist lines) do
-  (
-    //symbolxy x (y+i) s b t; 
-	
-    let setSpace xMatrix nil -> delparam in
-    writexy x (y+i) delparam 0 0;
-	
-	writexy x (y+i) (nth_list lines i) b t;
-	set i = i + 1;
-  0);;
-  
-fun writeScore(x,y,s,b,t) = 
-  //symbolslidexd 0 5 "scorelist" 0 0 (atoi s);
-  writexd 0 5 s b t;;
-  
-fun showFramerate(param)=  
-  //let substr (ftoa M3getFrameRate session) 0 2 -> fr in
-  let "99" -> fr in //............................
-  writeText 1 0 fr 0 0;
-  0;;    
-
-fun showCompass(param)=  
-  if (debug==1) then
-  (
-    let setSpace 3 nil -> delparam in
-    writexy 0 1 delparam 0 0;
-    writexy 0 1 param 0 0;
-	0
-  ) else nil;	
-  symbolslidexd 0 4 "compasslist" 0 0 (atoi param);
-  showFramerate param ;
-  0;;
-  
-*/  	
 
 fun blitFontMatrix(matrix, pictstr) = 
   if matrix == nil then
@@ -1225,7 +1095,7 @@ fun cbNewOb(inst)=
 
   let SO3SceneGetObject (V3DgetSession c3dXsession) objname -> obj in
   let if !istexture then nil else SO3SceneGetMaterial (V3DgetSession c3dXsession) (SO3EntityGetResourceGroup obj) matname -> mat in
-  let MkPlugPicture [inst istexture mat /*technique pass texture*/10 90 90 nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil fontpath isfonturl fonturl nil nil nil nil 0] -> pictstr in
+  let MkPlugPicture [inst istexture mat /*technique pass texture*/10 90 90 nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil fontpath isfonturl fonturl nil nil nil nil] -> pictstr in
   (
     createPicture inst pictstr;
 	//_fooS "Start";

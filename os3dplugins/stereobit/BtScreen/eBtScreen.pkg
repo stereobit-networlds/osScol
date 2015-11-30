@@ -466,7 +466,7 @@ fun cbPercentCheck(ctrlstr, state, ctrlfloat)=
 
 
 fun dynamicedit(ewinstr, inst, viewstr) =
-  let [455 540] -> [iw ih] in
+  let [455 835] -> [iw ih] in
   let 10 -> ypos in
   (
     setEdWindowSize ewinstr iw ih;

@@ -71,7 +71,10 @@
 	<EVENT name="endLoad" />
 	<EVENT name="loading" />
 	<EVENT name="started" />
-	<ACTION name="write" />
+	<ACTION name="write">
+      <ENUM value="message" />
+      <ENUM value="test message 123" />
+    </ACTION>	
 	<ACTION name="writer" />
 	<ACTION name="writecls" />
 	<ACTION name="writetime" />
