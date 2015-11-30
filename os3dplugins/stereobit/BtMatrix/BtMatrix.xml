@@ -71,20 +71,20 @@
 	<EVENT name="endLoad" />
 	<EVENT name="loading" />
 	<EVENT name="started" />
-	<ACTION name="write">
-      <ENUM value="message" />
-      <ENUM value="test message 123" />
-    </ACTION>	
-	<ACTION name="writer" />
-	<ACTION name="writecls" />
-	<ACTION name="writetime" />
-	<ACTION name="writeblink" />
-	<ACTION name="writesymbol" />
-	<ACTION name="writetext" />
-	<ACTION name="writescore" />
-	<ACTION name="start" />
-	<ACTION name="obClicked" />
-	<ACTION name="passCheck" />
-	<ACTION name="passEntry" />
+    <ACTION name="Send left click" />
+    <ACTION name="Send right click" />
+    <ACTION name="Send middle click" />
+    <EVENT name="LeftClick" />
+    <EVENT name="RightClick" />
+    <EVENT name="MiddleClick" />
+    <EVENT name="MouseOver" />
+    <EVENT name="MouseOut" />
+    <EVENT name="Pushed" />
+    <EVENT name="Released" />
+    <EVENT name="Shown" />
+    <EVENT name="Hidden" />
+    <EVENT name="Pushed move" />
+    <ACTION name="ObClicked" />	
+    <ACTION name="openUrl" />		
   </CLIENT>
 </PLUGIN>

@@ -35,9 +35,9 @@ struct PlugPicture = [
   PICT_instance                : PInstance,
   PICT_bOnMaterial             : I,
   PICT_Material                : SO3_MATERIAL,
-  PICT_iTechnique              : I,
-  PICT_iPass                   : I,
-  PICT_iTexture                : I,
+  PICT_ifsep                   : I,
+  PICT_ifmsizex                : I,
+  PICT_ifmsizey                : I,
   
   PICT_win                     : SO3_WIDGET,
   PICT_AlphaBuffer             : AlphaBitmap,
@@ -80,25 +80,11 @@ var iTexHeight = 512;;
 
 /*FONT bitmaps*/
 /*bmp name width height xonscreen yonscreen alphachannel url inzone*/ 
-typeof linfoImages = [[AlphaBitmap S I I I I S I] r1];;
 typeof lfontImages = [[AlphaBitmap S I I I I S I] r1];;
-typeof fontMatrix  = [[AlphaBitmap I I I I S I I I I SO3_WIDGET] r1];;
 typeof fontMatrixOpt = [[I I S I] r1];;
-typeof xMatrix = I;;/*matrix width*/
-typeof yMatrix = I;;/*matrix height*/
-typeof mEntry = S;; /*keyboard entry _ is the enter char */
-typeof mEpass = I;; /*if the entry is a password, enable before*/
-var fsep = 10;; /*sep between fonts */
-var fmsizex = 90;; /*x font size*/
-var fmsizey = 90;; /*y font size*/
-
-typeof askPassword = I;; /*ask for pass when init*/
 
 var log=1;;
 var debug=0;;
-
-typeof infofiles = [S r1];;
-typeof fontfiles = [S r1];;
 
 var server=0;; /*when scol server is on */
 
@@ -206,7 +192,7 @@ fun createFontMatrix(pictstr, resizex, resizey, dim) =
    if (lfontImages==nil) then nil
    else
 	let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-	let makeFontMatrix pictstr fmsizex fmsizey fsep resizex resizey dim -> [matrix mx my] in
+	let makeFontMatrix pictstr pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey pictstr.PICT_ifsep resizex resizey dim -> [matrix mx my] in
 	(
 	  _fooS strcat "Create Font Matrix" "\n";
 	  set pictstr.PICT_fontMatrix = matrix;
@@ -235,8 +221,12 @@ fun resetMatrix(viewportstr, matrix, wMatrix, hMatrix, xbox, ybox, sep, dim, x)=
      SO3WidgetSetPosition mxwidget xs ys;
      SO3WidgetSetSize mxwidget dw dh;	 
 	 
-	 SO3WidgetSetVisibility mxwidget v;
-     if (abmp==nil || v==0) then nil else SO3BitmapWidgetBlitAlpha mxwidget abmp;
+     if (abmp==nil || v==0) then nil else
+     (	 
+	   SO3WidgetSetVisibility mxwidget v;
+	   SO3BitmapWidgetBlitAlpha mxwidget abmp;
+	   0
+	 );  
 	 
 	 //_fooS strcatn "Reset Font Matrix:"::(itoa i)::"-"::(itoa j)::nil;
 	 
@@ -247,15 +237,15 @@ fun resetMatrix(viewportstr, matrix, wMatrix, hMatrix, xbox, ybox, sep, dim, x)=
   );;  
   
 fun resetFontMatrix (pictstr, rx, ry, dim) =  
-  let if dim!=nil then dim else [0 0 fmsizex fmsizey] -> [dx dy dw dh] in
+  let if dim!=nil then dim else [0 0 pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey] -> [dx dy dw dh] in
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   let if (rx!=nil)||(ry!=nil) then [rx ry] else V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-  let (ScreenW/(dw+fsep)) -> wMatrix in
-  let (ScreenH/(dh+fsep)) -> hMatrix in
+  let (ScreenW/(dw+pictstr.PICT_ifsep)) -> wMatrix in
+  let (ScreenH/(dh+pictstr.PICT_ifsep)) -> hMatrix in
   let (wMatrix*hMatrix) -> sMatrix in
   (
     _fooS strcat "Reset Font Matrix" "\n";
-    resetMatrix viewportstr pictstr.PICT_fontMatrix wMatrix hMatrix dw dh fsep dim [0 0];
+    resetMatrix viewportstr pictstr.PICT_fontMatrix wMatrix hMatrix dw dh pictstr.PICT_ifsep dim [0 0];
   0);; 	
   
   
@@ -477,30 +467,30 @@ fun slideCycle(slide,maxslide) =
     slideCycle (slide-maxslide) maxslide;;  
 
 /*pick a slide from font slided image */	  
-fun copyFontSlide(list,n,slide_no)=
+fun copyFontSlide(pictstr,list,n,slide_no)=
   if list == nil then
     nil
   else 
     let hd list -> [abmp name w h x y _ _] in
     if !strcmp n name then
-	( let createAlphaImage _channel fmsizex fmsizey -> slide in
-	  if (w/fmsizex >= 2) then /*x dim slides*/
+	( let createAlphaImage _channel pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey -> slide in
+	  if (w/pictstr.PICT_ifmsizex >= 2) then /*x dim slides*/
 	  ( 
-	    let slideCycle slide_no (w/fmsizex) -> sld in 
-		//cpyImage slide 0 0 bmp (sld*fmsizex) 0 fmsizex fmsizey (make_rgb 0 0 255); //DISABLED
+	    let slideCycle slide_no (w/pictstr.PICT_ifmsizex) -> sld in 
+		//cpyImage slide 0 0 bmp (sld*pictstr.PICT_ifmsizex) 0 pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey (make_rgb 0 0 255); //DISABLED
 		slide
 	  )
-	  else if (h/fmsizey >= 2) then /*y dim slides*/
+	  else if (h/pictstr.PICT_ifmsizey >= 2) then /*y dim slides*/
 	  ( 
-	    let slideCycle slide_no (h/fmsizey) -> sld in  
-		//cpyImage slide 0 0 bmp 0 (sld*fmsizey) fmsizex fmsizey (make_rgb 0 0 255); //DISABLED
+	    let slideCycle slide_no (h/pictstr.PICT_ifmsizey) -> sld in  
+		//cpyImage slide 0 0 bmp 0 (sld*pictstr.PICT_ifmsizey) pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey (make_rgb 0 0 255); //DISABLED
 		slide
 	  )
 	  else /* 1 slide */
         abmp
 	)  
     else	 
-      copyFontSlide (tl list) n slide_no;; 
+      copyFontSlide pictstr (tl list) n slide_no;; 
 
 fun print_r	(list) = 
   if list == nil then
@@ -527,7 +517,7 @@ fun writeFontMatrix(pictstr,x,y,s,b,t,url,issymbol,slide) =
 	   let substr s i 1 -> c in
        //let getFont lfontImages s -> [abmp w h] in 
 	   //let copyFontImage lfontImages s -> abmp in 
-	   let copyFontSlide lfontImages s slide -> abmp in
+	   let copyFontSlide pictstr lfontImages s slide -> abmp in
 	   ( 
          //_fooS strcat "Write symbol:" c;	   
 	     mutate nth_list pictstr.PICT_fontMatrix (xy+i) <- [abmp _ _ _ _ c 1 blink timer _ _];	
@@ -863,7 +853,7 @@ fun cbShow(inst, from, action, param, reply, pictstr)=
   (
     SO3WidgetSetVisibility pictstr.PICT_win 1;
 	
-	showFontMatrix fontMatrix;
+	//showFontMatrix pictstr.PICT_fontMatrix; //show black boxes of matrix
     
     //force render update (used for loading screens)
     if (pictstr.PICT_bOnMaterial) then nil else
@@ -890,7 +880,7 @@ fun cbHide(inst, from, action, param, reply, pictstr)=
   (
     SO3WidgetSetVisibility pictstr.PICT_win 0;
 	
-	hideFontMatrix fontMatrix;
+	hideFontMatrix pictstr.PICT_fontMatrix;
     
     //force render update (used for loading screens)
     //let V3DgetSessionView c3dXsession -> viewstr in
@@ -1137,22 +1127,29 @@ fun deleteOb(inst, pictstr)=
   );
   0;;
   
-fun cbWrite(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr 0 0 maConvert param 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
-fun cbWriter(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr pictstr.PICT_xMatrix-(strlen param) 0 (strcat maConvert param "   ") 0 0 nil nil 0;;//writeyr 0 (strcat maConvert param "   ") 0 0;; /*right up corner - logo, permanent until cls*/
-fun cbWriteTime(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr ((pictstr.PICT_xMatrix-(strlen param))/2) (pictstr.PICT_yMatrix/2)-1 maConvert param 0 1 nil nil 0;;//writecc maConvert param 0 1;;  /*centered and time depend*/
-fun cbWriteBlink(inst, from, action, param, reply, pictstr)=
-    if (mEpass!=1) && (param!=nil) then
-    ( let setSpace pictstr.PICT_xMatrix nil -> delString in
-	  writeFontMatrix pictstr ((pictstr.PICT_xMatrix-(strlen param))/2) (pictstr.PICT_yMatrix/2)-1 delString 0 0 nil nil 0; //writecc delString 0 0; /*xMatrix max char erase string*/
-      writeFontMatrix pictstr ((pictstr.PICT_xMatrix-(strlen param))/2) (pictstr.PICT_yMatrix/2)-1 maConvert param 1 1 nil nil 0;//writecc maConvert param 1 1 /*centered, blink and time depend*/ 
-	)
-	else 0;;
-fun cbWriteCls(inst, from, action, param, reply, pictstr)= if (mEpass!=1) then cls pictstr.PICT_fontMatrix else 0;;
-fun cbWriteSymbol(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then writeFontMatrix pictstr 0 0 (maConvert param) 0 0 nil 1 0 else 0;; /*left up corner, permanent until cls*/
-fun cbWriteText(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then /*writeText 0 0 (maConvert param) 0 0*/ nil else 0;; /*paragraph text sep by 10 or 13 char*/
-fun cbWriteScore(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then /*writeScore 0 0 (maConvert param) 0 0*/ nil else 0;; /*paragraph text sep by 10 or 13 char*/ 
-fun cbShowCompass(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then nil else 0;;//showCompass param else 0;;
-fun cbShowFramerate(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then nil else 0;;//showFramerate param else 0;;
+  
+/**** CODDE FROM INTERFACE->BUTTON  
+fun drawLabel(abmp, btnstr)=
+  let _GETalphaBitmaps abmp -> [bmp bmp8] in
+  let _GETbitmapSize bmp -> [bw bh] in
+  
+  if (_platform != SCOL_PLATFORM_WINDOWS) then
+  (
+    _BTDRAWtextAlphaBitmap abmp btnstr.PBTN_cvfont [bw/2 bh/2] BT_TEXT_HORIZ_CENTERED|BT_TEXT_VERT_CENTER btnstr.PBTN_ifColor 255 btnstr.PBTN_sLabel;
+    0;
+  )
+  else
+  (
+    let G2DgetStringSize btnstr.PBTN_font btnstr.PBTN_sLabel -> [_ th] in
+    (
+      _DRAWtext bmp btnstr.PBTN_font (bw / 2) ((bh / 2) - (th / 2)) TD_CENTER btnstr.PBTN_ifColor btnstr.PBTN_sLabel;
+      _DRAWtext8 bmp8 btnstr.PBTN_font (bw / 2) ((bh / 2) - (th / 2)) TD_CENTER 0xffffff btnstr.PBTN_sLabel;
+    );
+    0;
+  );
+  0;;  
+  
+*/  
   
 
 fun cbNewOb(inst)=
@@ -1228,7 +1225,7 @@ fun cbNewOb(inst)=
 
   let SO3SceneGetObject (V3DgetSession c3dXsession) objname -> obj in
   let if !istexture then nil else SO3SceneGetMaterial (V3DgetSession c3dXsession) (SO3EntityGetResourceGroup obj) matname -> mat in
-  let MkPlugPicture [inst istexture mat technique pass texture nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil fontpath isfonturl fonturl nil nil nil nil 0] -> pictstr in
+  let MkPlugPicture [inst istexture mat /*technique pass texture*/10 90 90 nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 isurl file background show nil fontpath isfonturl fonturl nil nil nil nil 0] -> pictstr in
   (
     createPicture inst pictstr;
 	//_fooS "Start";
@@ -1272,7 +1269,7 @@ fun cbNewOb(inst)=
     PluginRegisterAction inst "Set position" mkfun6 @cbSetPosition pictstr;
     PluginRegisterAction inst "Set size" mkfun6 @cbSetSize pictstr;
     PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
-	
+	/*
 	PluginRegisterAction inst "write" mkfun6 @cbWrite pictstr;	
 	PluginRegisterAction inst "writer" mkfun6 @cbWriter pictstr;	
 	PluginRegisterAction inst "writecls" mkfun6 @cbWriteCls pictstr;		
@@ -1283,14 +1280,10 @@ fun cbNewOb(inst)=
 	PluginRegisterAction inst "writescore" mkfun6 @cbWriteScore pictstr;
 	PluginRegisterAction inst "ShowCompass" mkfun6 @cbShowCompass pictstr;	
 	PluginRegisterAction inst "ShowFramerate" mkfun6 @cbShowFramerate pictstr;
-	
+	*/
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
 	
 	SendPluginEvent inst "endLoad" nil nil;
-	
-    /*instance ui values*/
-    /*let atoi hd UgetParam ObUi o "initPass" -> ipass in
-    set askPassword = ipass; */
 	
 	SendPluginEvent inst "started" nil nil;
   );
