@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<PLUGIN name="BtMatrix" version="1.0" type="stereobit">
+  <DESCRIPTION loc="OS3DPICTURE_DESC">Display a local or web set of picture</DESCRIPTION>
+  <HELP loc="OS3DBTSCREEN_HELP">http://scol.stereobit.gr/documentation/en/plugits/btmatrix.html</HELP>
+  <EDITOR>
+    <SCRIPT path="./eBtMatrix.pkg" />
+    <PARAM name="istexture" type="value" />
+    <PARAM name="object" type="mesh" />
+    <PARAM name="material" type="material" />
+    <PARAM name="technique" type="value" />
+    <PARAM name="pass" type="value" />
+    <PARAM name="texture" type="value" />
+    <PARAM name="isurl" type="value" />
+    <PARAM name="url" type="value" />
+    <PARAM name="path" type="file" />    
+	<PARAM name="isimgurl" type="value" />
+    <PARAM name="imgurl" type="value" />
+    <PARAM name="imgpath" type="file" />
+    <PARAM name="isfonturl" type="value" />
+    <PARAM name="fonturl" type="value" />
+    <PARAM name="fontpath" type="file" />	
+    <PARAM name="scalemode" type="value" />
+    <PARAM name="posx" type="value" />
+    <PARAM name="posy" type="value" />
+    <PARAM name="width" type="value" />
+    <PARAM name="height" type="value" />
+    <PARAM name="xpercent" type="value" />
+    <PARAM name="ypercent" type="value" />
+    <PARAM name="wpercent" type="value" />
+    <PARAM name="hpercent" type="value" />
+    <PARAM name="xoffset" type="value" />
+    <PARAM name="yoffset" type="value" />
+    <PARAM name="woffset" type="value" />
+    <PARAM name="hoffset" type="value" />
+    <PARAM name="background" type="value" /> 
+    <PARAM name="xalign" type="value" />
+    <PARAM name="yalign" type="value" />
+    <PARAM name="opacity" type="value" />
+    <PARAM name="transition" type="value" />
+    <PARAM name="transparency" type="value" />
+    <PARAM name="show" type="value" />
+  </EDITOR>
+  <CLIENT minstance="true">
+    <SCRIPT path="./cBtMatrix.pkg" />
+    <ACTION name="Change">
+      <ENUM value="bitmap path or url" />
+      <ENUM value="logo.bmp" />
+    </ACTION>
+    <ACTION name="Show" />
+    <ACTION name="Hide" />
+    <ACTION name="Change data" />
+    <ACTION name="Set position">
+      <ENUM value="x y" />
+      <ENUM value="x%25+y%25" />
+      <ENUM value="10 10" />
+      <ENUM value="50%25+50%25" />
+    </ACTION>
+    <ACTION name="Set size">
+      <ENUM value="w h" />
+      <ENUM value="w%25+h%25" />
+      <ENUM value="100 100" />
+      <ENUM value="50%25+50%25" />
+    </ACTION>
+    <ACTION name="Set opacity" />
+    <EVENT name="Shown" />
+    <EVENT name="click" />
+    <EVENT name="keyboardEntry" />	
+	<EVENT name="validPass" />
+	<EVENT name="invalidPass" />
+	<EVENT name="startLoad" />
+	<EVENT name="endLoad" />
+	<EVENT name="loading" />
+	<EVENT name="started" />
+	<ACTION name="write">
+      <ENUM value="message" />
+      <ENUM value="test message 123" />
+    </ACTION>	
+	<ACTION name="writer" />
+	<ACTION name="writecls" />
+	<ACTION name="writetime" />
+	<ACTION name="writeblink" />
+	<ACTION name="writesymbol" />
+	<ACTION name="writetext" />
+	<ACTION name="writescore" />
+	<ACTION name="start" />
+	<ACTION name="obClicked" />
+	<ACTION name="passCheck" />
+	<ACTION name="passEntry" />
+  </CLIENT>
+</PLUGIN>

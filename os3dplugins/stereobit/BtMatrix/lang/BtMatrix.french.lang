@@ -1,0 +1,33 @@
+LANGUAGE french
+OS3DPICTURE_DESC Affiche une image locale ou web
+OS3DPICTURE_HELP http://www.openspace3d.com/documentation/fr/plugits/media/pictureplugit.html
+OS3DPICTURE_0001 Appliquer sur la texture
+OS3DPICTURE_0002 Chemin de l'image
+OS3DPICTURE_0003 Aligné en bas
+OS3DPICTURE_0004 Aligné au centre
+OS3DPICTURE_0005 Erreur
+OS3DPICTURE_0006 Paramètre de fichier
+OS3DPICTURE_0007 Hauteur
+OS3DPICTURE_0008 Aligné à gauche
+OS3DPICTURE_0009 Nom du matériau
+OS3DPICTURE_0010 Configuration du matériau
+OS3DPICTURE_0011 Technique
+OS3DPICTURE_0012 Minimiser / restaurer
+OS3DPICTURE_0013 Réglages divers
+OS3DPICTURE_0014 Nom de l'objet
+OS3DPICTURE_0015 Décalage
+OS3DPICTURE_0016 Opacité
+OS3DPICTURE_0017 Texture
+OS3DPICTURE_0018 Position X
+OS3DPICTURE_0019 Position Y
+OS3DPICTURE_0020 Réglage de la taille / position
+OS3DPICTURE_0021 Aligner à droite
+OS3DPICTURE_0022 Transition (ms)
+OS3DPICTURE_0023 Utiliser comme arrière-plan
+OS3DPICTURE_0024 Afficher au démarrage
+OS3DPICTURE_0025 Passe
+OS3DPICTURE_0026 Aligné en haut
+OS3DPICTURE_0027 Transparence
+OS3DPICTURE_0028 URL
+OS3DPICTURE_0029 Largeur
+OS3DPICTURE_0030 Votre fichier doit être dans une partition de scol.

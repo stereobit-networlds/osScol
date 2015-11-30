@@ -1,0 +1,39 @@
+LANGUAGE English
+OS3DPICTURE_DESC Display enchanced image ui
+OS3DPICTURE_HELP http://scol.stereobit.gr/en/plugits/stereobit/btscreenplugit.html
+OS3DPICTURE_0001 Apply on texture
+OS3DPICTURE_0002 Bitmap path
+OS3DPICTURE_1002 Images path
+OS3DPICTURE_2002 Fonts path
+OS3DPICTURE_0003 Bottom align
+OS3DPICTURE_0004 Center align
+OS3DPICTURE_0005 Error
+OS3DPICTURE_0006 Picture setting
+OS3DPICTURE_1006 Images setting
+OS3DPICTURE_2006 Fonts setting
+OS3DPICTURE_0007 Height
+OS3DPICTURE_0008 Left align
+OS3DPICTURE_0009 Material name
+OS3DPICTURE_0010 Material setting
+OS3DPICTURE_0011 Material technique
+OS3DPICTURE_0012 Minimize / Restore
+OS3DPICTURE_0013 Misc setting
+OS3DPICTURE_0014 Object name
+OS3DPICTURE_0015 Offset
+OS3DPICTURE_0016 Opacity
+OS3DPICTURE_0017 Pass texture
+OS3DPICTURE_0018 Pos X
+OS3DPICTURE_0019 Pos Y
+OS3DPICTURE_0020 Position / Size setting
+OS3DPICTURE_0021 Right align
+OS3DPICTURE_0022 Show / Hide transition (ms)
+OS3DPICTURE_0023 Show in background
+OS3DPICTURE_0024 Show on start
+OS3DPICTURE_0025 Technique pass
+OS3DPICTURE_0026 Top align
+OS3DPICTURE_0027 Transparency
+OS3DPICTURE_0028 Picture Url
+OS3DPICTURE_1028 Images Url
+OS3DPICTURE_2028 Fonts Url
+OS3DPICTURE_0029 Width
+OS3DPICTURE_0030 Your file have to be in a scol partition.
