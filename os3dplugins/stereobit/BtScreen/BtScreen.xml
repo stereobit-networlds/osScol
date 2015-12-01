@@ -63,6 +63,7 @@
     </ACTION>
     <ACTION name="Set opacity" />
     <EVENT name="Shown" />
+	<EVENT name="Hidden" />	
     <EVENT name="click" />
     <EVENT name="keyboardEntry" />	
 	<EVENT name="validPass" />

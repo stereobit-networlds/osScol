@@ -63,29 +63,11 @@
     </ACTION>
     <ACTION name="Set opacity" />
     <EVENT name="Shown" />
-    <EVENT name="click" />
-    <EVENT name="keyboardEntry" />	
-	<EVENT name="validPass" />
-	<EVENT name="invalidPass" />
-	<EVENT name="startLoad" />
-	<EVENT name="endLoad" />
-	<EVENT name="loading" />
-	<EVENT name="started" />
-    <EVENT name="echo" />	
-	<ACTION name="write">
-      <ENUM value="message" />
-      <ENUM value="test message 123" />
-    </ACTION>	
-	<ACTION name="writer" />
-	<ACTION name="writecls" />
-	<ACTION name="writetime" />
-	<ACTION name="writeblink" />
-	<ACTION name="writesymbol" />
-	<ACTION name="writetext" />
-	<ACTION name="writescore" />
+	<EVENT name="hidden" />	
+    <EVENT name="echo" />
+	<EVENT name="started" />	
+	<ACTION name="writeTerminal" />
+	<ACTION name="clsTerminal" />
 	<ACTION name="start" />
-	<ACTION name="obClicked" />
-	<ACTION name="passCheck" />
-	<ACTION name="passEntry" />
   </CLIENT>
 </PLUGIN>
