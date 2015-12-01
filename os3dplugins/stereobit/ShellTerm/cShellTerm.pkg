@@ -41,6 +41,7 @@ struct PlugPicture = [
   
   PICT_win                     : SO3_WIDGET,
   PICT_AlphaBuffer             : AlphaBitmap,
+  PICT_AlphaDraw               : AlphaBitmap,  
   
   PICT_iPosX                   : I,
   PICT_iPosY                   : I,
@@ -142,12 +143,12 @@ fun setMatrix(pictstr, viewportstr, matrix, m)=
   else
   ( 
 	let m -> j in
-	let createAlphaImage _channel pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey -> abmp in
+	let createAlphaImage _channel pictstr.PICT_iWidth pictstr.PICT_iHeight -> abmp in
 	let hd matrix -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
 	(
 	 //_echo strcatn "CMATRIX:"::(itoa i)::","::(itoa j)::","::(itoa xs)::","::(itoa ys)::nil
 	 
-	 set mxwidget = createMXWidget viewportstr (itoa j) pictstr.PICT_iPosX pictstr.PICT_iPosY pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey;
+	 set mxwidget = createMXWidget viewportstr (itoa j) pictstr.PICT_iPosX pictstr.PICT_iPosY pictstr.PICT_iWidth pictstr.PICT_iHeight;
 	 SO3WidgetSetVisibility mxwidget 0;                   
 	 
 	 /******************** init widget visibility ***************/
@@ -215,7 +216,7 @@ fun resetMatrix(pictstr, viewportstr, matrix, m)=
 	 let pictstr.PICT_iPosY + (pictstr.PICT_ifmsizey*j) -> ym in
 	 
      SO3WidgetSetPosition mxwidget pictstr.PICT_iPosX ym;
-     SO3WidgetSetSize mxwidget pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey;	 
+     SO3WidgetSetSize mxwidget pictstr.PICT_iWidth pictstr.PICT_iHeight;	 
 	 
      if (abmp==nil || v==0) then nil else
      (	 
@@ -233,7 +234,7 @@ fun resetMatrix(pictstr, viewportstr, matrix, m)=
   );;  
   
 fun resetFontMatrix (pictstr, rx, ry, dim) =  
-  let if dim!=nil then dim else [0 0 pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey] -> [dx dy dw dh] in
+  let if dim!=nil then dim else [0 0 pictstr.PICT_iWidth pictstr.PICT_iHeight] -> [dx dy dw dh] in
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   let if (rx!=nil)||(ry!=nil) then [rx ry] else V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
   (
@@ -315,66 +316,68 @@ fun drawLabel(abmp, pictstr, s)=
   
   if (_platform != SCOL_PLATFORM_WINDOWS) then
   (
-    _BTDRAWtextAlphaBitmap abmp pictstr.PICT_cvfont [bw/2 bh/2] BT_TEXT_HORIZ_CENTERED|BT_TEXT_VERT_CENTER pictstr.PICT_ifColor 255 pictstr.PICT_sLabel;
+    _BTDRAWtextAlphaBitmap abmp pictstr.PICT_cvfont [bw/2 bh/2] BT_TEXT_HORIZ_CENTERED|BT_TEXT_VERT_CENTER pictstr.PICT_ifColor 255 strcat pictstr.PICT_sLabel s;
     0;
   )
   else
   (
     let G2DgetStringSize pictstr.PICT_font pictstr.PICT_sLabel -> [_ th] in
     (
-      _DRAWtext bmp pictstr.PICT_font (bw / 2) ((bh / 2) - (th / 2)) TD_CENTER pictstr.PICT_ifColor pictstr.PICT_sLabel;
-      _DRAWtext8 bmp8 pictstr.PICT_font (bw / 2) ((bh / 2) - (th / 2)) TD_CENTER 0xffffff pictstr.PICT_sLabel;
+      _DRAWtext bmp pictstr.PICT_font pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey TD_LEFT pictstr.PICT_ifColor strcat pictstr.PICT_sLabel s;
+      _DRAWtext8 bmp8 pictstr.PICT_font pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey TD_LEFT 0xffffff strcat pictstr.PICT_sLabel s;
     );
     0;
   );
   0;;	  
+  
+fun updateBitmap(pictstr, mxwidget, s)=
+  if (mxwidget == nil) then nil 
+  else
+  let _GETalphaBitmapSize pictstr.PICT_AlphaBuffer -> [bw bh] in
+  let _GETalphaBitmapSize pictstr.PICT_AlphaDraw -> [dbw dbh] in
+  let bw / 1 -> width in
+  let bh / (1 + 1) -> height in
+  let (bw / 1) * 1 -> wpos in
+  let 0 -> ypos in
+  (
+    if ((pictstr.PICT_AlphaDraw == nil) || (dbw != width) || (dbh != height)) then
+    (
+      _DSalphaBitmap pictstr.PICT_AlphaDraw;
+      
+      let _CRbitmap _channel width height -> bmp24 in
+      let _CRbitmap8 _channel width height -> bmp8 in
+        set pictstr.PICT_AlphaDraw = _CRalphaBitmap _channel bmp24 bmp8 nil nil;
+    )
+    else nil;
+    
+    let _GETalphaBitmaps pictstr.PICT_AlphaBuffer -> [colorLayer alphaLayer] in 
+    let _GETalphaBitmaps pictstr.PICT_AlphaDraw -> [colorDraw alphaDraw] in
+    (
+      _CPbitmap24 colorDraw 0 0 colorLayer wpos ypos width height nil;
+      _CPbitmap8 alphaDraw 0 0 alphaLayer wpos ypos width height nil;
+    );
+    
+    drawLabel pictstr.PICT_AlphaDraw pictstr s;
+    //SO3BitmapWidgetBlitAlpha mxwidget pictstr.PICT_AlphaDraw;
+  );
+  0;;  
 	  
 fun writeTerminal(pictstr, s) = //,b,t) =
   if pictstr.PICT_fontMatrix == nil then
     nil
   else 
     let nth_list pictstr.PICT_fontMatrix pictstr.PICT_tCursor -> [abmp x y _ _ _ v t b _ mxwidget] in
-    (   	   
-       let _CRbitmap _channel pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey -> bmp24 in
-       let _CRbitmap8 _channel pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey -> bmp8 in
-       let _CRalphaBitmap _channel bmp24 bmp8 nil nil -> adraw in 
-
-       let _GETalphaBitmaps abmp -> [colorLayer alphaLayer] in 
-       let _GETalphaBitmaps adraw -> [colorDraw alphaDraw] in 
-       (
-         _CPbitmap24 colorDraw 0 0 colorLayer 0 0 pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey nil;
-         _CPbitmap8 alphaDraw 0 0 bmp8 0 0 pictstr.PICT_ifmsizex pictstr.PICT_ifmsizey nil;
-		 
-         drawLabel adraw pictstr s;
-         SO3BitmapWidgetBlitAlpha mxwidget adraw;		 
-       );	   
-	   
+    (   	      
        //let if (t>0) then _tickcount else 0 -> timer in
 	   //let if (b>0) then _tickcount else 0 -> blink in	   
-	   mutate nth_list pictstr.PICT_fontMatrix pictstr.PICT_tCursor <- [_ 0 pictstr.PICT_tCursor _ _ s 1 0 0 _ _];	
+	   
+	   updateBitmap pictstr mxwidget s;
+	   
+	   mutate nth_list pictstr.PICT_fontMatrix pictstr.PICT_tCursor <- [pictstr.PICT_AlphaDraw 0 pictstr.PICT_tCursor _ _ s 1 0 0 _ _];	
 	   set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;
+	   	
 	   0
     );;
-	
-	/*
-  if pictstr.PICT_fontMatrix == nil then
-    nil
-  else 
-    let (pictstr.PICT_xMatrix*c)+x -> xy in 
-	let 0 -> i in	
-	while (i< strlen s) do
-	(  let if (t>0) then _tickcount else 0 -> timer in
-	   let if (b>0) then _tickcount else 0 -> blink in
-	   let nth_list pictstr.PICT_fontMatrix (xy+i) -> [abmp x y sx sy _ _ _ _ _ _] in
-	   ( 
-	     //_fooS strcat "Write to terminal:" c;
-	     mutate nth_list pictstr.PICT_fontMatrix (xy+i) <- [abmp _ _ _ _ c 1 blink timer _ _];	
-
-	     set i = i + 1;	 
-	   0) 
-	);;*/
-	//print_r pictstr.PICT_fontMatrix;;	
-	 
 	 
   
 fun hideTerminal(list) =
@@ -878,7 +881,7 @@ fun cbNewOb(inst)=
 
   let SO3SceneGetObject (V3DgetSession c3dXsession) objname -> obj in
   let if !istexture then nil else SO3SceneGetMaterial (V3DgetSession c3dXsession) (SO3EntityGetResourceGroup obj) matname -> mat in
-  let MkPlugPicture [inst istexture mat 12 180 30 nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 font cv_font label fcolor isurl file background show nil nil nil nil 0] -> pictstr in
+  let MkPlugPicture [inst istexture mat 15 5 1 nil nil nil posx posy width height [xpercent ypercent wpercent hpercent xoffset yoffset woffset hoffset] [xalign yalign] trans opacity transition 0.0 font cv_font label fcolor isurl file background show nil nil nil nil 0] -> pictstr in
   (
     createPicture inst pictstr;
 
@@ -928,6 +931,7 @@ fun cbNewOb(inst)=
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
 	
 	
+	writeTerminal pictstr "Starting...";
 	SendPluginEvent inst "started" nil nil;
   );
   0;;
