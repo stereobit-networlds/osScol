@@ -355,7 +355,7 @@ fun endDownloadImageS(file, data, x)=
 	  showInfoImagesMatrix matrix 0 90 linfoImages [10 110 10 ScreenW ScreenH] nil 1
   );;		
   
-fun downloadInfoImages(files, pictstr)=
+fun downloadInfoImages(pictstr, files)=
   _fooS "DnLoading: start\n";
   let 0 -> i in
   if (files!=nil) then
@@ -406,12 +406,12 @@ fun downloadInfoImages(files, pictstr)=
 
   
 
-fun showInfoDialog(inst, pictstr, param) =
+fun showInfoImages(inst, pictstr, param) =
   if (param==nil) then
    nil
   else	  
    /*fetch info images*/
-   downloadInfoImages (lineextr param) pictstr;;
+   downloadInfoImages pictstr param;; //(lineextr param);; fethced file list from scol srv (old method)
    
    /*..MOVED AT THE END OF DNLOAD
    if (linfoImages!=nil) then  
@@ -431,7 +431,16 @@ fun showInfoDialog(inst, pictstr, param) =
 	  0
    )else nil;;*/
 
-//fun openUrl(param) = _openbrowserhttp param;;  
+//fun openUrl(param) = _openbrowserhttp param;; 
+
+fun clearInfoImages(pictstr, images)=
+  if images == nil then
+    nil
+  else
+    let hd images -> [bmp _ _ _ _ _ _ _] in
+   	 //destroyImage bmp; 
+     clearInfoImages pictstr tl images;
+   0;;  
    
 fun clickInfoImages(inst, pictstr, images, b) = 
   let b -> [_ [xclick yclick bt]] in
@@ -512,12 +521,10 @@ fun blitInfoImages(list, pictstr) =
    //SO3BitmapWidgetBlitAlpha mxwidget abmp;
    0);;     
    	  
-fun resizeImageDialog(pictstr, rx, ry, dim) = 
-  set linfoImages = nil;
+fun resizeInfoImage(pictstr, rx, ry, dim) = 
+  clearInfoImages pictstr linfoImages;
   0;;
-  
-  
-fun showInfoImages(inst, pictstr) = showInfoDialog inst pictstr nil;;  
+   
 
 
 /***********************************************************************/
@@ -585,7 +592,7 @@ fun cbShow(inst, from, action, param, reply, pictstr)=
   (
     SO3WidgetSetVisibility pictstr.PICT_win 1;
 	
-	showInfoImages inst pictstr; //! at show start if exist...
+	showInfoImages inst pictstr nil; //! at show start if exist...
     
     //force render update (used for loading screens)
     if (pictstr.PICT_bOnMaterial) then nil else
@@ -640,23 +647,23 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
 	//resizeInfoImages pictstr vw vh [px py pw ph];
-	blitFontMatrix linfoImages pictstr;
+	blitInfoImages linfoImages pictstr;
 	//_fooS strcat "blitBlt info images :" "resize\n";
   );
   0;;
   
   
-fun cbControlPreRenderBlitFontMatrix(inst, sessionstr, etime, pictstr) = 
-  blitFontMatrix linfoImages pictstr;
-  //_fooS strcat "blitBlt fonts:" "PreRender\n";
+fun cbControlPreRenderBlitInfoMatrix(inst, sessionstr, etime, pictstr) = 
+  blitInfoImages linfoImages pictstr;
+  //_fooS strcat "blitBlt info images:" "PreRender\n";
   0;;  
   
 fun cb3dClick(inst, viewstr, x, y, b, pictstr)= 
-  setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderBlitFontMatrix pictstr;
+  setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderBlitInfoMatrix pictstr;
   0;; 
 
 fun cb3dDbClick(inst, viewstr, x, y, b, pictstr)= 
-  setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderBlitFontMatrix pictstr;
+  setPluginInstanceCbScenePreRender inst mkfun4 @cbControlPreRenderBlitInfoMatrix pictstr;
   0;;
   
   
@@ -1329,8 +1336,8 @@ fun cbChangeData(inst, from, action, param, reply, pictstr)=
     
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
-	//blitFontMatrix pictstr.PICT_fontMatrix pictstr;
-	//_fooS strcat "blitBlt fonts:" "changed data\n";
+	//blitInfoImages infoImages pictstr;
+	//_fooS strcat "blitBlt info images:" "changed data\n";
   );
   0;;
 
@@ -1348,8 +1355,8 @@ fun cbChange(inst, from, action, param, reply, pictstr)=
       
       SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	  
-	  //blitFontMatrix pictstr.PICT_fontMatrix pictstr;
-	  //_fooS strcat "blitBlt fonts:" "change\n";
+	  //blitInfoImages infoImages pictstr;
+	  //_fooS strcat "blitBlt info Images:" "change\n";
     );
     0;
   )
@@ -1472,7 +1479,7 @@ fun cbNewOb(inst)=
     createPicture inst pictstr;
 	//_fooS "Start";
 	SendPluginEvent inst "startLoad" nil nil;
-    showInfoImages inst pictstr;		
+    showInfoImages inst pictstr nil;		
     
     if pictstr.PICT_bOnMaterial then nil else
       setPluginInstanceCbResizeView inst mkfun5 @cbResizeCtrl pictstr;
@@ -1488,8 +1495,8 @@ fun cbNewOb(inst)=
           
           SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 		  
-		  //blitFontMatrix pictstr.PICT_fontMatrix pictstr; 
-		  //_fooS strcat "blitBlt fonts:" "init\n";
+		  //blitInfoImages info Images pictstr; 
+		  //_fooS strcat "blitBlt info Images:" "init\n";
         );
         0;
       )
