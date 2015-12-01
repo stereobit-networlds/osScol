@@ -63,7 +63,7 @@ struct PlugPicture = [
   PICT_fontpath                : S,
   PICT_isfonturl               : I,  
   PICT_fonturl                 : S, 
-  PICT_linfoImages             : [[AlphaBitmap S I I I I S I] r1], 
+  PICT_linfoImages             : [[AlphaBitmap S I I I I S I SO3_WIDGET] r1], 
   PICT_xMatrix                 : I,
   PICT_yMatrix                 : I,  
   PICT_fontMatrix              : [[AlphaBitmap I I I I S I I I I SO3_WIDGET] r1],
@@ -97,9 +97,7 @@ var iTexHeight = 512;;
 
 /*IMG bitmaps*/
 /*bmp name width height xonscreen yonscreen alphachannel url inzone*/ 
-typeof linfoImages = [[AlphaBitmap S I I I I S I] r1];; 
-//typeof lfontImages = [[AlphaBitmap S I I I I S I] r1];; 
-//typeof fontMatrixOpt = [[I I S I] r1];;
+typeof linfoImages = [[AlphaBitmap S I I I I S I SO3_WIDGET] r1];; 
 
 var log=1;;
 var debug=0;;
@@ -134,7 +132,7 @@ fun print_r	(list) =
   if list == nil then
     nil
   else 
-  ( let hd list -> [_ x y sx sy c v _ _ _ _] in
+  ( let hd list -> [_ x y sx sy c v _ _ ] in
     _fooS strcatn "print_r:"::(itoa x)::"-"::(itoa y)::"-"::(itoa v)::"-"::c::nil;
     print_r tl list;
 	0
@@ -176,22 +174,6 @@ fun createMXWidget(viewportstr, id, x, y, sx, sy) =
     mxwidget
   );;*/
 
-fun setInfoScreenXY(images, name, params) = 
-  if images == nil then
-    nil
-  else
-    let hd images -> [_ n w h _ _ url _] in
-    if !strcmp n name then
-	(
-      let params -> [x y] in 
-      ( 
-        mutate hd images <- [_ _ _ _ x y _ _];
-	    [w h x y url]  
-	  )	
-	)  
-    else
-      setInfoScreenXY (tl images) name params;;
-
 fun setUrl(inst, pictstr, images) =
   if images==nil then
     nil
@@ -199,7 +181,7 @@ fun setUrl(inst, pictstr, images) =
     /*additional a file list can replace urls... ?*/
     let (getPluginInstanceParam inst "url") -> url in	
     ( 
-	  mutate hd images <- [_ _ _ _ _ _ url _];		
+	  mutate hd images <- [_ _ _ _ _ _ url _ _];		
       setUrl inst pictstr (tl images);
 	  0
     );; 	  
@@ -231,7 +213,7 @@ fun showInfoImagesMatrix(matrix,i,mbox,images,params,url,rightaligned) =
     let if (i<msize) then nth_list matrix i 
 	    else (set i=0; nth_list matrix i) 
 		-> [ln m _] in
-	let hd images -> [_ n w h _ _ u _] in
+	let hd images -> [_ n w h _ _ u _ _] in
     (
 	    //_echo strcatn "Matrix:"::n::","::(itoa m)::","::(itoa i)::","::(itoa ln)::nil
 		let if (u!=nil) then u else url -> goto in /*if pre inserted*/
@@ -277,7 +259,7 @@ fun showInfoImagesMatrix(matrix,i,mbox,images,params,url,rightaligned) =
                  set z = z + 1;
                  0			   		   
                );
-		       mutate hd images <- [_ _ _ _ nx ny goto _];
+		       mutate hd images <- [_ _ _ _ nx ny goto _ _];
 		       //_echo strcatn "Matrix:"::n::","::(itoa ln)::","::(itoa nlr1)::","::(itoa nlr2)::","::(itoa nx)::","::(itoa ny)::nil
 		       showInfoImagesMatrix matrix (iz) mbox (tl images) params url rightaligned;
 		       0
@@ -293,7 +275,7 @@ fun showInfoImagesMatrix(matrix,i,mbox,images,params,url,rightaligned) =
 /** web server version **/   
 fun endDownloadImage(file, data, x)= 
   let strfind ".png" file 0 -> r in  
-  let x -> [i fsize pictstr] in    
+  let x -> [i fsize viewportstr] in    
   if data == nil then nil else
   let strcatn sTmpDownloadPath::file::".tmp"::nil -> tmpfile in
   (
@@ -305,9 +287,8 @@ fun endDownloadImage(file, data, x)=
 	    ( 
           let substr file 0 r -> s in
           let searchSlash s 0 -> poslastslash in
-          let substr s poslastslash strlen s -> name in		  
-          set linfoImages = [abmp name w h 0 0 nil 0]::linfoImages;	
-		  0
+          let substr s poslastslash strlen s -> name in			  
+          set linfoImages = [abmp name w h 0 0 nil 0 createMXWidget viewportstr name 0 0 10 10]::linfoImages
 	    );
         if (i < fsize) then nil else 
 		  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
@@ -317,8 +298,9 @@ fun endDownloadImage(file, data, x)=
   );;	
   
 /*** web server dnload description file (images list) ***/
-fun endDownloadFile(file, data, pictstr)=
+fun endDownloadFile(file, data, z)=
   if data == nil then nil else
+  let z -> [pictstr viewportstr] in
   let lineextr data -> files in /*start dnload font files from list file readed before */
   let getFileDirectory pictstr.PICT_fonturl -> url in
   let 0 -> i in  
@@ -328,8 +310,8 @@ fun endDownloadFile(file, data, pictstr)=
     (
 	 //_echo strcat "Download web images...............:" file
 	 _fooS strcat "DnLoading web file:" file;
-	 let strcatn url::"/"::file::nil -> url in
-	 downloadFile url mkfun3 @endDownloadImage [i fsize pictstr];
+	 let strcat url file -> url in
+	 downloadFile url mkfun3 @endDownloadImage [i fsize viewportstr];
      set i = i+1
 	); 
 	0;; 
@@ -337,7 +319,7 @@ fun endDownloadFile(file, data, pictstr)=
 /** scol server version **/   	
 fun endDownloadImageS(file, data, x)=
   let strfind ".png" file 0 -> r in 
-  let x -> [i fsize pictstr] in
+  let x -> [i fsize pictstr viewportstr] in
   let G2DloadAlphaBmp _channel file -> abmp in
   if abmp == nil then nil else
   (  
@@ -345,9 +327,8 @@ fun endDownloadImageS(file, data, x)=
     ( 
       let substr file 0 r -> s in
       let searchSlash s 0 -> poslastslash in
-      let substr s poslastslash strlen s -> name in
-      set linfoImages = [abmp name w h 0 0 nil 0]::linfoImages;	
-	  0
+      let substr s poslastslash strlen s -> name in 	  
+      set linfoImages = [abmp name w h 0 0 nil 0 createMXWidget viewportstr name 0 0 10 10]::linfoImages	
     );	
 	if (i < fsize) then nil else 
 	  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
@@ -355,20 +336,22 @@ fun endDownloadImageS(file, data, x)=
 	  showInfoImagesMatrix matrix 0 90 linfoImages [10 110 10 ScreenW ScreenH] nil 1
   );;		
   
-fun downloadInfoImages(pictstr, files)=
-  _fooS "DnLoading: start\n";
+fun downloadInfoImages(pictstr, param, files)=
+  _fooS strcat "DnLoading: start" param;
+  let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in  
   let 0 -> i in
   if (files!=nil) then
   (  
      _fooS "(SCOL Server)\n";
 	 //_echo strcat "Download server fonts...............:" file
-	 //_RSCdownload this file file mkfun3 @endDownloadImageS [i fsize pictstr]; //....................... no server
+	 //_RSCdownload this file file mkfun3 @endDownloadImageS [i fsize pictstr viewportstr]; 
 	 nil
   )
   else if pictstr.PICT_isfonturl then
   ( /* web server load */
     _fooS "(WEB Server)\n";
-    downloadFile pictstr.PICT_fonturl mkfun3 @endDownloadFile pictstr;
+	let strcat pictstr.PICT_fonturl param -> webinfopath in
+    downloadFile webinfopath mkfun3 @endDownloadFile [pictstr viewportstr];
 	nil
   )
   else
@@ -376,7 +359,8 @@ fun downloadInfoImages(pictstr, files)=
     /* local load */
 	_fooS "(LOCAL)\n";
     let getFileDirectory pictstr.PICT_fontpath -> path in
-    let getFilesFromDir path "png"::nil -> files in 
+	let strcat path param -> infopath in
+    let getFilesFromDir infopath "png"::nil -> files in 
     let (sizelist files) -> fsize in
     while i < fsize do
       let nth_list files i -> file in
@@ -385,12 +369,14 @@ fun downloadInfoImages(pictstr, files)=
       if (abmp == nil) then nil else
 		let _GETalphaBitmapSize abmp -> [w h] in
         (   
-		   _fooS strcat "DnLoading font:" file;
+		   _fooS strcat "DnLoading info images:" file;
            let substr file 0 r -> s in
            let searchSlash s 0 -> poslastslash in
            let substr s poslastslash strlen s -> name in
 		   (
-             set linfoImages = [abmp name w h 0 0 nil 0]::linfoImages;	
+	      	 //set mxwidget = createMXWidget viewportstr name 0 0 10 10; //init widget dim
+	         //SO3WidgetSetVisibility mxwidget 0; // init widget visibility 
+             set linfoImages = [abmp name w h 0 0 nil 0 createMXWidget viewportstr name 0 0 10 10]::linfoImages;	
              set i = i+1;
 		     if (i < fsize) then nil else 
 			   let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
@@ -402,16 +388,38 @@ fun downloadInfoImages(pictstr, files)=
 		0
   );;	 
   
-/********************************************************************/
+/********************************************************************/ 
 
-  
+fun deleteInfoImages(list, viewportstr) = 
+  if list == nil then
+    nil
+  else 
+    let hd list -> [abmp _ _ _ _ _ _ _ mxwidget] in
+    (   
+	  if (mxwidget==nil) then nil else
+        SO3WidgetDestroy mxwidget;
+	  
+	  if (abmp==nil) then nil else
+        _DSalphaBitmap abmp;
+	  
+	  mutate hd list <- [nil nil nil nil nil nil nil nil nil];
+	  deleteInfoImages tl list viewportstr;
+	  0
+    );;	 
+	
+fun clearInfoImages(list, viewportstr) = 	
+  deleteInfoImages list viewportstr;
+  set linfoImages = nil;
+  0;;
 
-fun showInfoImages(inst, pictstr, param) =
+fun showInfoImages(inst, pictstr, param, files) =
+  let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   if (param==nil) then
    nil
-  else	  
-   /*fetch info images*/
-   downloadInfoImages pictstr param;; //(lineextr param);; fethced file list from scol srv (old method)
+  else	   
+   clearInfoImages linfoImages viewportstr; //init-delete previous info images
+   downloadInfoImages pictstr param files; //(lineextr param); fethced file list from scol srv (old method) now an anchor name
+   0;; 
    
    /*..MOVED AT THE END OF DNLOAD
    if (linfoImages!=nil) then  
@@ -431,17 +439,8 @@ fun showInfoImages(inst, pictstr, param) =
 	  0
    )else nil;;*/
 
-//fun openUrl(param) = _openbrowserhttp param;; 
+//fun openUrl(param) = _openbrowserhttp param;;
 
-fun clearInfoImages(pictstr, images)=
-  if images == nil then
-    nil
-  else
-    let hd images -> [bmp _ _ _ _ _ _ _] in
-   	 //destroyImage bmp; 
-     clearInfoImages pictstr tl images;
-   0;;  
-   
 fun clickInfoImages(inst, pictstr, images, b) = 
   let b -> [_ [xclick yclick bt]] in
   
@@ -475,12 +474,12 @@ fun moveInfoImages(inst, images, o, b) =
 	nil
   else   
   (
-    let hd images -> [_ name w h x y _ inzone] in
+    let hd images -> [_ name w h x y _ inzone _] in
 	
     if (xmove > x) && (xmove < x+w) && (ymove > y) && (ymove < y+h) then 
       if !inzone then
       (
-		mutate hd images <- [_ _ _ _ _ _ _ 1];
+		mutate hd images <- [_ _ _ _ _ _ _ 1 _];
         //_DMSevent this "contextHelp" strbuild ("ref"::name::nil)::("userParam"::"1"::nil)::nil nil;
 		SendPluginEvent inst "contextHelp" nil nil;
         //OB_TakeMouse o;
@@ -491,7 +490,7 @@ fun moveInfoImages(inst, images, o, b) =
         nil
     else if inzone then
     (
-      mutate hd images <- [_ _ _ _ _ _ _ 0];
+      mutate hd images <- [_ _ _ _ _ _ _ 0 _];
       //_DMSevent this "contextHelp" nil nil;
 	  SendPluginEvent inst "contextHelp" nil nil;
       //OB_ReleaseMouse o;
@@ -503,28 +502,32 @@ fun moveInfoImages(inst, images, o, b) =
 	  
 	//_SETfocus w3d.V3dwin; 
 	moveInfoImages inst tl images o b;
-  0);;	  
+  0);;	   
   
-fun resizeInfoImages(o, images, screenw, screenh) =   
-  set linfoImages = nil;
-  0;;
-  
-fun blitInfoImages(list, pictstr) = 	
+fun blitInfoImages(list) = 	
   if list == nil then
     nil
   else
-  (let hd list -> [bmp name w h x y _ _] in
-   //_Bitmap2Surface surf x y bmp 0 0 w h (make_rgb 0 0 255); 
-   //blitInfoImages tl list surf;
-   
-   //SO3WidgetSetVisibility mxwidget v;
-   //SO3BitmapWidgetBlitAlpha mxwidget abmp;
-   0);;     
+  let hd list -> [abmp name w h x y _ _ mxwidget] in
+  (   
+    SO3WidgetSetPosition mxwidget x y;
+    SO3WidgetSetSize mxwidget w h;
+    SO3WidgetSetVisibility mxwidget 1;
+    SO3BitmapWidgetBlitAlpha mxwidget abmp;
+	
+    blitInfoImages tl list;
+	0
+  );;     
    	  
-fun resizeInfoImage(pictstr, rx, ry, dim) = 
-  clearInfoImages pictstr linfoImages;
+fun resizeInfoImages(pictstr, rx, ry, dim) =
+  let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in 
+  clearInfoImages linfoImages viewportstr;
   0;;
-   
+  
+fun hideInfoImages(pictstr, images) =
+  let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in   
+  clearInfoImages linfoImages viewportstr;
+  0;;   
 
 
 /***********************************************************************/
@@ -592,7 +595,7 @@ fun cbShow(inst, from, action, param, reply, pictstr)=
   (
     SO3WidgetSetVisibility pictstr.PICT_win 1;
 	
-	showInfoImages inst pictstr nil; //! at show start if exist...
+	showInfoImages inst pictstr nil nil;
     
     //force render update (used for loading screens)
     if (pictstr.PICT_bOnMaterial) then nil else
@@ -619,7 +622,7 @@ fun cbHide(inst, from, action, param, reply, pictstr)=
   (
     SO3WidgetSetVisibility pictstr.PICT_win 0;
 	
-	//hideFontMatrix pictstr.PICT_fontMatrix; //!!!!!!!
+	hideInfoImages pictstr linfoImages; 
     
     //force render update (used for loading screens)
     //let V3DgetSessionView c3dXsession -> viewstr in
@@ -646,15 +649,15 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
     SO3WidgetSetSize pictstr.PICT_win pw ph;
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
-	//resizeInfoImages pictstr vw vh [px py pw ph];
-	blitInfoImages linfoImages pictstr;
+	resizeInfoImages pictstr vw vh [px py pw ph];
+	blitInfoImages linfoImages;
 	//_fooS strcat "blitBlt info images :" "resize\n";
   );
   0;;
   
   
 fun cbControlPreRenderBlitInfoMatrix(inst, sessionstr, etime, pictstr) = 
-  blitInfoImages linfoImages pictstr;
+  blitInfoImages linfoImages;
   //_fooS strcat "blitBlt info images:" "PreRender\n";
   0;;  
   
@@ -1336,7 +1339,7 @@ fun cbChangeData(inst, from, action, param, reply, pictstr)=
     
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
-	//blitInfoImages infoImages pictstr;
+	//blitInfoImages infoImages;
 	//_fooS strcat "blitBlt info images:" "changed data\n";
   );
   0;;
@@ -1355,7 +1358,7 @@ fun cbChange(inst, from, action, param, reply, pictstr)=
       
       SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	  
-	  //blitInfoImages infoImages pictstr;
+	  //blitInfoImages infoImages;
 	  //_fooS strcat "blitBlt info Images:" "change\n";
     );
     0;
@@ -1373,7 +1376,9 @@ fun cbChange(inst, from, action, param, reply, pictstr)=
   );
   0;;
   
-fun cbObClicked(inst, from, action, param, reply, pictstr) = 0;;  //<<<<<<<<<<<<<<<<<<<<<<<<
+fun cbObClicked(inst, from, action, param, reply, pictstr) = 
+  showInfoImages inst pictstr param nil;
+  0;;
 
 fun cbOpenUrl(inst, from, action, param, reply, pictstr) = 0;;    //<<<<<<<<<<<<<<<<<<<<<<<<  
 
@@ -1479,7 +1484,7 @@ fun cbNewOb(inst)=
     createPicture inst pictstr;
 	//_fooS "Start";
 	SendPluginEvent inst "startLoad" nil nil;
-    showInfoImages inst pictstr nil;		
+    showInfoImages inst pictstr nil nil;		
     
     if pictstr.PICT_bOnMaterial then nil else
       setPluginInstanceCbResizeView inst mkfun5 @cbResizeCtrl pictstr;
@@ -1495,7 +1500,7 @@ fun cbNewOb(inst)=
           
           SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 		  
-		  //blitInfoImages info Images pictstr; 
+		  //blitInfoImages linfoImages; 
 		  //_fooS strcat "blitBlt info Images:" "init\n";
         );
         0;
@@ -1528,8 +1533,8 @@ fun cbNewOb(inst)=
     setPluginInstanceCbTouchPointRemove inst mkfun4 @cbRemoveCursor pictstr;
     setPluginInstanceCbTouchPointUpdate inst mkfun8 @cbUpdateCursor pictstr;
 	
-	PluginRegisterAction inst "ShowCompass" mkfun6 @cbObClicked pictstr;	
-	PluginRegisterAction inst "ShowFramerate" mkfun6 @cbOpenUrl pictstr;	
+	PluginRegisterAction inst "ObClicked" mkfun6 @cbObClicked pictstr;	
+	PluginRegisterAction inst "openUrl" mkfun6 @cbOpenUrl pictstr;	
 	
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
 	
