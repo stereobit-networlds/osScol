@@ -94,9 +94,9 @@ var server=0;; /*when scol server is on */
 
 
 
-fun _echo(x,s)= 
-   if (log) then
-	_DMSevent this "hear" strcat strcat ">> " x "\n" nil
+fun _echo(pictstr,s)= 
+   if (log==1) then
+	SendPluginEvent pictstr.PICT_instance "echo" s nil
    else
      nil;;
 	 
@@ -132,22 +132,9 @@ fun computePosSize(pictstr, vw, vh)=
 
 fun createMXWidget(viewportstr, id, x, y, sx, sy) = 
   SO3BitmapWidgetCreate (V3DgetSession c3dXsession) viewportstr.V3D_viewport (strcat "matrixCtrl_" id) x y sx sy MXWidgetLayer;;
-  
- /* let SO3BitmapWidgetCreate (V3DgetSession c3dXsession) viewportstr.V3D_viewport (strcat "matrixCtrl_" id) x y sx sy 100 -> mxwidget in
-  (
-    SO3WidgetSetTopOnFocus mxwidget 0;
-    SO3WidgetSetForeground mxwidget 1;	 
-    V3DaddWidgetControl viewportstr mxwidget;
-    SO3WidgetSetKeyboardEnable mxwidget 0;
-    SO3WidgetSetMouseEnable mxwidget 0;
-    //SO3WidgetSetTransparency mxwidget Transparency;
-    SO3WidgetSetOpacity mxwidget (itof 100) *. 0.01;
-    SO3WidgetSetVisibility mxwidget 0;
-    mxwidget
-  );;*/
 
 /*create font matrix [bmp x y screenx screeny char view blink time(ms)]::*/
-fun setMatrix(viewportstr, matrix, wMatrix, hMatrix, xbox, ybox, sep, dim, x)=
+fun setMatrix(pictstr, viewportstr, matrix, wMatrix, hMatrix, xbox, ybox, sep, dim, x)=
   let x -> [i j] in
   let if dim!=nil then dim else [0 0 xbox ybox] -> [dx dy dw dh] in
   if (matrix==nil) then
@@ -158,15 +145,24 @@ fun setMatrix(viewportstr, matrix, wMatrix, hMatrix, xbox, ybox, sep, dim, x)=
 	let createAlphaImage _channel dw dh -> abmp in
 	let hd matrix -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
 	(
-	 //_echo strcatn "CMATRIX:"::(itoa i)::","::(itoa j)::","::(itoa xs)::","::(itoa ys)::nil
+	 //_echo pictstr strcatn "CMATRIX:"::(itoa i)::","::(itoa j)::","::(itoa xs)::","::(itoa ys)::nil;
 	 
 	 set mxwidget = createMXWidget viewportstr (strcat itoa i itoa j) xs ys dw dh;
-	 SO3WidgetSetVisibility mxwidget 0;                   /******************** init widget visibility ***************/
+	 
+	 /******************** init widget ***************/
+     V3DaddWidgetControl viewportstr mxwidget;
+     SO3WidgetSetTopOnFocus mxwidget 0;
+     SO3WidgetSetForeground mxwidget 1;		
+     SO3WidgetSetKeyboardEnable mxwidget 0;
+     SO3WidgetSetMouseEnable mxwidget 0;
+     SO3WidgetSetTransparency mxwidget pictstr.PICT_bTransparency;
+     SO3WidgetSetOpacity mxwidget (itof pictstr.PICT_iOpacity) *. 0.01;
+     SO3WidgetSetVisibility mxwidget 0;	 
 	 
 	 mutate hd matrix <- [abmp i j xs ys "" 0 0 0 0 mxwidget];
 	 
 	 let if (i<wMatrix-1) then [(i+1) j] else [0 (j+1)] -> x in
-     setMatrix viewportstr tl matrix wMatrix hMatrix xbox ybox sep dim x;
+     setMatrix pictstr viewportstr tl matrix wMatrix hMatrix xbox ybox sep dim x;
      0
 	)	
   );;
@@ -188,7 +184,7 @@ fun makeFontMatrix(pictstr, xbox, ybox, sep, rx, ry, dim) =
 	 set i = i + 1;
 	 0
 	);
-	setMatrix viewportstr matrix wMatrix hMatrix dw dh sep dim [0 0];
+	setMatrix pictstr viewportstr matrix wMatrix hMatrix dw dh sep dim [0 0];
     [matrix wMatrix hMatrix]
   );; 
 

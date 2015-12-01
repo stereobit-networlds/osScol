@@ -71,6 +71,7 @@
 	<EVENT name="endLoad" />
 	<EVENT name="loading" />
 	<EVENT name="started" />
+    <EVENT name="echo" />	
 	<ACTION name="write">
       <ENUM value="message" />
       <ENUM value="test message 123" />

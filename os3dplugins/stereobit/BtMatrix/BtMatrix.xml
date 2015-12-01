@@ -4,7 +4,7 @@
   <HELP loc="OS3DBTSCREEN_HELP">http://scol.stereobit.gr/documentation/en/plugits/btmatrix.html</HELP>
   <EDITOR>
     <SCRIPT path="./eBtMatrix.pkg" />
-    <PARAM name="istexture" type="value" />
+    <PARAM name="isrightalign" type="value" />
     <PARAM name="object" type="mesh" />
     <PARAM name="material" type="material" />
     <PARAM name="technique" type="value" />
@@ -75,6 +75,7 @@
 	<EVENT name="endLoad" />
 	<EVENT name="loading" />
 	<EVENT name="started" />
+    <EVENT name="echo" />	
     <ACTION name="Send left click" />
     <ACTION name="Send right click" />
     <ACTION name="Send middle click" />
