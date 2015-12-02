@@ -68,7 +68,7 @@ struct PlugPicture = [
    
   PICT_xMatrix                 : I,
   PICT_yMatrix                 : I,  
-  PICT_fontMatrix              : [[AlphaBitmap I I I I S I I I I SO3_WIDGET] r1],
+  PICT_fontMatrix              : [[AlphaBitmap I I I I S I I I I SO3_WIDGET AlphaBitmap] r1],
   PICT_tCursor                 : I
 
   ] MkPlugPicture;;
@@ -79,7 +79,7 @@ var sTmpDownloadPath = "tmp/pictures/";;
 var iTexWidth = 512;;
 var iTexHeight = 512;;
 
-
+var MXWidgetLayer=999;;
 var log=1;;
 var debug=0;;
 
@@ -125,7 +125,7 @@ fun print_r	(list) =
   if list == nil then
     nil
   else 
-  ( let hd list -> [_ x y sx sy c v _ _ _ _] in
+  ( let hd list -> [_ x y sx sy c v _ _ _ _ _] in
     _fooS strcatn "print_r:"::(itoa x)::"-"::(itoa y)::"-"::(itoa v)::"-"::c::nil;
     print_r tl list;
 	0
@@ -133,23 +133,23 @@ fun print_r	(list) =
 	 
 
 fun createMXWidget(viewportstr, id, x, y, sx, sy) = 
-  SO3BitmapWidgetCreate (V3DgetSession c3dXsession) viewportstr.V3D_viewport (strcat "matrixCtrl_" id) x y sx sy 100;;
+  SO3BitmapWidgetCreate (V3DgetSession c3dXsession) viewportstr.V3D_viewport (strcat "matrixCtrl_" id) x y sx sy MXWidgetLayer;;
 
 
 /*create font matrix [bmp x y screenx screeny char view blink time(ms)]::*/
-fun setMatrix(pictstr, viewportstr, matrix, m)=
+fun setMatrix(pictstr, viewportstr, matrix, j)=
   if (matrix==nil) then
     nil
   else
   ( 
-	let m -> j in
 	let createAlphaImage _channel pictstr.PICT_iWidth pictstr.PICT_iHeight -> abmp in
-	let hd matrix -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
+	let createAlphaImage _channel pictstr.PICT_iWidth pictstr.PICT_iHeight -> adraw in
+	let hd matrix -> [_ _ _ _ _ _ _ _ _ _ mxwidget _] in
 	(
 	 //_echo strcatn "CMATRIX:"::(itoa i)::","::(itoa j)::","::(itoa xs)::","::(itoa ys)::nil
+	 //_fooS strcat "Term Y pos:" itoa (pictstr.PICT_iHeight*j); 
 	 
-	 set mxwidget = createMXWidget viewportstr (itoa j) pictstr.PICT_iPosX pictstr.PICT_iPosY pictstr.PICT_iWidth pictstr.PICT_iHeight;
-	 SO3WidgetSetVisibility mxwidget 0;                   
+	 set mxwidget = createMXWidget viewportstr strcat "ID_" (itoa j) pictstr.PICT_iPosX pictstr.PICT_iPosY pictstr.PICT_iWidth pictstr.PICT_iHeight;                
 	 
 	 /******************** init widget visibility ***************/
      V3DaddWidgetControl viewportstr mxwidget;
@@ -159,10 +159,16 @@ fun setMatrix(pictstr, viewportstr, matrix, m)=
      SO3WidgetSetMouseEnable mxwidget 0;
      SO3WidgetSetTransparency mxwidget pictstr.PICT_bTransparency;
      SO3WidgetSetOpacity mxwidget (itof pictstr.PICT_iOpacity) *. 0.01;
-     SO3WidgetSetVisibility mxwidget 0;	 
+     SO3WidgetSetVisibility mxwidget 0;	
 	 
-	 let pictstr.PICT_iPosY + (pictstr.PICT_ifmsizey*j) -> ym in
-	 mutate hd matrix <- [abmp 0 j pictstr.PICT_iPosX ym "" 0 0 0 0 mxwidget];
+	  
+	 let pictstr.PICT_iPosY + (pictstr.PICT_iHeight*j) -> ym in
+	 (
+	   mutate hd matrix <- [abmp 0 j pictstr.PICT_iPosX ym "" 0 0 0 0 mxwidget adraw];
+	 
+	   SO3WidgetSetPosition mxwidget pictstr.PICT_iPosX ym;
+       SO3WidgetSetSize mxwidget pictstr.PICT_iWidth pictstr.PICT_iHeight;	 
+	 );  
 	 
 	 set j = j + 1;
      setMatrix pictstr viewportstr tl matrix j;
@@ -170,7 +176,7 @@ fun setMatrix(pictstr, viewportstr, matrix, m)=
 	)	
   );;
 
-fun makeFontMatrix(pictstr, rx, ry, dim) = 
+fun makeMatrix(pictstr, rx, ry, dim) = 
   //let if dim!=nil then dim else [0 0 xbox ybox] -> [dx dy dw dh] in
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
  /* let if (rx!=nil)||(ry!=nil) then [rx ry] else V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
@@ -181,20 +187,20 @@ fun makeFontMatrix(pictstr, rx, ry, dim) =
   
   let nil -> matrix in  
   let 0 -> i in    
-  ( /*init matrix*/
-    while (i < pictstr.PICT_iBuffer) do
+  ( 
+    while (i <= pictstr.PICT_iBuffer) do
 	(
-	 set matrix = [nil 0 0 0 0 nil 0 0 0 0 nil]::matrix;
+	 set matrix = [nil 0 0 0 0 nil 0 0 0 0 nil nil]::matrix;
 	 set i = i + 1;
 	 0
 	);
-	setMatrix pictstr viewportstr matrix 1;
+	setMatrix pictstr viewportstr matrix 0;
     matrix
   );; 
 
-fun createFontMatrix(pictstr, resizex, resizey, dim) =  
+fun createMatrix(pictstr, resizex, resizey, dim) =  
 	let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-	let makeFontMatrix pictstr resizex resizey dim -> matrix in
+	let makeMatrix pictstr resizex resizey dim -> matrix in
 	(
 	  _fooS strcat "Create Terminal Matrix" "\n";
 	  set pictstr.PICT_fontMatrix = matrix;
@@ -205,23 +211,19 @@ fun createFontMatrix(pictstr, resizex, resizey, dim) =
 	
 
 
-fun resetMatrix(pictstr, viewportstr, matrix, m)=
+fun resetMatrix(pictstr, viewportstr, matrix, j)=
   if (matrix==nil) then
     nil
   else
   ( 
-    let m -> j in
-	let hd matrix -> [abmp _ _ _ _ _ v _ _ _ mxwidget] in
+	let hd matrix -> [abmp _ _ _ _ _ v _ _ _ mxwidget adraw] in
 	(
-	 let pictstr.PICT_iPosY + (pictstr.PICT_ifmsizey*j) -> ym in
-	 
-     SO3WidgetSetPosition mxwidget pictstr.PICT_iPosX ym;
-     SO3WidgetSetSize mxwidget pictstr.PICT_iWidth pictstr.PICT_iHeight;	 
-	 
+
      if (abmp==nil || v==0) then nil else
      (	 
 	   SO3WidgetSetVisibility mxwidget v;
 	   SO3BitmapWidgetBlitAlpha mxwidget abmp;
+	   if (adraw==nil) then nil else SO3BitmapWidgetBlitAlpha mxwidget adraw;
 	   0
 	 );  
 	 
@@ -233,13 +235,13 @@ fun resetMatrix(pictstr, viewportstr, matrix, m)=
 	)	
   );;  
   
-fun resetFontMatrix (pictstr, rx, ry, dim) =  
+fun resetTerminal (pictstr, rx, ry, dim) =  
   let if dim!=nil then dim else [0 0 pictstr.PICT_iWidth pictstr.PICT_iHeight] -> [dx dy dw dh] in
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   let if (rx!=nil)||(ry!=nil) then [rx ry] else V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
   (
-    _fooS strcat "Reset Terminal Matrix" "\n";
-    resetMatrix pictstr viewportstr pictstr.PICT_fontMatrix 1;
+    //_fooS strcat "Reset Terminal Matrix" "\n";
+    resetMatrix pictstr viewportstr pictstr.PICT_fontMatrix 0;
   0);; 	
   
   
@@ -247,9 +249,10 @@ fun refreshMXWidget(list) =
   if list == nil then
     nil
   else 
-    let hd list -> [abmp _ _ _ _ _ _ _ _ _ mxwidget] in
+    let hd list -> [abmp _ _ _ _ _ _ _ _ _ mxwidget adraw] in
     (   
       SO3BitmapWidgetBlitAlpha mxwidget abmp;
+      if (adraw==nil) then nil else SO3BitmapWidgetBlitAlpha mxwidget adraw;	  
 	  refreshMXWidget tl list;
 	  0
     );;	   
@@ -259,19 +262,19 @@ fun deleteMXWidget(list, viewportstr) =
   if list == nil then
     nil
   else 
-    let hd list -> [abmp _ _ _ _ _ _ _ _ _ mxwidget] in
+    let hd list -> [abmp _ _ _ _ _ _ _ _ _ mxwidget adraw] in
     (   
       V3DremoveWidgetControl viewportstr mxwidget;
       SO3WidgetDestroy mxwidget;
-      //set mxwidget = nil;
-      _DSalphaBitmap abmp;
-      //set abmp = nil;	  
-	  mutate hd list <- [nil _ _ _ _ _ _ _ _ _ nil];
+      _DSalphaBitmap abmp;  
+	  _DSalphaBitmap adraw;
+	  
+	  mutate hd list <- [nil _ _ _ _ _ _ _ _ _ nil nil];
 	  deleteMXWidget tl list viewportstr;
 	  0
     );;	  
 	
-fun deleteFontMatrix(pictstr) = 
+fun deleteTerminal(pictstr) = 
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   deleteMXWidget pictstr.PICT_fontMatrix viewportstr;
   set pictstr.PICT_fontMatrix = nil;
@@ -279,35 +282,62 @@ fun deleteFontMatrix(pictstr) =
   0;;   
 	
 
-fun clsFontMatrix(list) =
+fun clsMatrix(list) =
   if list == nil then
     nil
   else
-    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
+    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget adraw] in
     ( 
+      _DSalphaBitmap adraw;
+		
       SO3WidgetSetVisibility mxwidget 0;
-	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 _];
-      clsFontMatrix tl list;
+	  
+	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 _ nil];
+      clsMatrix tl list;
 	  0
     );;  
 
-fun clsTerminal(fontMatrix) = 
-  clsFontMatrix fontMatrix;
-  0;; 
+fun clsTerminal(pictstr) = 
+  set pictstr.PICT_tCursor = 0;
+  clsMatrix pictstr.PICT_fontMatrix;
+  0;; 	
   
-fun clsFontMatrixLine(pictstr,list,line) =
+fun rollTerminal(list, prevdraw, prevtext) = 
   if list == nil then
     nil
-  else 
-  ( let (pictstr.PICT_xMatrix*line)+1 -> xy in
-    let 0 -> i in
-    while (i<pictstr.PICT_xMatrix) do
-	( mutate nth_list list xy+i <- [_ _ _ _ _ _ 0 0 0 0 _];
-	  set i = i + 1;
+  else
+    let hd list -> [_ _ y _ _ s _ _ _ _ mxwidget adraw] in
+    ( 
+      //_fooS strcatn "Terminal roll:"::(itoa y)::","::s::nil;
+	  
+	  if (prevdraw==nil) then nil else
+	  (
+	    //_DSalphaBitmap adraw;
+	    mutate hd list <- [_ _ _ _ _ prevtext _ _ _ _ _ prevdraw];
+		SO3BitmapWidgetBlitAlpha mxwidget prevdraw;
+	  );
+	  
+      rollTerminal tl list adraw s;
 	  0
-	);	
-  0);;	
-  
+    );;   
+	
+fun blitTerminal(matrix, pictstr) = 
+  if matrix == nil then
+    nil
+  else 
+    let hd matrix -> [abmp _ j _ _ c v _ _ _ mxwidget adraw] in
+	( 
+	    _fooS strcatn "BitBlt Terminal:"::(itoa j)::","::c::nil;
+		if (adraw==nil || !v) then nil else 
+		(
+		  SO3WidgetSetVisibility mxwidget 1;
+		  SO3BitmapWidgetBlitAlpha mxwidget abmp;
+		  if (adraw==nil) then nil else SO3BitmapWidgetBlitAlpha mxwidget adraw;
+		);  
+		blitTerminal tl matrix pictstr;
+		0
+	);;		       
+  	
   
   
 fun drawLabel(abmp, pictstr, s)=
@@ -330,64 +360,81 @@ fun drawLabel(abmp, pictstr, s)=
   );
   0;;	  
   
-fun updateBitmap(pictstr, mxwidget, s)=
-  if (mxwidget == nil) then nil 
+fun updateWidgetDrawBitmap(pictstr, s)=
+  if pictstr.PICT_fontMatrix == nil then
+    nil
   else
   let _GETalphaBitmapSize pictstr.PICT_AlphaBuffer -> [bw bh] in
   let _GETalphaBitmapSize pictstr.PICT_AlphaDraw -> [dbw dbh] in
-  let bw / 1 -> width in
-  let bh / (1 + 1) -> height in
-  let (bw / 1) * 1 -> wpos in
+  let bw -> width in
+  let bh -> height in
+  let bw -> wpos in
   let 0 -> ypos in
+  let pictstr.PICT_tCursor -> j in
+  let nth_list pictstr.PICT_fontMatrix j -> [abmp x y _ _ _ v t b _ mxwidget adraw] in
   (
-    if ((pictstr.PICT_AlphaDraw == nil) || (dbw != width) || (dbh != height)) then
+    //set adraw = nil;
+	_fooS strcatn "Terminal write:"::(itoa j)::","::s::nil;
+    if ((adraw == nil) || (dbw != width) || (dbh != height)) then
     (
-      _DSalphaBitmap pictstr.PICT_AlphaDraw;
+      _DSalphaBitmap adraw;
       
       let _CRbitmap _channel width height -> bmp24 in
       let _CRbitmap8 _channel width height -> bmp8 in
-        set pictstr.PICT_AlphaDraw = _CRalphaBitmap _channel bmp24 bmp8 nil nil;
+        set adraw = _CRalphaBitmap _channel bmp24 bmp8 nil nil;
     )
     else nil;
     
-    let _GETalphaBitmaps pictstr.PICT_AlphaBuffer -> [colorLayer alphaLayer] in 
-    let _GETalphaBitmaps pictstr.PICT_AlphaDraw -> [colorDraw alphaDraw] in
+    let _GETalphaBitmaps abmp -> [colorLayer alphaLayer] in 
+    let _GETalphaBitmaps adraw -> [colorDraw alphaDraw] in
     (
       _CPbitmap24 colorDraw 0 0 colorLayer wpos ypos width height nil;
       _CPbitmap8 alphaDraw 0 0 alphaLayer wpos ypos width height nil;
     );
     
-    drawLabel pictstr.PICT_AlphaDraw pictstr s;
+    drawLabel adraw pictstr s;
+	
+	mutate nth_list pictstr.PICT_fontMatrix j <- [_ _ _ _ _ s 1 _ _ _ _ adraw];
+	
     //SO3BitmapWidgetBlitAlpha mxwidget pictstr.PICT_AlphaDraw;
   );
   0;;  
 	  
-fun writeTerminal(pictstr, s) = //,b,t) =
-  if pictstr.PICT_fontMatrix == nil then
-    nil
-  else 
-    let nth_list pictstr.PICT_fontMatrix pictstr.PICT_tCursor -> [abmp x y _ _ _ v t b _ mxwidget] in
-    (   	      
-       //let if (t>0) then _tickcount else 0 -> timer in
-	   //let if (b>0) then _tickcount else 0 -> blink in	   
-	   
-	   updateBitmap pictstr mxwidget s;
-	   
-	   mutate nth_list pictstr.PICT_fontMatrix pictstr.PICT_tCursor <- [pictstr.PICT_AlphaDraw 0 pictstr.PICT_tCursor _ _ s 1 0 0 _ _];	
-	   set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;
-	   	
-	   0
-    );;
+	/*if (pictstr.PICT_tCursor<=pictstr.PICT_iBuffer) then
+	(
+	  updateWidgetDrawBitmap pictstr s;
+	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;
+	)  
+	else
+	(
+	  clsTerminal pictstr;
+	  updateWidgetDrawBitmap pictstr s;
+      set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	  
+	);*/  	  
+fun writeTerminal(pictstr, s) = 	  
+	
+    updateWidgetDrawBitmap pictstr s;
+	
+	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
+	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1
+    else
+	( 
+	  rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
+      set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
+	);  	
+	print_r pictstr.PICT_fontMatrix;
+    blitTerminal pictstr.PICT_fontMatrix pictstr;	
+	0;;
 	 
   
 fun hideTerminal(list) =
   if list == nil then
     nil
   else 
-    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
+    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget _] in
     (   
       SO3WidgetSetVisibility mxwidget 0;
-	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 mxwidget];
+	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 mxwidget _];
 	  hideTerminal tl list;
 	  0
     );;    
@@ -397,45 +444,26 @@ fun showTerminal(list) =
   if list == nil then
     nil
   else 
-    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget] in
+    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget _] in
     (   
       SO3WidgetSetVisibility mxwidget 1;
-	  mutate hd list <- [_ _ _ _ _ _ 1 _ _ _ mxwidget];
+	  mutate hd list <- [_ _ _ _ _ _ 1 _ _ _ mxwidget _];
 	  showTerminal tl list;
 	  0
     );;   
    
   
 fun resizeTerminal(pictstr, rx, ry, dim) = 
-  //deleteFontMatrix pictstr; 
-  //createFontMatrix pictstr rx ry dim;
-  resetFontMatrix pictstr rx ry dim;
+  //deleteTerminal pictstr; 
+  //createMatrix pictstr rx ry dim;
+  resetTerminal pictstr rx ry dim;
   0;;
 
-	
-fun blitTerminal(matrix, pictstr) = 
-  if matrix == nil then
-    nil
-  else 
-    let hd matrix -> [abmp _ _ sx sy c v b t _ mxwidget] in
-	(
-	  //_fooS strcat "Render:" c; 
-      if (v==0) then 
-	    blitTerminal tl matrix pictstr
-	  else  
-	  (   
-	    //_fooS strcat "BitBlt:" c;
-	    SO3WidgetSetVisibility mxwidget v;
-		if (abmp==nil || !v) then nil else SO3BitmapWidgetBlitAlpha mxwidget abmp;
-		blitTerminal tl matrix pictstr;
-		0
-	  );0);;		       
-  
   
 fun createTerminal(inst, pictstr) = 
   let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
   let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
-  createFontMatrix pictstr nil nil [px py pw ph];
+  createMatrix pictstr nil nil [px py pw ph];
   0;;
   
 fun cbWriteTerminal(inst, from, action, param, reply, pictstr)= 
@@ -443,7 +471,7 @@ fun cbWriteTerminal(inst, from, action, param, reply, pictstr)=
   0;;
 
 fun cbClsTerminal(inst, from, action, param, reply, pictstr)= 
-  clsTerminal pictstr.PICT_fontMatrix;
+  clsTerminal pictstr;
   0;;  
 
 
@@ -558,7 +586,7 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
   
   
 fun cbControlPreRenderBlitTerminal(inst, sessionstr, etime, pictstr) = 
-  blitTerminal pictstr.PICT_fontMatrix pictstr;
+  //blitTerminal pictstr.PICT_fontMatrix pictstr;
   //_fooS strcat "blitBlt terminal:" "PreRender\n";
   0;;  
   
