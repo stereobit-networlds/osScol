@@ -177,13 +177,7 @@ fun setMatrix(pictstr, viewportstr, matrix, j)=
   );;
 
 fun makeMatrix(pictstr, rx, ry, dim) = 
-  //let if dim!=nil then dim else [0 0 xbox ybox] -> [dx dy dw dh] in
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
- /* let if (rx!=nil)||(ry!=nil) then [rx ry] else V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-  let (ScreenW/(dw+sep)) -> wMatrix in
-  let (ScreenH/(dh+sep)) -> hMatrix in
-  let (wMatrix*hMatrix) -> sMatrix in
-  */
   
   let nil -> matrix in  
   let 0 -> i in    
@@ -399,7 +393,10 @@ fun updateWidgetDrawBitmap(pictstr, s)=
   );
   0;;  
 	  	  
-fun writeTerminal(pictstr, s) = 	  
+fun writeTerminal(pictstr, s) = 
+
+    /*effect: move background main image as cursor*/
+	SO3WidgetSetPosition pictstr.PICT_win pictstr.PICT_iPosX (pictstr.PICT_iHeight*pictstr.PICT_tCursor)+pictstr.PICT_iPosY;
 	
 	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
 	(
@@ -413,7 +410,7 @@ fun writeTerminal(pictstr, s) =
 	  updateWidgetDrawBitmap pictstr s;
 	);  	
 	//print_r pictstr.PICT_fontMatrix;
-    blitTerminal pictstr.PICT_fontMatrix pictstr;	
+    if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;	
 	0;;
 	 
   
@@ -421,10 +418,10 @@ fun hideTerminal(list) =
   if list == nil then
     nil
   else 
-    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget _] in
+    let hd list -> [_ _ _ _ _ _ v _ _ _ mxwidget _] in	
     (   
       SO3WidgetSetVisibility mxwidget 0;
-	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 mxwidget _];
+	  mutate hd list <- [_ _ _ _ _ _ 0 v _ _ mxwidget _];
 	  hideTerminal tl list;
 	  0
     );;    
@@ -434,10 +431,10 @@ fun showTerminal(list) =
   if list == nil then
     nil
   else 
-    let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget _] in
-    (   
-      SO3WidgetSetVisibility mxwidget 1;
-	  mutate hd list <- [_ _ _ _ _ _ 1 _ _ _ mxwidget _];
+    let hd list -> [_ _ _ _ _ _ _ store _ _ mxwidget _] in		
+    ( 
+      SO3WidgetSetVisibility mxwidget store;
+	  mutate hd list <- [_ _ _ _ _ _ store 0 _ _ mxwidget _];
 	  showTerminal tl list;
 	  0
     );;   
@@ -512,13 +509,13 @@ fun cbShow(inst, from, action, param, reply, pictstr)=
   (
     SO3WidgetSetVisibility pictstr.PICT_win 1;
 	
-	//showTerminal pictstr.PICT_fontMatrix; //show black boxes of matrix
-    
     //force render update (used for loading screens)
     if (pictstr.PICT_bOnMaterial) then nil else
     let V3DgetSessionView c3dXsession -> viewstr in
       SO3BufferUpdate viewstr.V3D_buffer;
     
+	showTerminal pictstr.PICT_fontMatrix; //show black boxes of matrix
+	
     SendPluginEvent inst "Shown" nil nil;
     0;
   )
@@ -567,14 +564,14 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
 	//resizeTerminal pictstr vw vh [px py pw ph]; //!!! no need blitBlt is ok  
-	blitTerminal pictstr.PICT_fontMatrix pictstr;
+	if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;
 	//_fooS strcat "blitBlt terminal :" "resize\n";
   );
   0;;
   
   
 fun cbControlPreRenderBlitTerminal(inst, sessionstr, etime, pictstr) = 
-  //blitTerminal pictstr.PICT_fontMatrix pictstr;
+  //if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;
   //_fooS strcat "blitBlt terminal:" "PreRender\n";
   0;;  
   
@@ -738,7 +735,7 @@ fun cbChangeData(inst, from, action, param, reply, pictstr)=
     
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
-	//blitTerminal pictstr.PICT_fontMatrix pictstr;
+	//if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;
 	//_fooS strcat "blitBlt terminal:" "changed data\n";
   );
   0;;
@@ -757,7 +754,7 @@ fun cbChange(inst, from, action, param, reply, pictstr)=
       
       SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	  
-	  //blitTerminal pictstr.PICT_fontMatrix pictstr;
+	  //if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;
 	  //_fooS strcat "blitBlt terminal:" "change\n";
     );
     0;
@@ -917,7 +914,7 @@ fun cbNewOb(inst)=
           
           SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 		  
-		  //blitTerminal pictstr.PICT_fontMatrix pictstr; 
+		  //if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil; 
 		  //_fooS strcat "blitBlt Terminal:" "init\n";
         );
         0;
