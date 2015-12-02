@@ -481,8 +481,8 @@ fun showInfoImagesMatrix(pictstr,matrix,i,images,params,viewportstr) =
 	    //_echo pictstr str;		
 		
 		/******************** init widget ***************/
-        //SO3WidgetEnterEventCb mxwidget @cbMouseIn pictstr;
-        //SO3WidgetExitEventCb mxwidget @cbMouseOut pictstr;
+        SO3WidgetEnterEventCb mxwidget @cbMouseIn pictstr;
+        SO3WidgetExitEventCb mxwidget @cbMouseOut pictstr;
         SO3WidgetMouseDownEventCb mxwidget @cbClick pictstr;
         //SO3WidgetMouseUpEventCb mxwidget @cbUnClick pictstr;
         //SO3WidgetMouseMoveEventCb mxwidget @cbMouseMove pictstr;

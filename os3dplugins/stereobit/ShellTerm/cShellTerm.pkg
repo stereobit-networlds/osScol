@@ -202,7 +202,7 @@ fun createMatrix(pictstr, resizex, resizey, dim) =
 	let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
 	let makeMatrix pictstr resizex resizey dim -> matrix in
 	(
-	  _fooS strcat "Create Terminal Matrix" "\n";
+	  //_fooS strcat "Create Terminal Matrix" "\n";
 	  set pictstr.PICT_fontMatrix = matrix;
 	  set pictstr.PICT_xMatrix = 1;
 	  set pictstr.PICT_yMatrix = pictstr.PICT_iBuffer;	  
@@ -278,7 +278,7 @@ fun deleteTerminal(pictstr) =
   let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
   deleteMXWidget pictstr.PICT_fontMatrix viewportstr;
   set pictstr.PICT_fontMatrix = nil;
-  _fooS strcat "Delete Terminal Matrix" "\n";
+  //_fooS strcat "Delete Terminal Matrix" "\n";
   0;;   
 	
 
@@ -289,7 +289,6 @@ fun clsMatrix(list) =
     let hd list -> [_ _ _ _ _ _ _ _ _ _ mxwidget adraw] in
     ( 
       _DSalphaBitmap adraw;
-		
       SO3WidgetSetVisibility mxwidget 0;
 	  
 	  mutate hd list <- [_ _ _ _ _ _ 0 0 0 0 _ nil];
@@ -314,7 +313,6 @@ fun rollTerminal(list, prevdraw, prevtext) =
 	  (
 	    //_DSalphaBitmap adraw;
 	    mutate hd list <- [_ _ _ _ _ prevtext _ _ _ _ _ prevdraw];
-		SO3BitmapWidgetBlitAlpha mxwidget prevdraw;
 	  );
 	  
       rollTerminal tl list adraw s;
@@ -327,12 +325,12 @@ fun blitTerminal(matrix, pictstr) =
   else 
     let hd matrix -> [abmp _ j _ _ c v _ _ _ mxwidget adraw] in
 	( 
-	    _fooS strcatn "BitBlt Terminal:"::(itoa j)::","::c::nil;
+	    //_fooS strcatn "BitBlt Terminal:"::(itoa j)::","::c::nil;
 		if (adraw==nil || !v) then nil else 
 		(
 		  SO3WidgetSetVisibility mxwidget 1;
-		  SO3BitmapWidgetBlitAlpha mxwidget abmp;
-		  if (adraw==nil) then nil else SO3BitmapWidgetBlitAlpha mxwidget adraw;
+		  //SO3BitmapWidgetBlitAlpha mxwidget abmp; //!!!!! blit 
+		  SO3BitmapWidgetBlitAlpha mxwidget adraw;
 		);  
 		blitTerminal tl matrix pictstr;
 		0
@@ -373,8 +371,10 @@ fun updateWidgetDrawBitmap(pictstr, s)=
   let pictstr.PICT_tCursor -> j in
   let nth_list pictstr.PICT_fontMatrix j -> [abmp x y _ _ _ v t b _ mxwidget adraw] in
   (
-    //set adraw = nil;
-	_fooS strcatn "Terminal write:"::(itoa j)::","::s::nil;
+    set adraw = nil; //!!! must !!!!
+	
+	//_fooS strcatn "Terminal write:"::(itoa j)::","::s::nil;
+	
     if ((adraw == nil) || (dbw != width) || (dbh != height)) then
     (
       _DSalphaBitmap adraw;
@@ -396,33 +396,23 @@ fun updateWidgetDrawBitmap(pictstr, s)=
 	
 	mutate nth_list pictstr.PICT_fontMatrix j <- [_ _ _ _ _ s 1 _ _ _ _ adraw];
 	
-    //SO3BitmapWidgetBlitAlpha mxwidget pictstr.PICT_AlphaDraw;
   );
   0;;  
-	  
-	/*if (pictstr.PICT_tCursor<=pictstr.PICT_iBuffer) then
+	  	  
+fun writeTerminal(pictstr, s) = 	  
+	
+	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
 	(
 	  updateWidgetDrawBitmap pictstr s;
 	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;
 	)  
-	else
-	(
-	  clsTerminal pictstr;
-	  updateWidgetDrawBitmap pictstr s;
-      set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	  
-	);*/  	  
-fun writeTerminal(pictstr, s) = 	  
-	
-    updateWidgetDrawBitmap pictstr s;
-	
-	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
-	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1
     else
 	( 
 	  rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
       set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
+	  updateWidgetDrawBitmap pictstr s;
 	);  	
-	print_r pictstr.PICT_fontMatrix;
+	//print_r pictstr.PICT_fontMatrix;
     blitTerminal pictstr.PICT_fontMatrix pictstr;	
 	0;;
 	 
@@ -454,9 +444,7 @@ fun showTerminal(list) =
    
   
 fun resizeTerminal(pictstr, rx, ry, dim) = 
-  //deleteTerminal pictstr; 
-  //createMatrix pictstr rx ry dim;
-  resetTerminal pictstr rx ry dim;
+  resetTerminal pictstr rx ry dim; 
   0;;
 
   
@@ -578,7 +566,7 @@ fun cbResizeCtrl(inst, viewstr, vw, vh, pictstr)=
     SO3WidgetSetSize pictstr.PICT_win pw ph;
     SO3BitmapWidgetBlitAlpha pictstr.PICT_win pictstr.PICT_AlphaBuffer;
 	
-	resizeTerminal pictstr vw vh [px py pw ph];
+	//resizeTerminal pictstr vw vh [px py pw ph]; //!!! no need blitBlt is ok  
 	blitTerminal pictstr.PICT_fontMatrix pictstr;
 	//_fooS strcat "blitBlt terminal :" "resize\n";
   );
