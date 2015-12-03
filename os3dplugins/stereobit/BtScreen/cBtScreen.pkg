@@ -399,7 +399,7 @@ fun endDownloadFontImageS(file, data, x)=
   );;		
   
 fun downloadFontImages(files, pictstr)=
-  _fooS "DnLoading: start\n";
+  //_fooS "DnLoading: start\n";
   let 0 -> i in
   if (files!=nil) then
   (  

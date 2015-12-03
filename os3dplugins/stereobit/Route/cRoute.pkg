@@ -48,9 +48,63 @@ struct TObjPath = [
                     OBJP_bToTarget     : I,
                     OBJP_bLocal        : I,
                     OBJP_iState        : I
+					
+					//OBJP_urlRouteFile  : S,
+					//OBJP_routeFile     : S
                     
                   ] mkTObjPath;;
+				  
+var log=1;;
+var debug=0;;
+var server=0;; /*when scol server is on */	
 
+var sTmpDownloadPath = "tmp/routes/";;
+var maxDownloadSize=3145728;;
+
+typeof sno = I;;	   
+typeof nsno = S;;
+typeof sesfile = S;;
+typeof sesdata = [[S r1] r1];;
+
+var isession = "40.589226 22.964331 510.0 30.48 1500000.0 0.445 0.380";;
+var iparser = "0 15500 0 9 11 12";;
+
+
+fun _echo(objstr,s)= 
+ if (log==1) then
+	SendPluginEvent objstr.OBJP_inst "echo" s nil
+ else
+     nil;;
+
+   /*begin session*/
+   //set sno = rand;
+   //set nsno = strcatn (ObName o)::"/"::(itoa sno)::nil;
+	 
+fun sessionpath(objstr) = 
+   let rand -> sno in //fix
+   let strcatn (getPluginInstanceName objstr.OBJP_inst)::"/"::(itoa sno)::nil -> nsno in //fix
+   strcatn sTmpDownloadPath::"ospace"::"/"::(nsno)::"/"::nil;;
+	 
+fun getSessionData() = 
+   //let strcatn "session_"::(itoa sno)::".txt"::nil -> ses in
+   //let strcat sessionpath ses -> sesfile in
+   //...fix
+   
+   let "40.589226 22.964331 510.0 30.48 1500000.0 0.445 0.380" -> isession in
+   let "0 15500 0 9 11 12" -> iparser in 
+   (   
+     let strcatn isession::"\n"::iparser::nil ->sesdata in //<<<fix   
+     strextr sesdata //_getpack _checkpack sesfile //fix
+   )
+;;
+  
+fun getSessionParam(line, word) =
+  let getSessionData -> sesdata in //<<<fix
+  let nth_list sesdata (line-1) -> l in 
+  nth_list l (word-1);;
+				  
+
+				  
 
 // 2t3 - 3t2 + 1
 fun H1(coef)=
@@ -492,6 +546,66 @@ fun objRelease(strobj)=
 fun deleteOb(inst, strobj)=
   objRelease strobj;
   0;;
+  
+  
+  
+  
+/* if GpsRec flag is on and file exist */
+/* read pre-recorded gps data files if index in 1-n read one after another*/
+fun openNMEA(strobj, index) = 
+   let strcatn sTmpDownloadPath::(getPluginInstanceName strobj.OBJP_inst)::".tmp"::nil -> tmpfile in       
+   _getpack _checkpack tmpfile;;
+   
+fun cbDownloaded(file, data, strobj)=
+  if data == nil then nil else
+  let strcatn sTmpDownloadPath::(getPluginInstanceName strobj.OBJP_inst)::".tmp"::nil -> tmpfile in
+  (
+    _fooS "SAVE FILE (WEB-SCOL)\n";
+    _storepack data tmpfile;
+  );
+  0;;
+  
+  
+fun downloadRouteFile(strobj, file, param)=
+  _fooS "DnLoading route file: start\n";
+   
+   let (getPluginInstanceParam strobj.OBJP_inst "path") -> path in
+   let atoi (getPluginInstanceParam strobj.OBJP_inst "isurl") -> isurl in
+   let if isurl == nil then 0 else isurl -> isurl in
+   let (getPluginInstanceParam strobj.OBJP_inst "url") -> url in     
+   
+  if (file!=nil) then
+  (  
+     _fooS "(SCOL Server)\n";
+	 
+     let lineextr param -> [name[long _]] in
+     if (atoi long) <= maxDownloadSize then
+     (
+	   //_echo strobj strcatn "**RESOURCE : ObName = "::(ObName o)::"-"::(name)::nil 
+	   //_echo strobj "**RESOURCE : download..."
+	   //_RSCdownload this name name mkfun3 @cbDownloaded strobj;
+	   
+	   0;
+	 )
+     else nil;
+  )
+  else
+  if (url!=nil) then
+  ( 
+    _fooS "(WEB Server)\n";
+    downloadFile url mkfun3 @cbDownloaded strobj;
+	nil
+  )
+  else 
+	let strcatn sTmpDownloadPath::(getPluginInstanceName strobj.OBJP_inst)::".tmp"::nil -> tmpfile in
+	let _getpack _checkpack path -> data in
+	( 	
+	  _fooS "SAVE FILE (LOCAL)\n";	
+	  _storepack data tmpfile;
+      0
+	);;  	
+
+  
 
 
 fun loadPos(inst)=
@@ -557,12 +671,12 @@ fun newOb(inst)=
   let atof (getPluginInstanceParam inst "zdir") -> zdir in
   let if xdir == nil then 0.0 else xdir -> xdir in
   let if ydir == nil then 0.0 else ydir -> ydir in
-  let if zdir == nil then (-.1.0) else zdir -> zdir in
+  let if zdir == nil then (-.1.0) else zdir -> zdir in  
 
   let V3DgetObjectByName c3dXsession sourcename -> source in
   let V3DgetObjectTypeByName sourcename -> isourcemode in
 
-  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil] -> strobj in
+  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil] -> strobj in 
   (
     set strobj.OBJP_tDir = [xdir ydir zdir];
     set strobj.OBJP_kps = kps;
@@ -587,11 +701,13 @@ fun newOb(inst)=
 	PluginRegisterAction inst "Stop" mkfun6 @cbStopPath strobj;
     PluginRegisterAction inst "Reverse" mkfun6 @cbPlayReversedPath strobj;
 
-		//PluginRegisterAction inst "Goto next pos" mkfun6 @cbNextPos strobj;
-		//PluginRegisterAction inst "Goto prev pos" mkfun6 @cbNextPos strobj;
+	//PluginRegisterAction inst "Goto next pos" mkfun6 @cbNextPos strobj;
+	//PluginRegisterAction inst "Goto prev pos" mkfun6 @cbNextPos strobj;
 		
-		if (!init) then nil else
-		  cbPlayPath inst nil nil nil nil strobj;
+	if (!init) then nil else
+	  cbPlayPath inst nil nil nil nil strobj;
+	  
+	_echo strobj "Route: Started";  
 		
     setPluginInstanceCbDel inst mkfun2 @deleteOb strobj;
   );
