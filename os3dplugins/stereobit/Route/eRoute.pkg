@@ -1,0 +1,1402 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2012 I-maginer
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+struct ObjEPoseStr = [
+  EPOSE_child               : SO3_OBJECT,
+  EPOSE_lLines              : [SO3_OBJECT r1]
+  
+  ]mkObjEPoseStr;;
+
+struct ObjETrackStr = [
+  ETRACK_inst               : PInstance,
+  ETRACK_inipos             : [[F F F] [F F F F] [F F F]],
+  ETRACK_child              : SO3_OBJECT,
+  ETRACK_path               : SO3_OBJECT,
+  ETRACK_lPoses             : [ObjEPoseStr r1],
+  ETRACK_lDots              : [[[F F F] [F F F F] [F F F] [F F F] F] r1],
+  ETRACK_nbKeys             : F,
+  ETRACK_fKps               : F,
+  ETRACK_trmUpdate          : Timer,
+  ETRACK_posindex           : I,
+  ETRACK_oldindex           : I,
+  ETRACK_angcoef            : F,
+  ETRACK_angstep            : F,
+  ETRACK_coef               : F,
+  ETRACK_fDirection         : F,
+  ETRACK_bPingPong          : I,
+  ETRACK_bToTarget          : I,
+  ETRACK_iToAxis            : I,
+  ETRACK_bLocal             : I,
+  ETRACK_bLoop              : I,
+  ETRACK_iTick              : I,
+  
+  ETRACK_iEditMode          : I
+  
+  ]mkObjETrackStr;;
+
+proto cbSetList = fun [EdControl [ObjETrackStr EdControl EdControl [EdControl EdControl EdControl] [EdControl EdControl EdControl] [EdControl EdControl EdControl] [EdControl EdControl EdControl EdControl]] I] I;;
+
+fun cbDestroyEdit(p)=
+  let p -> [inst edstr] in
+  (
+    if (edstr.ETRACK_trmUpdate == nil) then nil else
+    (
+      _deltimer edstr.ETRACK_trmUpdate;
+      set edstr.ETRACK_trmUpdate = nil;
+    );
+   
+    setPluginInstanceEditorCbPreRender inst nil;
+    SO3ObjectDestroy edstr.ETRACK_path;
+    set edstr.ETRACK_path = nil;
+
+    let edstr.ETRACK_inipos -> [pos quat scale] in
+    (
+      SO3ObjectSetPosition edstr.ETRACK_child pos;
+      SO3ObjectSetOrientation edstr.ETRACK_child quat;
+      SO3ObjectSetScale edstr.ETRACK_child scale;
+    );
+    
+    while (edstr.ETRACK_lPoses != nil) do
+    (
+      let hd edstr.ETRACK_lPoses -> posestr in 
+      (
+        while (posestr.EPOSE_lLines != nil) do
+        (
+          SO3ObjectDestroy hd posestr.EPOSE_lLines;
+          set posestr.EPOSE_lLines = tl posestr.EPOSE_lLines;
+        );
+        
+        V3DshowObjectAxis (V3DgetSessionView c3dXsession) c3dXsession posestr.EPOSE_child 1 0;
+        SO3ObjectDestroy posestr.EPOSE_child;
+        set posestr.EPOSE_child = nil;
+      );
+      
+      
+      set edstr.ETRACK_lPoses = tl edstr.ETRACK_lPoses;
+    );
+  );
+  0;;
+
+// 2t3 - 3t2 + 1
+fun H1(coef)=
+  (2.0 *. (pow coef 3.0)) -. (3.0 *. (pow coef 2.0)) +. 1.0;;
+
+
+// -2t3 + 3t2
+fun H2(coef)=
+  (-. 2.0 *. (pow coef 3.0)) +. (3.0 *. (pow coef 2.0));;
+
+
+// t3 - 2t2 +t
+fun H3(coef)=
+  (pow coef 3.0) -. (2.0 *. (pow coef 2.0)) +. coef;;
+
+
+// t3 - t2
+fun H4(coef)=
+  (pow coef 3.0) -. (pow coef 2.0);;
+
+
+fun getInterpolateCurve(vec1, vec2, ang1, ang2, coef)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+  let ang1 -> [ax1 ay1 az1] in
+  let ang2 -> [ax2 ay2 az2] in
+
+  let ((H1 coef) *. x1) +. ((H2 coef) *. x2) +. ((H3 coef) *. ax1) +. ((H4 coef) *. ax2) -> x in
+  let ((H1 coef) *. y1) +. ((H2 coef) *. y2) +. ((H3 coef) *. ay1) +. ((H4 coef) *. ay2) -> y in
+  let ((H1 coef) *. z1) +. ((H2 coef) *. z2) +. ((H3 coef) *. az1) +. ((H4 coef) *. az2) -> z in
+  [x y z]
+  ;;
+
+
+fun getPosTime(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  ti;;
+
+
+fun getPosTension(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  t;;
+
+
+fun getPosContinuity(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  c;;
+
+
+fun getPosBias(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  b;;
+
+
+fun getPosX(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  x;;
+
+
+fun getPosY(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  y;;
+
+
+fun getPosZ(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  z;;
+
+
+fun getPosXYZ(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  [x y z];;
+
+
+fun getPosRotation(pos)=
+  let pos -> [[x y z] quat [sx sy sz] [t c b] ti] in
+  quat;;
+
+
+fun getPosScale(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  [sx sy sz];;
+
+
+fun vecLerpF(v1, v2, coef)=
+  let multiplyVectorF v2 [coef coef coef] -> v1t in
+  let multiplyVectorF v1 [(1.0 -. coef) (1.0 -. coef) (1.0 -. coef)] -> v2t in
+    addVectorF v1t v2t;;
+
+
+fun getInterpolateTCB(lpos, t)=
+	let sizelist lpos -> size in
+	let size - 1 -> sizeminus in
+	let 0 -> i in
+	let nil -> outvec in
+	(
+	  if (t == 0.0) then
+	  (
+	    set outvec = [1 (getPosXYZ (nth_list lpos 0))];
+	    0;
+	  )
+	  else
+	  (	  
+      while ((i < size) && (outvec == nil)) do
+    	(
+    	  let nth_list lpos i -> nextpos in
+        if t <=. (getPosTime nextpos) then
+        (
+          let nth_list lpos (i - 1) -> curpos in
+          let if (curpos == nil) then nextpos else curpos -> curpos in
+          let nth_list lpos (i - 2) -> prevpos in
+          let if (prevpos == nil) then curpos else prevpos -> prevpos in
+          let nth_list lpos (i + 1) -> nextnextpos in
+          let if (nextnextpos == nil) then nextpos else nextnextpos -> nextnextpos in
+          
+          let (getPosTime nextpos) -. (getPosTime curpos) -> pdiff in
+          let if (pdiff <=. 0.0) then 1.0 else pdiff -> pdiff in
+          let ((t -. (getPosTime curpos)) /. pdiff) -> coef in
+          
+          //Update values from TCB
+          let (1.0 -. (getPosTension curpos)) -> OneMinusTension in
+          let (1.0 -. (getPosContinuity curpos)) -> OneMinusContinuity in
+          let (1.0 +. (getPosContinuity curpos)) -> OnePlusContinuity in
+          let (1.0 -. (getPosBias curpos)) -> OneMinusBias in
+          let (1.0 +. (getPosBias curpos)) -> OnePlusBias in
+          
+          let (OneMinusTension *. 0.5) +. ((1.0 -. (getPosTension nextpos)) *. 0.5) -> OneMinusTension in
+          let (OneMinusContinuity *. 0.5) +. ((1.0 -. (getPosContinuity nextpos)) *. 0.5) -> OneMinusContinuity in
+          let (OnePlusContinuity *. 0.5) +. ((1.0 +. (getPosContinuity nextpos)) *. 0.5) -> OnePlusContinuity in
+          let (OneMinusBias *. 0.5) +. ((1.0 -. (getPosBias nextpos)) *. 0.5) -> OneMinusBias in
+          let (OneMinusBias *. 0.5) +. ((1.0 +. (getPosBias nextpos)) *. 0.5) -> OnePlusBias in
+          
+          let (0.5 *. ((OneMinusTension *. OnePlusContinuity *. OnePlusBias) *. ((getPosX curpos) -. (getPosX prevpos))) +. (0.5 *. (OneMinusTension *. OneMinusContinuity *. OneMinusBias) *. ((getPosX nextpos) -. (getPosX curpos)))) -> tancurposx in
+          let (0.5 *. ((OneMinusTension *. OnePlusContinuity *. OnePlusBias) *. ((getPosY curpos) -. (getPosY prevpos))) +. (0.5 *. (OneMinusTension *. OneMinusContinuity *. OneMinusBias) *. ((getPosY nextpos) -. (getPosY curpos)))) -> tancurposy in
+          let (0.5 *. ((OneMinusTension *. OnePlusContinuity *. OnePlusBias) *. ((getPosZ curpos) -. (getPosZ prevpos))) +. (0.5 *. (OneMinusTension *. OneMinusContinuity *. OneMinusBias) *. ((getPosZ nextpos) -. (getPosZ curpos)))) -> tancurposz in
+    
+          let (0.5 *. ((OneMinusTension *. OneMinusContinuity *. OnePlusBias) *. ((getPosX nextpos) -. (getPosX curpos))) +. (0.5 *. (OneMinusTension *. OnePlusContinuity *. OneMinusBias) *. ((getPosX nextnextpos) -. (getPosX nextpos)))) -> tannextposx in
+          let (0.5 *. ((OneMinusTension *. OneMinusContinuity *. OnePlusBias) *. ((getPosY nextpos) -. (getPosY curpos))) +. (0.5 *. (OneMinusTension *. OnePlusContinuity *. OneMinusBias) *. ((getPosY nextnextpos) -. (getPosY nextpos)))) -> tannextposy in
+          let (0.5 *. ((OneMinusTension *. OneMinusContinuity *. OnePlusBias) *. ((getPosZ nextpos) -. (getPosZ curpos))) +. (0.5 *. (OneMinusTension *. OnePlusContinuity *. OneMinusBias) *. ((getPosZ nextnextpos) -. (getPosZ nextpos)))) -> tannextposz in
+          
+          let getInterpolateCurve (getPosXYZ curpos) (getPosXYZ nextpos) [tancurposx tancurposy tancurposz] [tannextposx tannextposy tannextposz] coef -> [x y z] in
+            set outvec = [i [x y z]];
+          
+          0;
+        )
+        else nil;
+        
+        set i = i + 1;
+      );
+    );
+    outvec;
+  );;
+
+
+fun getDots(l)=
+  let sizelist l -> size in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+      let strToListSep elem "," -> pdot in
+      (            
+        set ndata = [(strcat "posx_" (itoa i)) (nth_list pdot 0)]::ndata;
+        set ndata = [(strcat "posy_" (itoa i)) (nth_list pdot 1)]::ndata;
+        set ndata = [(strcat "posz_" (itoa i)) (nth_list pdot 2)]::ndata;
+        set ndata = [(strcat "angx_" (itoa i)) (nth_list pdot 3)]::ndata;
+        set ndata = [(strcat "angy_" (itoa i)) (nth_list pdot 4)]::ndata;
+        set ndata = [(strcat "angz_" (itoa i)) (nth_list pdot 5)]::ndata;
+        set ndata = [(strcat "scalex_" (itoa i)) (nth_list pdot 6)]::ndata;
+        set ndata = [(strcat "scaley_" (itoa i)) (nth_list pdot 7)]::ndata;
+        set ndata = [(strcat "scalez_" (itoa i)) (nth_list pdot 8)]::ndata;
+        set ndata = [(strcat "T_" (itoa i)) (nth_list pdot 9)]::ndata;
+        set ndata = [(strcat "C_" (itoa i)) (nth_list pdot 10)]::ndata;
+        set ndata = [(strcat "B_" (itoa i)) (nth_list pdot 11)]::ndata;
+        set ndata = [(strcat "D_" (itoa i)) (nth_list pdot 12)]::ndata;
+      );
+      set i = i + 1;
+    );
+    ndata;
+  );;
+
+
+fun cbCloseEdit(p)=
+  let p -> [ctrlsourcename ctrlkps ctrlnbkeys ctrlloop ctrlping ctrltarget ctrlaxis ctrldots ctrllocal ctrlinit] in
+  let getEdCtrlTextLineValue ctrlsourcename -> sourcename in
+  let getEdCtrlFloatValue ctrlkps -> kps in
+  let getEdCtrlFloatValue ctrlnbkeys -> nbkeys in
+  let getEdCtrlCheckState ctrlloop -> loop in
+  let getEdCtrlCheckState ctrlping -> ping in
+  let getEdCtrlCheckState ctrltarget -> target in
+  let getSelectedEdCtrlSelectPos ctrlaxis -> axis in
+  let getEdCtrlListElems ctrldots -> ldot in
+  let getEdCtrlCheckState ctrllocal -> local in
+  let getEdCtrlCheckState ctrlinit -> init in
+    ["sourceobject" sourcename]::
+    ["kps" ftoa kps]::
+    ["nbkeys" ftoa nbkeys]::
+    ["loop" itoa loop]::
+    ["ping" itoa ping]::
+    ["target" itoa target]::
+    ["axis" itoa axis]::
+    ["local" itoa local]::
+    ["init" itoa init]::
+    getDots ldot;;
+
+
+fun cbSelectObj(val, type, p)=
+  let p -> [inst edstr winstr viewstr ctrldestname] in
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let SO3SceneGetObject (V3DgetSession sessionstr) val -> obj in
+  if (obj != nil) || (!strcmpi "Current camera" val) || (!strcmpi "Current camera shell" val) then
+  (
+    let edstr.ETRACK_inipos -> [pos quat scale] in
+    (
+      SO3ObjectSetPosition edstr.ETRACK_child pos;
+      SO3ObjectSetOrientation edstr.ETRACK_child quat;
+      SO3ObjectSetScale edstr.ETRACK_child scale;
+    );
+    set edstr.ETRACK_child = V3DgetObjectByName c3dXsession val;
+    set edstr.ETRACK_inipos = [(SO3ObjectGetPosition edstr.ETRACK_child) (SO3ObjectGetOrientation edstr.ETRACK_child) (SO3ObjectGetScale edstr.ETRACK_child)];
+    setEdCtrlTextLineValue ctrldestname val;
+  )
+  else nil;
+  0;;
+
+
+fun cbCloseRes(ctrlbtn)=
+  setEdCtrlButtonEnable ctrlbtn 1;
+  0;;
+
+
+fun cbBtnPickObj(ctrlbtn, p)=
+  let p -> [inst edstr winstr viewstr ctrldestname objname] in
+  (
+    setEdCtrlButtonEnable ctrlbtn 0;
+    dlgSelectPluginInstanceResource inst winstr iTypeEntity|iTypeNode|iTypeLight|iTypeCamera|iTypeParticle|iTypeBone|iTypeCubeMap objname mkfun3 @cbSelectObj [inst edstr winstr viewstr ctrldestname] mkfun1 @cbCloseRes ctrlbtn 0;
+  );
+  0;;
+
+
+fun cbRefreshBtn(pickbtn, p)=
+  let p -> [ctrlobjname] in
+  setEdCtrlTextLineValue ctrlobjname "";
+0;;
+
+
+fun cbDotAxisMove(sessionstr, obj, axis, x, y, btn, coef, p)=
+  let p -> [np selected] in
+  let np -> [edstr ctrllist ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]] in
+  let SO3_LOCAL_TS -> rep in
+  if (btn & 1) && (edstr.ETRACK_iEditMode == 1) then
+  (
+    let if axis == V3DAXIS_X then
+        [coef 0.0 0.0]
+      else if axis == V3DAXIS_Y then
+        [0.0 coef 0.0]
+      else if axis == V3DAXIS_Z then
+        [0.0 0.0 coef]
+      else nil
+    -> trans in
+    SO3ObjectTranslate obj trans rep;
+    
+    let if edstr.ETRACK_bLocal then SO3ObjectGetPositionInObjectRef obj SO3ObjectGetParent edstr.ETRACK_child else SO3ObjectGetPosition obj -> [opx opy opz] in
+    (
+      setEdCtrlFloatValueWithoutCallback ctrlposx opx;
+      setEdCtrlFloatValueWithoutCallback ctrlposy opy;
+      setEdCtrlFloatValueWithoutCallback ctrlposz opz;
+      cbSetList nil np 1;
+    );
+    0;
+  )
+  else if (btn & 1) && (edstr.ETRACK_iEditMode == 2) then
+  (
+    if axis == V3DAXIS_X then
+      SO3ObjectRotatePitch obj (SO3MathsDegreeToRadian (itof y + x)) rep
+    else if axis == V3DAXIS_Y then
+      SO3ObjectRotateYaw obj (SO3MathsDegreeToRadian (itof y + x)) rep
+    else if axis == V3DAXIS_Z then
+      SO3ObjectRotateRoll obj (SO3MathsDegreeToRadian (itof y + x)) rep
+    else nil;
+    
+    let SO3ObjectGetOrientation obj -> [qx qy qz qw] in
+    let SO3MathsQuatToEulerYXZ [qx qy qz qw] -> [ex ey ez] in
+    let SO3MathsRadianToDegree ex -> ex in
+    let SO3MathsRadianToDegree ey -> ey in
+    let SO3MathsRadianToDegree ez -> ez in
+    (
+      setEdCtrlFloatValueWithoutCallback ctrlangx ex;
+      setEdCtrlFloatValueWithoutCallback ctrlangy ey;
+      setEdCtrlFloatValueWithoutCallback ctrlangz ez;
+      cbSetList nil np 0;
+    );
+    0;
+  )
+  else if (btn & 1) && (edstr.ETRACK_iEditMode == 3) then
+  (
+    let SO3ObjectGetGlobalScale obj -> [gcsx gcsy gcsz] in
+    let if edstr.ETRACK_bLocal then SO3MathsQuatGetDirection (SO3ObjectGetGlobalOrientation edstr.ETRACK_child) SO3ObjectGetGlobalScale obj else SO3ObjectGetGlobalScale obj -> [gcsx gcsy gcsz] in
+    let SO3ObjectGetScale obj -> [csx csy csz] in
+    let [(coef *. (gcsx *. (itof iGlobalUnit))) (coef *. (gcsy *. (itof iGlobalUnit))) (coef *. (gcsz *. (itof iGlobalUnit)))] -> [coefx coefy coefz] in
+    let if _keybdstate &4 then //alt
+        [(if ((csx +. coefx) <=. 0.00001) then 0.00001 else (csx +. coefx)) (if ((csy +. coefy) <=. 0.00001) then 0.00001 else (csy +. coefy)) (if ((csz +. coefz) <=. 0.00001) then 0.00001 else (csz +. coefz))]
+      else if axis == V3DAXIS_X then
+        [(if ((csx +. coefx) <=. 0.00001) then 0.00001 else (csx +. coefx)) csy csz]
+      else if axis == V3DAXIS_Y then
+        [csx (if ((csy +. coefy) <=. 0.00001) then 0.00001 else (csy +. coefy)) csz]
+      else if axis == V3DAXIS_Z then
+        [csx csy (if ((csz +. coefz) <=. 0.00001) then 0.00001 else (csz +. coefz))]
+      else nil
+    -> scale in
+      SO3ObjectSetScale obj scale;
+
+    let SO3ObjectGetScale obj -> [sx sy sz] in
+    (
+      setEdCtrlFloatValueWithoutCallback ctrlscalex sx;
+      setEdCtrlFloatValueWithoutCallback ctrlscaley sy;
+      setEdCtrlFloatValueWithoutCallback ctrlscalez sz;
+      cbSetList nil np 0;
+    );
+    0;
+  )
+  else nil;
+0;;
+
+
+fun cbDotAxisUnClick(sessionstr, obj, axis, x, y, btn, p)=
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] selected] in
+    //cbSetList nil [edstr ctrllist ctrlpos ctrlang ctrlscale ctrltcb] 1;
+0;;
+
+
+fun cbDotAxisClick(axisstr, sessionstr, obj, axis, x, y, btn, p)=
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] selected] in
+  (
+    V3DsetCbAxisMove axisstr mkfun8 @cbDotAxisMove p;
+    V3DsetCbAxisUnClick axisstr mkfun7 @cbDotAxisUnClick p;
+  );
+  0;;
+
+
+fun getTargetAxis(edstr)=
+  if (edstr.ETRACK_iToAxis == 0) then
+    [1.0 0.0 0.0]
+  else if (edstr.ETRACK_iToAxis == 1) then
+    [(-.1.0) 0.0 0.0]
+  else if (edstr.ETRACK_iToAxis == 2) then
+    [0.0 1.0 0.0]
+  else if (edstr.ETRACK_iToAxis == 3) then
+    [0.0 (-.1.0) 0.0]
+  else if (edstr.ETRACK_iToAxis == 4) then
+    [0.0 0.0 1.0]
+  else
+    [0.0 0.0 (-.1.0)];;
+
+
+fun getViewDirection(strobj, ovec, oang, tvec)=
+  let ovec -> [vx vy vz] in
+  let tvec -> [dx dy dz] in
+  //TODO enable vertors XYZ XZ
+  let normalizeVectorF (subVectorF [dx vy dz] ovec) -> dir in
+  let normalizeVectorF (SO3MathsQuatGetDirection oang getTargetAxis strobj) -> src in
+  let SO3MathsQuatToEulerPYR (SO3MathsGetRotationTo src dir) -> [pitch yaw roll] in
+  let if ((1.0 +. dotVectorF src dir) <. 0.0001) then PIf *. 2.0 else yaw -> yaw in
+  let SO3MathsQuatAdd SO3MathsEulerPYRToQuat [0.0 yaw 0.0] oang -> nquat in
+  (
+    nquat;
+  );;
+
+
+fun updatePreview(tctrl)=
+  let tctrl -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  let getInterpolateTCB edstr.ETRACK_lDots edstr.ETRACK_coef -> [index tvec] in
+  let (SO3ObjectGetGlobalPosition edstr.ETRACK_child) -> ovec in
+  let (SO3ObjectGetGlobalOrientation edstr.ETRACK_child) -> oang in
+  let nth_list edstr.ETRACK_lDots (index - 1) -> [spos sang sscale _ t1] in
+  let nth_list edstr.ETRACK_lDots index -> [dpos dang dscale _ t2] in
+  let (if t1 == nil then 0.0 else t1) -> t1 in
+  let (if t2 == nil then 1.0 else t2) -> t2 in
+  let t2 -. t1 -> lenght in
+  let if (lenght == 0.0) then 1.0 else (lenght /. (1.0 /. edstr.ETRACK_nbKeys)) -> nbk in
+  let (1.0 /. nbk) -> angstep in
+  let if (lenght == 0.0) then 1.0 else (((lenght -. (t2 -. edstr.ETRACK_coef)) /. (lenght /. nbk)) *. angstep) -> angcoef in
+  let vecLerpF sscale dscale angcoef -> tscale in
+  let if (edstr.ETRACK_bToTarget) then getViewDirection edstr ovec oang tvec else SO3MathsQuatInterpolate sang dang angcoef 1 -> tang in
+  (
+    if (edstr.ETRACK_bLocal) then
+    (
+      SO3ObjectSetPosition edstr.ETRACK_child tvec;
+      SO3ObjectSetOrientation edstr.ETRACK_child tang;
+    )
+    else
+    (
+      SO3ObjectSetGlobalPosition edstr.ETRACK_child tvec;
+      SO3ObjectSetGlobalOrientation edstr.ETRACK_child tang;
+    );
+    
+    SO3ObjectSetScale edstr.ETRACK_child tscale;
+  );
+  0;;
+
+
+fun refreshPoses(p, selected)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  let sizelist edstr.ETRACK_lDots -> size in
+  let 0 -> i in
+  while (i < size) do
+  (
+    let nth_list edstr.ETRACK_lDots i -> dot in
+    let nth_list edstr.ETRACK_lPoses i -> posestr in
+    let if edstr.ETRACK_bLocal then SO3ObjectGetGlobalPosition SO3ObjectGetParent edstr.ETRACK_child else [0.0 0.0 0.0] -> offset in
+    let if edstr.ETRACK_bLocal then SO3ObjectGetGlobalScale SO3ObjectGetParent edstr.ETRACK_child else [1.0 1.0 1.0] -> oscale in
+    let if edstr.ETRACK_bLocal then 
+          addVectorF (SO3MathsQuatGetDirection (SO3ObjectGetGlobalOrientation SO3ObjectGetParent edstr.ETRACK_child) multiplyVectorF oscale (getPosXYZ dot)) offset
+        else
+          (getPosXYZ dot)
+    -> [px py pz] in
+    let getPosRotation dot -> quat in
+    let getPosScale dot -> scale in
+    let nil -> lpoints in
+    let nil -> lpoints2 in
+    let if i == selected then 0x00ff0000 else 0x0000ff00 -> color in
+    let 0xff000000 -> colorx in
+    let 0x00ff0000 -> colory in
+    let 0x0000ff00 -> colorz in
+    (
+      let 0.05 -> r in
+      let (2.0 *. PIf) /. 4.0 -> step in
+      let 0.0 -> pv in
+      (
+        while (pv <=. (2.0 *. PIf)) do
+        (
+          let [(px +. (r *. cos(pv))) py (pz +. (r *. sin(pv)))] -> ppos in
+            set lpoints = ppos::lpoints;
+    
+          set pv = pv +. step;
+        );
+        
+        set pv = 0.0;
+        while (pv <=. (2.0 *. PIf)) do
+        (
+          let [(px +. (r *. cos(pv))) (py +. (r *. sin(pv))) pz] -> ppos in
+            set lpoints = ppos::lpoints;
+    
+          set pv = pv +. step;
+        );
+        
+        set pv = 0.0;
+        while (pv <=. (2.0 *. PIf)) do
+        (
+          let [px (py +. (r *. sin(pv))) (pz +. (r *. cos(pv)))] -> ppos in
+            set lpoints2 = ppos::lpoints2;
+    
+          set pv = pv +. step;
+        );
+      );  
+    
+      if (posestr != nil) then nil else
+      (
+        set posestr = mkObjEPoseStr [nil nil];
+        set edstr.ETRACK_lPoses = lcat edstr.ETRACK_lPoses posestr::nil;
+        0;
+      );
+      
+      let SO3MathsQuatGetDirection quat multiplyVectorF [0.1 0.0 0.0] scale -> xdir in
+      let SO3MathsQuatGetDirection quat multiplyVectorF [0.0 0.1 0.0] scale -> ydir in
+      let SO3MathsQuatGetDirection quat multiplyVectorF [0.0 0.0 0.1] scale -> zdir in
+      
+      if (posestr.EPOSE_lLines == nil) then 
+      (
+        set posestr.EPOSE_lLines = lcat posestr.EPOSE_lLines (SO3LineEntityCreate (V3DgetSession c3dXsession) (strcatn (getPluginInstanceName edstr.ETRACK_inst)::(itoa i)::"_"::(itoa 1)::nil) lpoints color)::nil;
+        set posestr.EPOSE_lLines = lcat posestr.EPOSE_lLines (SO3LineEntityCreate (V3DgetSession c3dXsession) (strcatn (getPluginInstanceName edstr.ETRACK_inst)::(itoa i)::"_"::(itoa 2)::nil) lpoints2 color)::nil;
+        
+        set posestr.EPOSE_lLines = lcat posestr.EPOSE_lLines (SO3LineEntityCreate (V3DgetSession c3dXsession) (strcatn (getPluginInstanceName edstr.ETRACK_inst)::(itoa i)::"_"::(itoa 3)::nil) [px py pz]::(addVectorF [px py pz] xdir)::nil colorx)::nil;
+        set posestr.EPOSE_lLines = lcat posestr.EPOSE_lLines (SO3LineEntityCreate (V3DgetSession c3dXsession) (strcatn (getPluginInstanceName edstr.ETRACK_inst)::(itoa i)::"_"::(itoa 4)::nil) [px py pz]::(addVectorF [px py pz] ydir)::nil colory)::nil;
+        set posestr.EPOSE_lLines = lcat posestr.EPOSE_lLines (SO3LineEntityCreate (V3DgetSession c3dXsession) (strcatn (getPluginInstanceName edstr.ETRACK_inst)::(itoa i)::"_"::(itoa 5)::nil) [px py pz]::(addVectorF [px py pz] zdir)::nil colorz)::nil;
+        0;
+      )
+      else
+      (
+        SO3LineEntitySetPoints nth_list posestr.EPOSE_lLines 0 lpoints;
+        SO3LineEntitySetPoints nth_list posestr.EPOSE_lLines 1 lpoints2;
+        SO3LineEntitySetDiffuse nth_list posestr.EPOSE_lLines 0 color;
+        SO3LineEntitySetDiffuse nth_list posestr.EPOSE_lLines 1 color;
+        
+        SO3LineEntitySetPoints nth_list posestr.EPOSE_lLines 2 [px py pz]::(addVectorF [px py pz] xdir)::nil;
+        SO3LineEntitySetPoints nth_list posestr.EPOSE_lLines 3 [px py pz]::(addVectorF [px py pz] ydir)::nil;
+        SO3LineEntitySetPoints nth_list posestr.EPOSE_lLines 4 [px py pz]::(addVectorF [px py pz] zdir)::nil;
+        0;
+      );
+      
+      if (posestr.EPOSE_child != nil) then nil else
+        set posestr.EPOSE_child = V3DaddShell c3dXsession strcat (getPluginInstanceName edstr.ETRACK_inst) "_dot" itoa i nil [px py pz] quat;
+      
+      SO3ObjectSetPosition posestr.EPOSE_child [px py pz];
+      SO3ObjectSetOrientation posestr.EPOSE_child quat;
+      SO3ObjectSetScale posestr.EPOSE_child scale;
+      
+      if (i == selected) then
+        V3DupdateObjectAxis (V3DgetSessionView c3dXsession) c3dXsession V3DsetCbAxisClick (V3DshowObjectAxis (V3DgetSessionView c3dXsession) c3dXsession posestr.EPOSE_child edstr.ETRACK_iEditMode 1) mkfun8 @cbDotAxisClick [p selected]
+      else
+        V3DshowObjectAxis (V3DgetSessionView c3dXsession) c3dXsession posestr.EPOSE_child 1 0;
+    );
+    
+    set i = i + 1;
+  );
+  
+  updatePreview p;
+  0;;
+
+
+fun cbTimerDot(trm, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb selected] in
+  (
+    _deltimer trm;  
+    set edstr.ETRACK_trmUpdate = nil;
+
+    if ((SO3LineEntityGetNumberOfPoints edstr.ETRACK_path) == (ftoi edstr.ETRACK_nbKeys)) then nil else
+    (
+      SO3ObjectDestroy edstr.ETRACK_path;
+      set edstr.ETRACK_path = nil;
+    );
+    
+    refreshPoses [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] selected;
+    
+    let if edstr.ETRACK_bLocal then SO3ObjectGetGlobalPosition SO3ObjectGetParent edstr.ETRACK_child else [0.0 0.0 0.0] -> offset in
+    let if edstr.ETRACK_bLocal then SO3ObjectGetGlobalScale SO3ObjectGetParent edstr.ETRACK_child else [1.0 1.0 1.0] -> oscale in
+    let (1.0 /. edstr.ETRACK_nbKeys) -> stp in
+    let stp -> t in
+    let nil -> ldots in
+    (
+      while (t <. 1.0) do
+    	(
+    	  let getInterpolateTCB edstr.ETRACK_lDots t -> [index tvec] in
+        let if edstr.ETRACK_bLocal then 
+          addVectorF (SO3MathsQuatGetDirection (SO3ObjectGetGlobalOrientation SO3ObjectGetParent edstr.ETRACK_child) multiplyVectorF oscale tvec) offset
+        else
+          tvec
+        -> tvec in
+    	  if index == nil then nil else
+          set ldots = tvec::ldots;
+    	  
+    		set t = t +. stp;
+    	);
+      
+      if (edstr.ETRACK_path == nil) then 
+      (
+        set edstr.ETRACK_path = SO3LineEntityCreateDashed (V3DgetSession c3dXsession) (strcat (getPluginInstanceName edstr.ETRACK_inst) (itoa 1)) ldots 0xff000000;
+        0;
+      )
+      else
+      (
+        SO3LineEntitySetPoints edstr.ETRACK_path ldots;
+        0;
+      );
+    );
+    updatePreview [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb];
+  );
+  0;;
+
+
+fun refreshDots(p, selected)=
+  // use a very quick timer to prevent to much updates
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  (
+    if (edstr.ETRACK_trmUpdate != nil) then nil else
+    (
+      set edstr.ETRACK_trmUpdate = _rfltimer _starttimer _channel 5 @cbTimerDot [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb selected];
+    );
+  );
+  0;;
+
+
+fun cbEditorPreRender(inst, viewstr, p)=
+  let p -> [tctrl tbstr chkplaypause] in
+  let tctrl -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in 
+  if ((sizelist edstr.ETRACK_lDots) < 2) then nil else
+  let V3DgetDefaultSession viewstr -> sessionstr in
+  let _tickcount -> tick in
+  let (edstr.ETRACK_fKps *. (itof (tick - edstr.ETRACK_iTick))) /. 1000.0 -> rtick in
+  if (rtick <. 1.0) then nil else
+  (
+    if ((edstr.ETRACK_coef >=. 1.0) && (edstr.ETRACK_fDirection == 1.0)) || ((edstr.ETRACK_coef <=. 0.0) && (edstr.ETRACK_fDirection == (-.1.0))) then
+    (
+      set edstr.ETRACK_iTick = 0;
+      
+      // event
+      if (!edstr.ETRACK_bLoop) then
+      (
+        if ((!edstr.ETRACK_bPingPong) || ((edstr.ETRACK_bPingPong && (edstr.ETRACK_fDirection == (-.1.0))))) then
+        (
+          set edstr.ETRACK_posindex = 0;
+          set edstr.ETRACK_angcoef = 0.0;
+          set edstr.ETRACK_coef = 0.0;
+          set edstr.ETRACK_fDirection = 1.0;
+          setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+          setEdToolBarCheckState tbstr chkplaypause 0;
+          0;
+        )
+        else
+        (
+          set edstr.ETRACK_fDirection = edstr.ETRACK_fDirection *. (-.1.0);
+          set edstr.ETRACK_iTick = tick;
+          0;
+        );
+      )
+      else if (!edstr.ETRACK_bPingPong) then
+      (
+        set edstr.ETRACK_posindex = 0;
+        set edstr.ETRACK_angcoef = 0.0;
+        set edstr.ETRACK_coef = 0.0;
+        set edstr.ETRACK_fDirection = 1.0;
+        0;
+      )
+      else
+      (
+        set edstr.ETRACK_fDirection = edstr.ETRACK_fDirection *. (-.1.0);
+        set edstr.ETRACK_iTick = tick;
+        0;
+      );   
+      0;
+    )
+    else
+    (
+      let rtick *. (1.0 /. edstr.ETRACK_nbKeys) *. edstr.ETRACK_fDirection -> nstep in
+        set edstr.ETRACK_coef = if (edstr.ETRACK_coef +. nstep) >. 1.0 then 1.0 else if (edstr.ETRACK_coef +. nstep) <. 0.0 then 0.0 else edstr.ETRACK_coef +. nstep;
+      
+      setEdCtrlSliderValue ctrltimeline edstr.ETRACK_coef;
+      
+      let getInterpolateTCB edstr.ETRACK_lDots edstr.ETRACK_coef -> [index tvec] in
+      let nth_list edstr.ETRACK_lDots (index - 1) -> [spos sang sscale _ t1] in
+      let nth_list edstr.ETRACK_lDots index -> [dpos dang dscale _ t2] in
+      let (SO3ObjectGetGlobalPosition edstr.ETRACK_child) -> ovec in
+      let (SO3ObjectGetGlobalOrientation edstr.ETRACK_child) -> oang in
+      (
+        if (edstr.ETRACK_oldindex != index) then
+        (
+          let (if t1 == nil then 0.0 else t1) -> t1 in
+          let (if t2 == nil then 1.0 else t2) -> t2 in
+          let t2 -. t1 -> lenght in
+          if (lenght == 0.0) then 
+          (
+            set edstr.ETRACK_angstep = 1.0;
+          )
+          else
+          (
+            let lenght /. (1.0 /. edstr.ETRACK_nbKeys) -> nbk in
+              set edstr.ETRACK_angstep = 1.0 /. nbk;
+          );
+          set edstr.ETRACK_oldindex = index;
+          set edstr.ETRACK_angcoef = if (edstr.ETRACK_fDirection == 1.0) then 0.0 else 1.0;
+        )
+        else nil;
+          
+        let rtick *. edstr.ETRACK_angstep *. edstr.ETRACK_fDirection -> nangstep in
+          set edstr.ETRACK_angcoef = if (edstr.ETRACK_angcoef +. nangstep) >. 1.0 then 1.0 else if (edstr.ETRACK_angcoef +. nangstep) <. 0.0 then 0.0 else edstr.ETRACK_angcoef +. nangstep;
+        
+        let if edstr.ETRACK_bToTarget then getViewDirection edstr ovec oang tvec else SO3MathsQuatInterpolate sang dang edstr.ETRACK_angcoef 1 -> tang in
+        let vecLerpF sscale dscale edstr.ETRACK_angcoef -> tscale in
+        (
+          if (edstr.ETRACK_bLocal) then
+          (
+            SO3ObjectSetPosition edstr.ETRACK_child tvec;
+            SO3ObjectSetOrientation edstr.ETRACK_child tang;
+          )
+          else
+          (
+            SO3ObjectSetGlobalPosition edstr.ETRACK_child tvec;
+            SO3ObjectSetGlobalOrientation edstr.ETRACK_child tang;
+          );
+          SO3ObjectSetScale edstr.ETRACK_child tscale;
+        );
+        0;
+      );
+    );
+    
+    set edstr.ETRACK_iTick = tick;
+  );
+  0;;
+
+
+fun updateDots(edstr, l)=
+  set edstr.ETRACK_lDots = nil;
+  let sizelist l -> size in
+  let 0 -> i in
+  (
+    while i < size do
+    (
+      let nth_list l i -> elem in
+      let strToListSep elem "," -> pdot in
+      (
+        set edstr.ETRACK_lDots = [[atof (nth_list pdot 0) atof (nth_list pdot 1) atof (nth_list pdot 2)] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian atof (nth_list pdot 3) SO3MathsDegreeToRadian atof (nth_list pdot 4) SO3MathsDegreeToRadian atof (nth_list pdot 5)] [atof (nth_list pdot 6) atof (nth_list pdot 7) atof (nth_list pdot 8)] [atof (nth_list pdot 9) atof (nth_list pdot 10) atof (nth_list pdot 11)] atof (nth_list pdot 12)]::edstr.ETRACK_lDots;    
+      );
+      set i = i + 1;
+    );
+    set edstr.ETRACK_lDots = revertlist edstr.ETRACK_lDots;
+  );;
+
+
+fun loadDots(inst, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  let nil -> ndata in
+  let 0 -> i in
+  (
+    let getPluginInstanceParam inst (strcat "posx_" (itoa i)) -> posx in
+    let getPluginInstanceParam inst (strcat "posy_" (itoa i)) -> posy in
+    let getPluginInstanceParam inst (strcat "posz_" (itoa i)) -> posz in
+    
+    let getPluginInstanceParam inst (strcat "angx_" (itoa i)) -> angx in
+    let getPluginInstanceParam inst (strcat "angy_" (itoa i)) -> angy in
+    let getPluginInstanceParam inst (strcat "angz_" (itoa i)) -> angz in
+    
+    let getPluginInstanceParam inst (strcat "scalex_" (itoa i)) -> scalex in
+    let getPluginInstanceParam inst (strcat "scaley_" (itoa i)) -> scaley in
+    let getPluginInstanceParam inst (strcat "scalez_" (itoa i)) -> scalez in
+
+    let getPluginInstanceParam inst (strcat "T_" (itoa i)) -> T in
+    let getPluginInstanceParam inst (strcat "C_" (itoa i)) -> C in
+    let getPluginInstanceParam inst (strcat "B_" (itoa i)) -> B in
+    let getPluginInstanceParam inst (strcat "D_" (itoa i)) -> D in
+    while (posx != nil) do
+    (
+      let strcatnSep posx::posy::posz::angx::angy::angz::scalex::scaley::scalez::T::C::B::D::nil "," -> elem in
+        set ndata = if i == 0 then elem::nil else lcat ndata elem::nil;
+      
+      set edstr.ETRACK_lDots = [[atof posx atof posy atof posz] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian atof angx SO3MathsDegreeToRadian atof angy SO3MathsDegreeToRadian atof angz] [atof scalex atof scaley atof scalez] [atof T atof C atof B] atof D]::edstr.ETRACK_lDots;    
+      
+      set i = i + 1;
+      set posx = getPluginInstanceParam inst (strcat "posx_" (itoa i));
+      set posy = getPluginInstanceParam inst (strcat "posy_" (itoa i));
+      set posz = getPluginInstanceParam inst (strcat "posz_" (itoa i));
+      
+      set angx = getPluginInstanceParam inst (strcat "angx_" (itoa i));
+      set angy = getPluginInstanceParam inst (strcat "angy_" (itoa i));
+      set angz = getPluginInstanceParam inst (strcat "angz_" (itoa i));
+      
+      set scalex = getPluginInstanceParam inst (strcat "scalex_" (itoa i));
+      set scaley = getPluginInstanceParam inst (strcat "scaley_" (itoa i));
+      set scalez = getPluginInstanceParam inst (strcat "scalez_" (itoa i));
+  
+      set T = getPluginInstanceParam inst (strcat "T_" (itoa i));
+      set C = getPluginInstanceParam inst (strcat "C_" (itoa i));
+      set B = getPluginInstanceParam inst (strcat "B_" (itoa i));
+      set D = getPluginInstanceParam inst (strcat "D_" (itoa i));
+    );
+    set edstr.ETRACK_lDots = revertlist edstr.ETRACK_lDots;
+    refreshDots p 0;
+    ndata;
+  );;
+
+
+fun cbSetList(ctrlstr, p, updateall)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  let ctrlpos -> [ctrlposx ctrlposy ctrlposz] in
+  let ctrlang -> [ctrlangx ctrlangy ctrlangz] in
+  let ctrlscale -> [ctrlscalex ctrlscaley ctrlscalez] in
+  let ctrltcb -> [ctrlT ctrlC ctrlB ctrlD] in
+  let getSelectedEdCtrlListExt ctrllist -> [pos name _ _] in
+  (
+    let ftoa getEdCtrlFloatValue ctrlposx -> posx in
+    let ftoa getEdCtrlFloatValue ctrlposy -> posy in
+    let ftoa getEdCtrlFloatValue ctrlposz -> posz in
+    
+    let ftoa getEdCtrlFloatValue ctrlangx -> angx in
+    let ftoa getEdCtrlFloatValue ctrlangy -> angy in
+    let ftoa getEdCtrlFloatValue ctrlangz -> angz in
+
+    let ftoa getEdCtrlFloatValue ctrlscalex -> scalex in
+    let ftoa getEdCtrlFloatValue ctrlscaley -> scaley in
+    let ftoa getEdCtrlFloatValue ctrlscalez -> scalez in
+    
+    let ftoa getEdCtrlFloatValue ctrlT -> T in
+    let ftoa getEdCtrlFloatValue ctrlC -> C in
+    let ftoa getEdCtrlFloatValue ctrlB -> B in
+    let ftoa getEdCtrlFloatValue ctrlD -> D in
+    
+    let strcatnSep posx::posy::posz::angx::angy::angz::scalex::scaley::scalez::T::C::B::D::nil "," -> nvalue in
+    (
+      renameEdCtrlListElementByPos ctrllist pos nvalue;
+      selectEdCtrlListByPos ctrllist pos;
+    );
+    
+    updateDots edstr getEdCtrlListElems ctrllist;
+    
+    if (updateall) then
+      refreshDots p pos
+    else
+      refreshPoses p pos;
+  );
+  0;;
+
+
+fun fillDotsCtrls(edstr, pos, value, p)=
+  if (value == nil) then nil else
+  let p -> [ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  let ctrlpos -> [ctrlposx ctrlposy ctrlposz] in
+  let ctrlang -> [ctrlangx ctrlangy ctrlangz] in
+  let ctrlscale -> [ctrlscalex ctrlscaley ctrlscalez] in
+  let ctrltcb -> [ctrlT ctrlC ctrlB ctrlD] in
+  let strToListSep value "," -> pdot in
+  (
+    setEdCtrlFloatValueWithoutCallback ctrlposx (atof (nth_list pdot 0));
+    setEdCtrlFloatValueWithoutCallback ctrlposy (atof (nth_list pdot 1));
+    setEdCtrlFloatValueWithoutCallback ctrlposz (atof (nth_list pdot 2));
+
+    setEdCtrlFloatValueWithoutCallback ctrlangx (atof (nth_list pdot 3));
+    setEdCtrlFloatValueWithoutCallback ctrlangy (atof (nth_list pdot 4));
+    setEdCtrlFloatValueWithoutCallback ctrlangz (atof (nth_list pdot 5));
+    
+    setEdCtrlFloatValueWithoutCallback ctrlscalex (atof (nth_list pdot 6));
+    setEdCtrlFloatValueWithoutCallback ctrlscaley (atof (nth_list pdot 7));
+    setEdCtrlFloatValueWithoutCallback ctrlscalez (atof (nth_list pdot 8));
+    
+    setEdCtrlFloatValueWithoutCallback ctrlT (atof (nth_list pdot 9));
+    setEdCtrlFloatValueWithoutCallback ctrlC (atof (nth_list pdot 10));
+    setEdCtrlFloatValueWithoutCallback ctrlB (atof (nth_list pdot 11));
+    
+    let nth_list edstr.ETRACK_lDots (pos - 1) -> [_ _ _ _ pt] in
+    let nth_list edstr.ETRACK_lDots (pos + 1) -> [_ _ _ _ nt] in
+    let if (pt == nil) then 0.0 else pt +. 0.00001 -> mintime in
+    let if (nt == nil) && (pos != 0) then 1.0 else if (pos == 0) then 0.0 else nt -. 0.00001 -> maxtime in
+    let maxf 0.0 minf 1.0 mintime -> mintime in
+    let maxf 0.0 minf 1.0 maxtime -> maxtime in
+    (
+      setEdCtrlFloatValueWithoutCallback ctrlD (atof (nth_list pdot 12));
+      setEdCtrlFloatMinValue ctrlD mintime;
+      setEdCtrlFloatMaxValue ctrlD maxtime;
+      
+      setEdCtrlSliderValue ctrltimeline (atof (nth_list pdot 12));
+      set edstr.ETRACK_coef = (atof (nth_list pdot 12));
+      updatePreview [edstr nil ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb];
+    );
+  );
+  0;;
+
+
+fun cbAddList(tbstr, check, btn, mask, p)=
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] chkplaypause] in
+  let ctrlpos -> [ctrlposx ctrlposy ctrlposz] in
+  let ctrlang -> [ctrlangx ctrlangy ctrlangz] in
+  let ctrlscale -> [ctrlscalex ctrlscaley ctrlscalez] in
+  let ctrltcb -> [ctrlT ctrlC ctrlB ctrlD] in
+  (
+    setEdToolBarCheckState tbstr chkplaypause 0;
+    setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+    set edstr.ETRACK_posindex = 0;
+    set edstr.ETRACK_angcoef = 0.0;
+    set edstr.ETRACK_coef = 0.0;
+    set edstr.ETRACK_iTick = 0;
+    
+    let ftoa getEdCtrlFloatValue ctrlposx -> posx in
+    let ftoa getEdCtrlFloatValue ctrlposy -> posy in
+    let ftoa getEdCtrlFloatValue ctrlposz -> posz in
+    
+    let ftoa getEdCtrlFloatValue ctrlangx -> angx in
+    let ftoa getEdCtrlFloatValue ctrlangy -> angy in
+    let ftoa getEdCtrlFloatValue ctrlangz -> angz in
+
+    let ftoa getEdCtrlFloatValue ctrlscalex -> scalex in
+    let ftoa getEdCtrlFloatValue ctrlscaley -> scaley in
+    let ftoa getEdCtrlFloatValue ctrlscalez -> scalez in
+    
+    let ftoa getEdCtrlFloatValue ctrlT -> T in
+    let ftoa getEdCtrlFloatValue ctrlC -> C in
+    let ftoa getEdCtrlFloatValue ctrlB -> B in
+    
+    let nth_list edstr.ETRACK_lDots ((getEdCtrlListNbElems ctrllist) - 1) -> [_ _ _ _ pt] in
+    let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let if edstr.ETRACK_bLocal then SO3ObjectGetPosition edstr.ETRACK_child else SO3ObjectGetGlobalPosition edstr.ETRACK_child -> [px py pz] in [ftoa px ftoa py ftoa pz] else [posx posy posz] -> [posx posy posz] in
+    let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let if edstr.ETRACK_bLocal then SO3MathsQuatToEulerYXZ SO3ObjectGetOrientation edstr.ETRACK_child else SO3MathsQuatToEulerYXZ SO3ObjectGetGlobalOrientation edstr.ETRACK_child -> [ax ay az] in [ftoa (SO3MathsRadianToDegree ax) ftoa (SO3MathsRadianToDegree ay) ftoa (SO3MathsRadianToDegree az)] else [angx angy angz] -> [angx angy angz] in
+    let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let SO3ObjectGetScale edstr.ETRACK_child -> [sx sy sz] in [ftoa sx ftoa sy ftoa sz] else [scalex scaley scalez] -> [scalex scaley scalez] in
+    
+    let if (pt == nil) then 0.0 else pt +. 0.1 -> ntime in
+    let ftoa (maxf 0.0 minf 1.0 ntime) -> D in    
+    let strcatnSep posx::posy::posz::angx::angy::angz::scalex::scaley::scalez::T::C::B::D::nil "," -> nvalue in
+    (
+      addEdCtrlList ctrllist nvalue nil nil;
+      //selectEdCtrlList ctrllist nvalue;
+      
+      let (getEdCtrlListNbElems ctrllist) - 1 -> pos in
+      (
+        selectEdCtrlListByPos ctrllist pos;
+        let getSelectedEdCtrlListExt ctrllist -> [pos sname _ _] in
+          fillDotsCtrls edstr pos sname [ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]];
+        0;
+      );
+    );
+    
+    updateDots edstr getEdCtrlListElems ctrllist;
+    refreshDots [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] (getEdCtrlListNbElems ctrllist) - 1;
+  );
+  0;;
+
+
+fun cbUpdateDots(ctrl, value, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  let ctrltcb -> [ctrlT ctrlC ctrlB ctrlD] in
+    setEdCtrlSliderValue ctrltimeline getEdCtrlFloatValue ctrlD;
+  cbSetList nil p 1;
+  0;;
+  
+
+fun cbUpdateDotOnly(ctrl, value, p)=
+  cbSetList nil p 0;
+  0;;
+
+
+fun cbSelectDot(ctrlstr, pos, elem, lval, type, tctrl)=
+  let tctrl -> [edstr _ ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]] in
+  (
+    setEdCtrlFloatCbChange ctrlposx nil;
+    setEdCtrlFloatCbChange ctrlposy nil;
+    setEdCtrlFloatCbChange ctrlposz nil;
+    setEdCtrlFloatCbChange ctrlangx nil;
+    setEdCtrlFloatCbChange ctrlangy nil;
+    setEdCtrlFloatCbChange ctrlangz nil;
+    setEdCtrlFloatCbChange ctrlscalex nil;
+    setEdCtrlFloatCbChange ctrlscaley nil;
+    setEdCtrlFloatCbChange ctrlscalez nil;
+    setEdCtrlFloatCbChange ctrlT nil;
+    setEdCtrlFloatCbChange ctrlC nil;
+    setEdCtrlFloatCbChange ctrlB nil;
+    setEdCtrlFloatCbChange ctrlD nil;
+  
+    fillDotsCtrls edstr pos elem [ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]];
+    
+    setEdCtrlFloatCbChange ctrlposx mkfun3 @cbUpdateDots tctrl;
+    setEdCtrlFloatCbChange ctrlposy mkfun3 @cbUpdateDots tctrl;
+    setEdCtrlFloatCbChange ctrlposz mkfun3 @cbUpdateDots tctrl;
+    setEdCtrlFloatCbChange ctrlangx mkfun3 @cbUpdateDotOnly tctrl;
+    setEdCtrlFloatCbChange ctrlangy mkfun3 @cbUpdateDotOnly tctrl;
+    setEdCtrlFloatCbChange ctrlangz mkfun3 @cbUpdateDotOnly tctrl;
+    setEdCtrlFloatCbChange ctrlscalex mkfun3 @cbUpdateDotOnly tctrl;
+    setEdCtrlFloatCbChange ctrlscaley mkfun3 @cbUpdateDotOnly tctrl;
+    setEdCtrlFloatCbChange ctrlscalez mkfun3 @cbUpdateDotOnly tctrl;
+    setEdCtrlFloatCbChange ctrlT mkfun3 @cbUpdateDots tctrl;
+    setEdCtrlFloatCbChange ctrlC mkfun3 @cbUpdateDots tctrl;
+    setEdCtrlFloatCbChange ctrlB mkfun3 @cbUpdateDots tctrl;
+    setEdCtrlFloatCbChange ctrlD mkfun3 @cbUpdateDots tctrl;
+    
+    refreshPoses tctrl pos;
+  );
+  0;;
+
+
+fun cbDelList(tbstr, check, btn, mask, p)=
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] chkplaypause] in 
+  let getSelectedEdCtrlListExt ctrllist -> [pos name _ _] in
+  (
+    setEdToolBarCheckState tbstr chkplaypause 0;
+    setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+    set edstr.ETRACK_posindex = 0;
+    set edstr.ETRACK_angcoef = 0.0;
+    set edstr.ETRACK_coef = 0.0;
+    set edstr.ETRACK_iTick = 0;
+    
+    let nth_list edstr.ETRACK_lPoses pos -> posestr in
+    (
+      while (posestr.EPOSE_lLines != nil) do
+      (
+        SO3ObjectDestroy hd posestr.EPOSE_lLines;
+        set posestr.EPOSE_lLines = tl posestr.EPOSE_lLines;
+      );
+      set edstr.ETRACK_lPoses = remove_from_list edstr.ETRACK_lPoses posestr;
+
+      V3DshowObjectAxis (V3DgetSessionView c3dXsession) c3dXsession posestr.EPOSE_child 1 0;
+      SO3ObjectDestroy posestr.EPOSE_child;
+      set posestr.EPOSE_child = nil;
+    );
+    
+    delEdCtrlList ctrllist name;
+    
+    let getSelectedEdCtrlListExt ctrllist -> [pos sname _ _] in
+    (
+      fillDotsCtrls edstr pos sname [ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb];
+    
+      updateDots edstr getEdCtrlListElems ctrllist;
+      refreshDots [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] pos;
+    );
+  );
+  0;;
+
+
+fun cbEditKps(ctrl, value, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  (
+    set edstr.ETRACK_fKps = value;
+    //refreshDots p (getEdCtrlListNbElems ctrllist) - 1;
+  );
+  0;;
+
+
+fun cbEditNbKeys(ctrl, value, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  (
+    set edstr.ETRACK_nbKeys = value;
+    let getSelectedEdCtrlListExt ctrllist -> [pos _ _ _] in
+      refreshDots p pos;
+  );
+  0;;
+
+
+fun cbChangeEditMode(tbstr, check, btn, mask, state, p)=
+  let p -> [tctrl [chkmove chkrotate chkscale]] in
+  let tctrl -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  (
+    if check == chkmove then
+    (
+      set edstr.ETRACK_iEditMode = 1;
+      setEdToolBarCheckState tbstr chkmove 1;
+      setEdToolBarCheckState tbstr chkrotate 0;
+      setEdToolBarCheckState tbstr chkscale 0;
+    )
+    else if check == chkrotate then
+    (
+      set edstr.ETRACK_iEditMode = 2;
+      setEdToolBarCheckState tbstr chkmove 0;
+      setEdToolBarCheckState tbstr chkrotate 1;
+      setEdToolBarCheckState tbstr chkscale 0;
+    )
+    else if check == chkscale then
+    (
+      set edstr.ETRACK_iEditMode = 3;
+      setEdToolBarCheckState tbstr chkmove 0;
+      setEdToolBarCheckState tbstr chkrotate 0;
+      setEdToolBarCheckState tbstr chkscale 1;
+    )
+    else nil;
+    
+    cbSetList nil tctrl 0;
+  );
+  0;;
+
+
+fun cbPlayPreview(tbstr, check, btn, mask, state, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  (
+    if (state) then
+      setPluginInstanceEditorCbPreRender edstr.ETRACK_inst mkfun3 @cbEditorPreRender [p tbstr check]
+    else 
+      setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+    
+    set edstr.ETRACK_iTick = _tickcount;
+  );
+  0;;
+
+
+fun cbStopPreview(tbstr, check, btn, mask, p)=
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] chkplaypause] in 
+  (
+    setEdToolBarCheckState tbstr chkplaypause 0;
+    setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+    set edstr.ETRACK_posindex = 0;
+    set edstr.ETRACK_angcoef = 0.0;
+    set edstr.ETRACK_coef = 0.0;
+    set edstr.ETRACK_iTick = 0;
+    setEdCtrlSliderValue ctrltimeline 0.0;
+  );
+  0;;
+
+
+fun cbEdCtrlTimeLineValue(sliderstr, value, p)=
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] tbstr chkplaypause] in 
+  (
+    setEdToolBarCheckState tbstr chkplaypause 0;
+    setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+    set edstr.ETRACK_posindex = 0;
+    set edstr.ETRACK_angcoef = 0.0;
+    set edstr.ETRACK_coef = value;
+    set edstr.ETRACK_iTick = 0;
+    
+    updatePreview [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb];
+  );
+  0;;
+
+
+fun cbLoopCheck(ctrl, state, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+    set edstr.ETRACK_bLoop = state;
+  0;;
+
+
+fun cbPingCheck(ctrl, state, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+    set edstr.ETRACK_bPingPong = state;
+  0;;
+
+
+fun cbTargetCheck(ctrl, state, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+    set edstr.ETRACK_bToTarget = state;
+  0;;
+
+
+fun cbLocalCheck(ctrl, state, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+  let getSelectedEdCtrlListExt ctrllist -> [pos name _ _] in
+  (
+    set edstr.ETRACK_bLocal = state;
+    updateDots edstr getEdCtrlListElems ctrllist;
+    refreshDots [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] pos;
+  );
+  0;;
+
+
+fun cbTargetAxis(ctrl, state, elem, p)=
+  let p -> [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] in
+    set edstr.ETRACK_iToAxis = state;
+  0;;
+
+
+fun dynamicedit(ewinstr, inst, viewstr) =
+  let mkObjETrackStr [inst nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 1] -> edstr in
+  let [420 715] -> [iw ih] in
+  let 10 -> ypos in
+  (
+    setEdWindowSize ewinstr iw ih;
+
+    let (getPluginInstanceParam inst "sourceobject") -> sourcename in
+    let atof (getPluginInstanceParam inst "kps") -> kps in
+    let atof (getPluginInstanceParam inst "nbkeys") -> nbkeys in
+    let atoi (getPluginInstanceParam inst "loop") -> loop in
+    let if loop == nil then 0 else loop -> loop in
+    let atoi (getPluginInstanceParam inst "ping") -> ping in
+    let if ping == nil then 0 else ping -> ping in
+    let atoi (getPluginInstanceParam inst "target") -> target in
+    let if target == nil then 0 else target -> target in
+    let atoi (getPluginInstanceParam inst "axis") -> axis in
+    let if axis == nil then 4 else axis -> axis in
+    let atoi (getPluginInstanceParam inst "local") -> local in
+    let if (local == nil) then 0 else local -> local in
+    let atoi (getPluginInstanceParam inst "init") -> init in
+    let if init == nil then 1 else init -> init in
+    
+    let if kps == nil then 60.0 else kps -> kps in
+    let if nbkeys == nil then 200.0 else nbkeys -> nbkeys in
+    
+    let crEdFrameWindow _channel ewinstr 0 0 iw 55 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_0019") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 35 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+
+    let crEdCtrlLabel winstr 10 ((set ypos = 10) + 2) 160 20 (loc "OS3DOBJECTTRACK_0031") nil -> labelobj in
+    let crEdCtrlTextLine winstr 180 ypos 140 20 sourcename nil EDWIN_RESIZE_MW -> ctrlsourcename in
+    let crEdCtrlButton winstr 325 ypos 55 20 "..." nil -> pickbtn2 in
+    let crEdCtrlButton winstr 385 ypos 35 20 "X" nil -> refreshsourcename in
+
+    let crEdFrameWindow _channel ewinstr 0 0 iw 180 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_0003") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 160 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+    let crEdCtrlLabel winstr 10 ((set ypos = 10) + 2) 160 20 (loc "OS3DOBJECTTRACK_0010") nil -> labelkps in
+    let crEdCtrlFloat winstr 180 ypos 100 20 kps 1.0 200.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlkps in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DOBJECTTRACK_0018") nil -> labelnbkeys in
+    let crEdCtrlFloat winstr 180 ypos 100 20 nbkeys 2.0 9999999.0 1.0 0 nil EDWIN_RESIZE_MW -> ctrlnbkeys in
+    let crEdCtrlCheck winstr 10 (set ypos = ypos + 25) 280 20 (loc "OS3DOBJECTTRACK_0011") EDWIN_RESIZE_MW -> ctrlloop in 
+    let crEdCtrlCheck winstr 10 (set ypos = ypos + 25) 280 20 (loc "OS3DOBJECTTRACK_0021") EDWIN_RESIZE_MW -> ctrlping in
+    let crEdCtrlCheck winstr 10 (set ypos = ypos + 25) 160 20 (loc "OS3DOBJECTTRACK_0004") EDWIN_RESIZE_MW -> ctrltarget in
+    let crEdCtrlSelect winstr 180 ypos 100 120 EDWIN_RESIZE_MW -> ctrlaxis in
+    let crEdCtrlCheck winstr 10 (set ypos = ypos + 25) 280 20 (loc "OS3DOBJECTTRACK_0026") EDWIN_RESIZE_MW -> ctrllocal in
+        
+    let crEdFrameWindow _channel ewinstr 0 0 iw 425 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_0027") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 405 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+    let crEdCtrlList winstr 10 (set ypos = 10) (iw - 15) 120 LB_BORDER|LB_VSCROLL|ET_TABFOCUS EDWIN_RESIZE_MW|EDWIN_RESIZE_MH -> ctrldots in
+    
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_move.png" -> amove in
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_rotate.png" -> arotate in
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_scale.png" -> ascale in
+    
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_addkey.png" -> aaddkey in
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_delkey.png" -> adelkey in
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_playpause.png" -> aplaypause in
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_stop.png" -> astop in
+    
+    let crEdWindowToolBar winstr 0 (set ypos = ypos + 125) iw 28 5 1 EdDefaultTheme.EDT_iToolBarColor ETB_HORIZONTAL -> tbstr in
+    let crEdToolBarCheck tbstr amove ETB_ALIGN_LEFT (loc "OS3DOBJECTTRACK_0014") nil -> chkmove in
+    let crEdToolBarCheck tbstr arotate ETB_ALIGN_LEFT (loc "OS3DOBJECTTRACK_0028") nil -> chkrotate in
+    let crEdToolBarCheck tbstr ascale ETB_ALIGN_LEFT (loc "OS3DOBJECTTRACK_0029") nil -> chkscale in
+    let _LDalphaBitmap _channel _checkpack strcat APPBASEDIR "os3deditor/res/tb_hseparator.png" -> asep in
+    let crEdToolBarBitmap tbstr asep ETB_ALIGN_LEFT nil nil -> hsep in
+    let crEdToolBarButton tbstr aaddkey ETB_ALIGN_LEFT (loc "OS3DOBJECTTRACK_0001") nil -> chkaddkey in
+    let crEdToolBarButton tbstr adelkey ETB_ALIGN_LEFT (loc "OS3DOBJECTTRACK_0009") nil -> chkdelkey in
+    let crEdToolBarBitmap tbstr asep ETB_ALIGN_LEFT nil nil -> hsep in
+    let crEdToolBarCheck tbstr aplaypause ETB_ALIGN_LEFT (loc "OS3DOBJECTTRACK_0022") nil -> chkplaypause in
+    let crEdToolBarButton tbstr astop ETB_ALIGN_LEFT (loc "OS3DOBJECTTRACK_0032") nil -> chkstop in
+    let crEdCtrlSlider winstr 0 (set ypos = ypos + 29) iw 20 0.0 0.0 1.0 nil EDWIN_RESIZE_MW nil -> ctrltimeline in
+    
+    let ypos -> pypos in    
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 80 20 (loc "OS3DOBJECTTRACK_0025") nil -> labelpos in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 20 20 "X" nil -> labelpx in
+    let crEdCtrlFloat winstr 35 ypos 90 20 0.0 (-.1000000.0) 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlposx in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 20 20 "Y" nil -> labelpx in
+    let crEdCtrlFloat winstr 35 ypos 90 20 0.0 (-.1000000.0) 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlposy in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 20 20 "Z" nil -> labelpx in
+    let crEdCtrlFloat winstr 35 ypos 90 20 0.0 (-.1000000.0) 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlposz in
+    
+    let crEdCtrlLabel winstr 140 ((set ypos = pypos + 25) + 2) 80 20 (loc "OS3DOBJECTTRACK_0020") nil -> labelang in
+    let crEdCtrlLabel winstr 140 ((set ypos = ypos + 25) + 2) 20 20 "X" nil -> labelpx in
+    let crEdCtrlFloat winstr 160 ypos 90 20 0.0 (-.180.0) 180.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlangx in
+    let crEdCtrlLabel winstr 140 ((set ypos = ypos + 25) + 2) 20 20 "Y" nil -> labelpx in
+    let crEdCtrlFloat winstr 160 ypos 90 20 0.0 (-.180.0) 180.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlangy in
+    let crEdCtrlLabel winstr 140 ((set ypos = ypos + 25) + 2) 20 20 "Z" nil -> labelpx in
+    let crEdCtrlFloat winstr 160 ypos 90 20 0.0 (-.180.0) 180.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlangz in
+    
+    let crEdCtrlLabel winstr 265 ((set ypos = pypos + 25) + 2) 80 20 (loc "OS3DOBJECTTRACK_0030") nil -> labelscale in
+    let crEdCtrlLabel winstr 265 ((set ypos = ypos + 25) + 2) 20 20 "X" nil -> labelpx in
+    let crEdCtrlFloat winstr 285 ypos 90 20 1.0 0.0 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlscalex in
+    let crEdCtrlLabel winstr 265 ((set ypos = ypos + 25) + 2) 20 20 "Y" nil -> labelpx in
+    let crEdCtrlFloat winstr 285 ypos 90 20 1.0 0.0 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlscaley in
+    let crEdCtrlLabel winstr 265 ((set ypos = ypos + 25) + 2) 20 20 "Z" nil -> labelpx in
+    let crEdCtrlFloat winstr 285 ypos 90 20 1.0 0.0 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> ctrlscalez in
+    
+    let ypos -> pypos in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DOBJECTTRACK_0002") nil -> labeltcb in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 60 20 (loc "OS3DOBJECTTRACK_0033") nil -> labelpx in
+    let crEdCtrlFloat winstr 85 ypos 90 20 0.0 (-.100.0) 100.0 0.001 4 nil EDWIN_RESIZE_MW -> ctrlT in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 60 20 (loc "OS3DOBJECTTRACK_0006") nil -> labelpx in
+    let crEdCtrlFloat winstr 85 ypos 90 20 0.0 (-.100.0) 100.0 0.001 4 nil EDWIN_RESIZE_MW -> ctrlC in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 60 20 (loc "OS3DOBJECTTRACK_0005") nil -> labelpx in
+    let crEdCtrlFloat winstr 85 ypos 90 20 0.0 (-.100.0) 100.0 0.001 4 nil EDWIN_RESIZE_MW -> ctrlB in
+    let ypos -> nypos in
+    
+    let crEdCtrlLabel winstr 230 ((set ypos = pypos + 25) + 2) 160 20 (loc "OS3DOBJECTTRACK_0024") nil -> labelpath in
+    let crEdCtrlLabel winstr 230 ((set ypos = ypos + 25) + 2) 60 20 (loc "OS3DOBJECTTRACK_0034") nil -> labelpath in
+    let crEdCtrlFloat winstr 285 ypos 90 20 0.0 0.0 1.0 0.01 6 nil EDWIN_RESIZE_MW -> ctrlD in
+    
+    //let _DLGMessageBox _channel nil "debug" itoa (set ypos = ypos + 35) 0 -> _ in
+    
+    let crEdFrameWindow _channel ewinstr 0 0 iw 55 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_0013") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 35 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in 
+    let crEdCtrlCheck winstr 10 (set ypos = 10) 280 20 (loc "OS3DOBJECTTRACK_0023") EDWIN_RESIZE_MW -> ctrlinit in 
+    
+    let [edstr ctrldots ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]] -> tctrl in
+    (
+      set edstr.ETRACK_nbKeys = nbkeys;
+      set edstr.ETRACK_fKps = kps;
+      set edstr.ETRACK_child = V3DgetObjectByName c3dXsession sourcename;
+      set edstr.ETRACK_posindex = 0;
+      set edstr.ETRACK_oldindex = nil;
+      set edstr.ETRACK_angcoef = 0.0;
+      set edstr.ETRACK_coef = 0.0;
+      set edstr.ETRACK_iTick = 0;
+      set edstr.ETRACK_angstep = 0.0;
+      set edstr.ETRACK_fDirection = 1.0;
+      set edstr.ETRACK_bPingPong = ping;
+      set edstr.ETRACK_bToTarget = target;
+      set edstr.ETRACK_iToAxis = axis;
+      set edstr.ETRACK_bLoop = loop;
+      set edstr.ETRACK_bLocal = local;
+      
+      set edstr.ETRACK_inipos = [(SO3ObjectGetPosition edstr.ETRACK_child) (SO3ObjectGetOrientation edstr.ETRACK_child) (SO3ObjectGetScale edstr.ETRACK_child)];
+      
+      fillEdCtrlList ctrldots (loadDots inst tctrl);
+      setEdCtrlListCbClick ctrldots mkfun6 @cbSelectDot tctrl;
+      selectEdCtrlListByPos ctrldots 0;
+      let getSelectedEdCtrlList ctrldots -> [sname _ _] in
+        fillDotsCtrls edstr 0 sname [ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]]; 
+      
+      setEdToolBarCheckState tbstr chkmove 1;
+      setEdToolBarCheckCbClick tbstr chkmove mkfun6 @cbChangeEditMode [tctrl [chkmove chkrotate chkscale]];
+      setEdToolBarCheckCbClick tbstr chkrotate mkfun6 @cbChangeEditMode [tctrl [chkmove chkrotate chkscale]];
+      setEdToolBarCheckCbClick tbstr chkscale mkfun6 @cbChangeEditMode [tctrl [chkmove chkrotate chkscale]];
+      
+      setEdToolBarCheckCbClick tbstr chkplaypause mkfun6 @cbPlayPreview tctrl;
+      setEdToolBarButtonCbClick tbstr chkstop mkfun5 @cbStopPreview [tctrl chkplaypause];
+      setEdToolBarButtonCbClick tbstr chkaddkey mkfun5 @cbAddList [tctrl chkplaypause];
+      setEdToolBarButtonCbClick tbstr chkdelkey mkfun5 @cbDelList [tctrl chkplaypause];
+      
+      setEdCtrlSliderCbValue ctrltimeline mkfun3 @cbEdCtrlTimeLineValue [tctrl tbstr chkplaypause];
+      
+      setEdCtrlFloatCbChange ctrlposx mkfun3 @cbUpdateDots tctrl;
+      setEdCtrlFloatCbChange ctrlposy mkfun3 @cbUpdateDots tctrl;
+      setEdCtrlFloatCbChange ctrlposz mkfun3 @cbUpdateDots tctrl;
+      setEdCtrlFloatCbChange ctrlangx mkfun3 @cbUpdateDotOnly tctrl;
+      setEdCtrlFloatCbChange ctrlangy mkfun3 @cbUpdateDotOnly tctrl;
+      setEdCtrlFloatCbChange ctrlangz mkfun3 @cbUpdateDotOnly tctrl;
+      setEdCtrlFloatCbChange ctrlscalex mkfun3 @cbUpdateDotOnly tctrl;
+      setEdCtrlFloatCbChange ctrlscaley mkfun3 @cbUpdateDotOnly tctrl;
+      setEdCtrlFloatCbChange ctrlscalez mkfun3 @cbUpdateDotOnly tctrl;
+      setEdCtrlFloatCbChange ctrlT mkfun3 @cbUpdateDots tctrl;
+      setEdCtrlFloatCbChange ctrlC mkfun3 @cbUpdateDots tctrl;
+      setEdCtrlFloatCbChange ctrlB mkfun3 @cbUpdateDots tctrl;
+      setEdCtrlFloatCbChange ctrlD mkfun3 @cbUpdateDots tctrl;
+      
+      setEdCtrlButtonCb pickbtn2 mkfun2 @cbBtnPickObj [inst edstr winstr viewstr ctrlsourcename sourcename];
+      setEdCtrlButtonCb refreshsourcename mkfun2 @cbRefreshBtn [ctrlsourcename];
+      setEdCtrlTextLineEnable ctrlsourcename 0;
+      setEdCtrlCheckState ctrlinit init;
+      setEdCtrlCheckState ctrllocal local;
+      setEdCtrlCheckState ctrlloop loop;
+      setEdCtrlCheckState ctrlping ping;
+      setEdCtrlCheckState ctrltarget target;
+      setEdCtrlCheckCbState ctrlloop mkfun3 @cbLoopCheck tctrl;
+      setEdCtrlCheckCbState ctrlping mkfun3 @cbPingCheck tctrl;
+      setEdCtrlCheckCbState ctrltarget mkfun3 @cbTargetCheck tctrl;
+      setEdCtrlCheckCbState ctrllocal mkfun3 @cbLocalCheck tctrl;
+      
+      fillEdCtrlSelect ctrlaxis "X"::(loc "OS3DOBJECTTRACK_0015")::"Y"::(loc "OS3DOBJECTTRACK_0016")::"Z"::(loc "OS3DOBJECTTRACK_0017")::nil;
+      selectEdCtrlSelectByPos ctrlaxis axis;
+      setEdCtrlSelectCb ctrlaxis mkfun4 @cbTargetAxis tctrl;
+      
+      setEdCtrlFloatCbChange ctrlkps mkfun3 @cbEditKps tctrl;
+      setEdCtrlFloatCbChange ctrlnbkeys mkfun3 @cbEditNbKeys tctrl;
+      
+      [mkfun1 @cbCloseEdit [ctrlsourcename ctrlkps ctrlnbkeys ctrlloop ctrlping ctrltarget ctrlaxis ctrldots ctrllocal ctrlinit] mkfun1 @cbDestroyEdit [inst edstr]];
+    );
+  );;

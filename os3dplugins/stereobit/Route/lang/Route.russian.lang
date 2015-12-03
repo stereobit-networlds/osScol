@@ -1,0 +1,36 @@
+LANGUAGE russian
+LANGCODE ru
+OS3DOBJECTTRACK_DESC Анимированный перевод между несколькими положение с вращением и масштаб
+OS3DOBJECTTRACK_HELP http://www.openspace3d.com/documentation/EN/plugits/Object/objtrackplugit.HTML
+OS3DOBJECTTRACK_0001 Добавить ключ
+OS3DOBJECTTRACK_0002 Кривая анимация
+OS3DOBJECTTRACK_0003 Настройка анимации
+OS3DOBJECTTRACK_0004 Автоматические цели на:
+OS3DOBJECTTRACK_0005 Уклон
+OS3DOBJECTTRACK_0006 Преемственность
+OS3DOBJECTTRACK_0009 Дель ключ
+OS3DOBJECTTRACK_0010 Ключей в секунду
+OS3DOBJECTTRACK_0011 Петля
+OS3DOBJECTTRACK_0012 Свернуть / восстановить
+OS3DOBJECTTRACK_0013 Параметр Разное
+OS3DOBJECTTRACK_0014 Перемещение (Tab чтобы перейти)
+OS3DOBJECTTRACK_0015 Отрицательных X
+OS3DOBJECTTRACK_0016 Отрицательный Y
+OS3DOBJECTTRACK_0017 Отрицательный Z
+OS3DOBJECTTRACK_0018 Количество ключей
+OS3DOBJECTTRACK_0019 Настройка объектов
+OS3DOBJECTTRACK_0020 Ориентация
+OS3DOBJECTTRACK_0021 Пинг понг режим
+OS3DOBJECTTRACK_0022 Воспроизведение / пауза
+OS3DOBJECTTRACK_0023 Играть на init
+OS3DOBJECTTRACK_0024 Положение на пути
+OS3DOBJECTTRACK_0025 Позиция
+OS3DOBJECTTRACK_0026 Позиции в пространстве объектов (локальный)
+OS3DOBJECTTRACK_0027 Позиции
+OS3DOBJECTTRACK_0028 Поворот (Tab чтобы перейти)
+OS3DOBJECTTRACK_0029 Шкала (Tab чтобы перейти)
+OS3DOBJECTTRACK_0030 Шкала
+OS3DOBJECTTRACK_0031 Имя исходного объекта
+OS3DOBJECTTRACK_0032 Остановка
+OS3DOBJECTTRACK_0033 Напряжение
+OS3DOBJECTTRACK_0034 Время

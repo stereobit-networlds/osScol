@@ -1,0 +1,604 @@
+/*
+-----------------------------------------------------------------------------
+This source file is part of OpenSpace3D
+For the latest info, see http://www.openspace3d.com
+
+Copyright (c) 2015 stereobit.networlds
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with
+this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+Place - Suite 330, Boston, MA 02111-1307, USA, or go to
+http://www.gnu.org/copyleft/lesser.txt
+
+-----------------------------------------------------------------------------
+*/
+
+/* Authors: stereobit, Bastien Bourineau */
+/* Last update: 2/12/2015 */
+/* Version: 1.0 */
+
+struct TObjPath = [
+                    OBJP_inst          : PInstance,
+                    OBJP_h3d           : SO3_OBJECT,
+                    OBJP_iSrcMode      : I,
+                    OBJP_tDir          : [F F F],
+                    OBJP_inipos        : [[F F F] [F F F F] [F F F]],
+                    OBJP_targetPos     : [[[F F F] [F F F F] [F F F] [F F F] F] r1],
+                    OBJP_posindex      : I,
+                    OBJP_oldindex      : I,
+                    OBJP_angcoef       : F,
+                    OBJP_angstep       : F,
+                    OBJP_coef          : F,
+                    OBJP_kps           : I,
+                    OBJP_nbKeys        : I,
+                    OBJP_bLoop         : I,
+                    OBJP_iTick         : I,
+                    OBJP_fDirection    : F,
+                    OBJP_iToAxis       : I,
+                    OBJP_bPingPong     : I,
+                    OBJP_bToTarget     : I,
+                    OBJP_bLocal        : I,
+                    OBJP_iState        : I
+                    
+                  ] mkTObjPath;;
+
+
+// 2t3 - 3t2 + 1
+fun H1(coef)=
+  (2.0 *. (pow coef 3.0)) -. (3.0 *. (pow coef 2.0)) +. 1.0;;
+
+
+// -2t3 + 3t2
+fun H2(coef)=
+  (-. 2.0 *. (pow coef 3.0)) +. (3.0 *. (pow coef 2.0));;
+
+
+// t3 - 2t2 +t
+fun H3(coef)=
+  (pow coef 3.0) -. (2.0 *. (pow coef 2.0)) +. coef;;
+
+
+// t3 - t2
+fun H4(coef)=
+  (pow coef 3.0) -. (pow coef 2.0);;
+
+
+fun getInterpolateCurve(vec1, vec2, ang1, ang2, coef)=
+  let vec1 -> [x1 y1 z1] in
+  let vec2 -> [x2 y2 z2] in
+  let ang1 -> [ax1 ay1 az1] in
+  let ang2 -> [ax2 ay2 az2] in
+
+  let ((H1 coef) *. x1) +. ((H2 coef) *. x2) +. ((H3 coef) *. ax1) +. ((H4 coef) *. ax2) -> x in
+  let ((H1 coef) *. y1) +. ((H2 coef) *. y2) +. ((H3 coef) *. ay1) +. ((H4 coef) *. ay2) -> y in
+  let ((H1 coef) *. z1) +. ((H2 coef) *. z2) +. ((H3 coef) *. az1) +. ((H4 coef) *. az2) -> z in
+  [x y z]
+  ;;
+
+
+fun getPosTime(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  ti;;
+
+
+fun getPosTension(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  t;;
+
+
+fun getPosContinuity(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  c;;
+
+
+fun getPosBias(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  b;;
+
+
+fun getPosX(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  x;;
+
+
+fun getPosY(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  y;;
+
+
+fun getPosZ(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  z;;
+
+
+fun getPosXYZ(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  [x y z];;
+
+
+fun getPosScaleXYZ(pos)=
+  let pos -> [[x y z] _ [sx sy sz] [t c b] ti] in
+  [sx sy sz];;
+
+
+fun vecLerpF(v1, v2, coef)=
+  let multiplyVectorF v2 [coef coef coef] -> v1t in
+  let multiplyVectorF v1 [(1.0 -. coef) (1.0 -. coef) (1.0 -. coef)] -> v2t in
+    addVectorF v1t v2t;;
+
+
+fun getInterpolateTCB(lpos, t)=
+	let sizelist lpos -> size in
+	let size - 1 -> sizeminus in
+	let 0 -> i in
+	let nil -> outvec in
+	(
+	  if (t == 0.0) then
+	  (
+	    set outvec = [1 (getPosXYZ (nth_list lpos 0))];
+	    0;
+	  )
+	  else
+	  (	 
+      while ((i < size) && (outvec == nil)) do
+    	(
+    	  let nth_list lpos i -> nextpos in
+        if t <=. (getPosTime nextpos) then
+        (
+          let nth_list lpos (i - 1) -> curpos in
+          let if (curpos == nil) then nextpos else curpos -> curpos in
+          let nth_list lpos (i - 2) -> prevpos in
+          let if (prevpos == nil) then curpos else prevpos -> prevpos in
+          let nth_list lpos (i + 1) -> nextnextpos in
+          let if (nextnextpos == nil) then nextpos else nextnextpos -> nextnextpos in
+          
+          let (getPosTime nextpos) -. (getPosTime curpos) -> pdiff in
+          let if (pdiff <=. 0.0) then 1.0 else pdiff -> pdiff in
+          let ((t -. (getPosTime curpos)) /. pdiff) -> coef in
+          
+          //Update values from TCB
+          let (1.0 -. (getPosTension curpos)) -> OneMinusTension in
+          let (1.0 -. (getPosContinuity curpos)) -> OneMinusContinuity in
+          let (1.0 +. (getPosContinuity curpos)) -> OnePlusContinuity in
+          let (1.0 -. (getPosBias curpos)) -> OneMinusBias in
+          let (1.0 +. (getPosBias curpos)) -> OnePlusBias in
+          
+          let (OneMinusTension *. 0.5) +. ((1.0 -. (getPosTension nextpos)) *. 0.5) -> OneMinusTension in
+          let (OneMinusContinuity *. 0.5) +. ((1.0 -. (getPosContinuity nextpos)) *. 0.5) -> OneMinusContinuity in
+          let (OnePlusContinuity *. 0.5) +. ((1.0 +. (getPosContinuity nextpos)) *. 0.5) -> OnePlusContinuity in
+          let (OneMinusBias *. 0.5) +. ((1.0 -. (getPosBias nextpos)) *. 0.5) -> OneMinusBias in
+          let (OneMinusBias *. 0.5) +. ((1.0 +. (getPosBias nextpos)) *. 0.5) -> OnePlusBias in
+          
+          let (0.5 *. ((OneMinusTension *. OnePlusContinuity *. OnePlusBias) *. ((getPosX curpos) -. (getPosX prevpos))) +. (0.5 *. (OneMinusTension *. OneMinusContinuity *. OneMinusBias) *. ((getPosX nextpos) -. (getPosX curpos)))) -> tancurposx in
+          let (0.5 *. ((OneMinusTension *. OnePlusContinuity *. OnePlusBias) *. ((getPosY curpos) -. (getPosY prevpos))) +. (0.5 *. (OneMinusTension *. OneMinusContinuity *. OneMinusBias) *. ((getPosY nextpos) -. (getPosY curpos)))) -> tancurposy in
+          let (0.5 *. ((OneMinusTension *. OnePlusContinuity *. OnePlusBias) *. ((getPosZ curpos) -. (getPosZ prevpos))) +. (0.5 *. (OneMinusTension *. OneMinusContinuity *. OneMinusBias) *. ((getPosZ nextpos) -. (getPosZ curpos)))) -> tancurposz in
+    
+          let (0.5 *. ((OneMinusTension *. OneMinusContinuity *. OnePlusBias) *. ((getPosX nextpos) -. (getPosX curpos))) +. (0.5 *. (OneMinusTension *. OnePlusContinuity *. OneMinusBias) *. ((getPosX nextnextpos) -. (getPosX nextpos)))) -> tannextposx in
+          let (0.5 *. ((OneMinusTension *. OneMinusContinuity *. OnePlusBias) *. ((getPosY nextpos) -. (getPosY curpos))) +. (0.5 *. (OneMinusTension *. OnePlusContinuity *. OneMinusBias) *. ((getPosY nextnextpos) -. (getPosY nextpos)))) -> tannextposy in
+          let (0.5 *. ((OneMinusTension *. OneMinusContinuity *. OnePlusBias) *. ((getPosZ nextpos) -. (getPosZ curpos))) +. (0.5 *. (OneMinusTension *. OnePlusContinuity *. OneMinusBias) *. ((getPosZ nextnextpos) -. (getPosZ nextpos)))) -> tannextposz in
+          
+          let getInterpolateCurve (getPosXYZ curpos) (getPosXYZ nextpos) [tancurposx tancurposy tancurposz] [tannextposx tannextposy tannextposz] coef -> [x y z] in
+            set outvec = [i [x y z]];
+          
+          0;
+        )
+        else nil;
+        
+        set i = i + 1;
+      );
+    );
+    outvec;
+  );;
+
+
+fun usePhysic(strobj)=
+  let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+  let SO3BodyGetMassMatrix body -> [mass _] in
+    if ((strobj.OBJP_iSrcMode != 0) || (body == nil) || (SO3BodyGetFluid body) || !(V3DphysGetState c3dXsession) || (mass <=. 0.0)) then 0 else 1;;
+
+
+fun getTargetAxis(edstr)=
+  if (edstr.OBJP_iToAxis == 0) then
+    [1.0 0.0 0.0]
+  else if (edstr.OBJP_iToAxis == 1) then
+    [(-.1.0) 0.0 0.0]
+  else if (edstr.OBJP_iToAxis == 2) then
+    [0.0 1.0 0.0]
+  else if (edstr.OBJP_iToAxis == 3) then
+    [0.0 (-.1.0) 0.0]
+  else if (edstr.OBJP_iToAxis == 4) then
+    [0.0 0.0 1.0]
+  else
+    [0.0 0.0 (-.1.0)];;
+
+
+fun getViewDirection(strobj, ovec, oang, tvec)=
+  let ovec -> [vx vy vz] in
+  let tvec -> [dx dy dz] in
+  //TODO enable vertors XYZ XZ
+  let normalizeVectorF (subVectorF [dx vy dz] ovec) -> dir in
+  let normalizeVectorF (SO3MathsQuatGetDirection oang getTargetAxis strobj) -> src in
+  let SO3MathsQuatToEulerPYR (SO3MathsGetRotationTo src dir) -> [pitch yaw roll] in
+  let if ((1.0 +. dotVectorF src dir) <. 0.0001) then PIf *. 2.0 else yaw -> yaw in
+  let SO3MathsQuatAdd SO3MathsEulerPYRToQuat [0.0 yaw 0.0] oang -> nquat in
+  (
+    nquat;
+  );;
+
+
+fun cbMoveObj(inst, sessionstr, etime, strobj, cbend)=
+  let (strobj.OBJP_kps * (set strobj.OBJP_iTick = strobj.OBJP_iTick + etime)) / 1000 -> rtick in
+  if (rtick < 1) then nil else
+  (
+    let (1000.0 /. (itof SO3WorldGetFPS sessionstr.V3D_session)) -> nbsec in
+    let [nbsec nbsec nbsec] -> vnbsec in
+    (
+      if ((strobj.OBJP_coef >=. 1.0) && (strobj.OBJP_fDirection == 1.0)) || ((strobj.OBJP_coef <=. 0.0) && (strobj.OBJP_fDirection == (-.1.0))) then
+      (
+        if (strobj.OBJP_iState != 1) then nil else
+        (
+          set strobj.OBJP_iTick = 0;
+          
+          // event
+          if (!strobj.OBJP_bLoop) then
+          (
+            if ((!strobj.OBJP_bPingPong) || ((strobj.OBJP_bPingPong && (strobj.OBJP_fDirection == (-.1.0))))) then
+            (
+              set strobj.OBJP_posindex = 0;
+              set strobj.OBJP_iState = 0;
+              set strobj.OBJP_fDirection = 1.0;
+              setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst nil;
+              
+              let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+              if !(usePhysic strobj) then nil else
+              (
+                SO3BodySetVelocity body [0.0 0.0 0.0];
+                SO3BodySetOmega body [0.0 0.0 0.0];
+              );
+              
+              exec cbend with [strobj];
+              0;
+            )
+            else
+            (
+              set strobj.OBJP_fDirection = strobj.OBJP_fDirection *. (-.1.0);
+              0;
+            );
+          )
+          else if (!strobj.OBJP_bPingPong) then
+          (
+            set strobj.OBJP_posindex = 0;
+            set strobj.OBJP_angcoef = 0.0;
+            set strobj.OBJP_coef = 0.0;
+            set strobj.OBJP_fDirection = 1.0;
+            0;
+          )
+          else
+          (
+            set strobj.OBJP_fDirection = strobj.OBJP_fDirection *. (-.1.0);
+            0;
+          );
+        );
+      )
+      else
+      (
+        let (itof rtick) *. (1.0 /. (itof strobj.OBJP_nbKeys)) *. strobj.OBJP_fDirection -> nstep in
+          set strobj.OBJP_coef = if (strobj.OBJP_coef +. nstep) >. 1.0 then 1.0 else if (strobj.OBJP_coef +. nstep) <=. 0.0 then 0.0 else strobj.OBJP_coef +. nstep;
+        
+        let getInterpolateTCB strobj.OBJP_targetPos strobj.OBJP_coef -> [index tvec] in
+        let nth_list strobj.OBJP_targetPos (index - 1) -> [spos sang sscale _ t1] in
+        let nth_list strobj.OBJP_targetPos index -> [dpos dang dscale _ t2] in      
+        let (SO3ObjectGetGlobalPosition strobj.OBJP_h3d) -> ovec in
+        let (SO3ObjectGetGlobalOrientation strobj.OBJP_h3d) -> oang in
+        (
+          if strobj.OBJP_oldindex != index then
+          (
+            let (if t1 == nil then 0.0 else t1) -> t1 in
+            let (if t2 == nil then 1.0 else t2) -> t2 in
+            let t2 -. t1 -> lenght in
+            let if lenght == 0.0 then 1.0 else lenght -> lenght in
+            let lenght /. (1.0 /. (itof strobj.OBJP_nbKeys)) -> nbk in
+              set strobj.OBJP_angstep = (1.0 /. nbk);
+  
+            set strobj.OBJP_angcoef = if (strobj.OBJP_fDirection == 1.0) then 0.0 else 1.0;
+            set strobj.OBJP_oldindex = index;
+          )
+          else nil;
+         
+          let (itof rtick) *. strobj.OBJP_angstep *. strobj.OBJP_fDirection -> nangstep in
+            set strobj.OBJP_angcoef = if (strobj.OBJP_angcoef +. nangstep) >. 1.0 then 1.0 else if (strobj.OBJP_angcoef +. nangstep) <. 0.0 then 0.0 else strobj.OBJP_angcoef +. nangstep;
+
+          let if strobj.OBJP_bToTarget then getViewDirection strobj ovec oang tvec else SO3MathsQuatInterpolate sang dang strobj.OBJP_angcoef 1 -> tang in
+          let vecLerpF sscale dscale strobj.OBJP_angcoef -> tscale in
+          (
+            let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+            if !(usePhysic strobj) then
+            (
+              if strobj.OBJP_bLocal then
+              (
+                SO3ObjectSetPosition strobj.OBJP_h3d tvec;
+                SO3ObjectSetOrientation strobj.OBJP_h3d tang;
+              )
+              else
+              (
+                SO3ObjectSetGlobalPosition strobj.OBJP_h3d tvec;
+                SO3ObjectSetGlobalOrientation strobj.OBJP_h3d tang;
+              );
+              SO3ObjectSetScale strobj.OBJP_h3d tscale;
+              0;
+            )
+            else
+            let subVectorF (if strobj.OBJP_bLocal then addVectorF (SO3ObjectGetGlobalPosition SO3ObjectGetParent strobj.OBJP_h3d) (SO3MathsQuatGetDirection (SO3ObjectGetGlobalOrientation SO3ObjectGetParent strobj.OBJP_h3d) multiplyVectorF (SO3ObjectGetGlobalScale SO3ObjectGetParent strobj.OBJP_h3d) tvec) else tvec) ovec  -> nvec in
+            let multiplyVectorF nvec vnbsec -> vel in
+            let SO3MathsQuatDiff (if strobj.OBJP_bLocal then SO3MathsQuatAdd tang (SO3ObjectGetGlobalOrientation SO3ObjectGetParent strobj.OBJP_h3d) else tang) oang -> qdiff in
+            let SO3MathsQuatToEulerPYR qdiff -> vang in
+            /*
+            let if ((absf (SO3MathsRadianToDegree vtx)) >=. 180.0) then (-.vtx +. (SO3MathsDegreeToRadian 180.0)) else vtx -> vtx in 
+            let if ((absf (SO3MathsRadianToDegree vty)) >=. 180.0) then (-.vty +. (SO3MathsDegreeToRadian 180.0)) else vty -> vty in
+            let if ((absf (SO3MathsRadianToDegree vtz)) >=. 180.0) then (-.vtz +. (SO3MathsDegreeToRadian 180.0)) else vtz -> vtz in
+            */
+            let multiplyVectorF vang vnbsec -> omega in
+            (
+              SO3BodySetFreeze body 0;
+              SO3ObjectSetScale strobj.OBJP_h3d tscale;
+              //SO3BodyMoveTo body tvec 0.3;
+              //SO3BodyRotateTo body tang 1.0;
+              SO3BodySetVelocity body vel;
+              SO3BodySetOmega body omega;
+              0;
+            );
+          );
+          0;
+        );
+        set strobj.OBJP_iTick = 0;
+      );
+    );
+  );
+  0;;
+
+/*
+fun getTCBLength(strobj, speed)=
+  let 0.0 -> ndata in
+  let 0.0 -> i in
+  let 1.0 /. ((itof strobj.OBJP_fps) /. speed) -> stp in
+  let nil -> prevpos in
+  (
+    while i <=. 1.0 do
+    (
+      let getInterpolateTCB strobj.OBJP_srcpos::strobj.OBJP_targetPos::nil i -> [index tvec] in
+      (
+        if prevpos == nil || tvec == nil then nil else
+          let prevpos -> [xa ya za] in
+          let tvec -> [xb yb zb] in
+          let sqrt ( (sqr(xa -. xb)) +. (sqr(ya -. yb)) +. (sqr(za -. zb)) ) -> dist in
+            set ndata = ndata +. dist;
+        
+        if tvec == nil then nil else
+          set prevpos = tvec;
+      );
+      set i = i +. stp;
+    );
+    ndata;
+  );;
+*/
+
+fun cbObjEnd(strobj)=
+  SendPluginEvent strobj.OBJP_inst "End" nil nil;
+  0;;
+
+
+fun cbStopPath(inst, from, action, param, reply, strobj)=
+  setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst nil;  
+  set strobj.OBJP_iState = 0;
+  set strobj.OBJP_posindex = 0;
+  set strobj.OBJP_angcoef = 0.0;
+  set strobj.OBJP_coef = 0.0;
+  set strobj.OBJP_fDirection = 1.0;
+	0;;
+
+
+fun cbPausePath(inst, from, action, param, reply, strobj)=
+  setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst nil; 
+  let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in 
+  (
+    SO3BodySetVelocity body [0.0 0.0 0.0];
+    SO3BodySetOmega body [0.0 0.0 0.0];
+  );
+  
+  set strobj.OBJP_iState = 2;
+	0;;
+
+
+fun cbPlayPath(inst, from, action, param, reply, strobj)=
+  if ((strobj.OBJP_iState == 1) || ((sizelist strobj.OBJP_targetPos) < 2)) then nil else
+  (
+    let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+    if !(usePhysic strobj) then nil else
+    (
+      SO3BodySetVelocity body [0.0 0.0 0.0];
+      SO3BodySetOmega body [0.0 0.0 0.0];
+    );
+    
+    if (strobj.OBJP_iState != 0) then nil else
+    (
+      SendPluginEvent strobj.OBJP_inst "Started" nil nil;
+      set strobj.OBJP_angcoef = 0.0;
+      set strobj.OBJP_coef = 0.0;
+    );       
+    
+    set strobj.OBJP_iState = 1;
+    set strobj.OBJP_iTick = 0;
+    
+    setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst mkfun4 mkfun5 @cbMoveObj @cbObjEnd strobj;
+  );
+  0;;
+
+
+fun cbPlayReversedPath(inst, from, action, param, reply, strobj)=
+  if ((sizelist strobj.OBJP_targetPos) < 2) then nil else
+  (
+    if (strobj.OBJP_iState == 1) then
+    (
+      set strobj.OBJP_fDirection = strobj.OBJP_fDirection *. (-.1.0);
+      0;
+    )
+    else
+    (    
+      let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+      if !(usePhysic strobj) then nil else
+      (
+        SO3BodySetVelocity body [0.0 0.0 0.0];
+        SO3BodySetOmega body [0.0 0.0 0.0];
+      );
+      
+      if (strobj.OBJP_iState != 0) then nil else
+      (
+        SendPluginEvent strobj.OBJP_inst "Started" nil nil;
+      );
+      
+      set strobj.OBJP_iState = 1;
+      set strobj.OBJP_iTick = 0;
+      set strobj.OBJP_fDirection = strobj.OBJP_fDirection *. (-.1.0);
+      setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst mkfun4 mkfun5 @cbMoveObj @cbObjEnd strobj;
+      0;
+    );
+  );
+  0;;
+
+
+fun objRelease(strobj)=
+  setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst nil;
+  
+  let strobj.OBJP_inipos -> [vec ang scale] in
+  (
+    SO3ObjectSetPosition strobj.OBJP_h3d vec;
+    SO3ObjectSetOrientation strobj.OBJP_h3d ang;
+    SO3ObjectSetScale strobj.OBJP_h3d scale;
+  );
+  
+  set strobj.OBJP_iState = 0;
+  0;;
+
+
+fun deleteOb(inst, strobj)=
+  objRelease strobj;
+  0;;
+
+
+fun loadPos(inst)=
+  let nil -> lpos in
+  let 0 -> i in
+  (
+    let atof getPluginInstanceParam inst (strcat "posx_" (itoa i)) -> posx in
+    let atof getPluginInstanceParam inst (strcat "posy_" (itoa i)) -> posy in
+    let atof getPluginInstanceParam inst (strcat "posz_" (itoa i)) -> posz in
+    
+    let atof getPluginInstanceParam inst (strcat "angx_" (itoa i)) -> angx in
+    let atof getPluginInstanceParam inst (strcat "angy_" (itoa i)) -> angy in
+    let atof getPluginInstanceParam inst (strcat "angz_" (itoa i)) -> angz in
+    
+    let atof getPluginInstanceParam inst (strcat "scalex_" (itoa i)) -> scalex in
+    let atof getPluginInstanceParam inst (strcat "scaley_" (itoa i)) -> scaley in
+    let atof getPluginInstanceParam inst (strcat "scalez_" (itoa i)) -> scalez in
+
+    let atof getPluginInstanceParam inst (strcat "T_" (itoa i)) -> T in
+    let atof getPluginInstanceParam inst (strcat "C_" (itoa i)) -> C in
+    let atof getPluginInstanceParam inst (strcat "B_" (itoa i)) -> B in
+    let atof getPluginInstanceParam inst (strcat "D_" (itoa i)) -> D in
+    while (posx != nil) do
+    (
+      set lpos = [[posx posy posz] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian angx SO3MathsDegreeToRadian angy SO3MathsDegreeToRadian angz] [scalex scaley scalez] [T C B] D]::lpos;    
+      
+      set i = i + 1;
+      set posx = atof getPluginInstanceParam inst (strcat "posx_" (itoa i));
+      set posy = atof getPluginInstanceParam inst (strcat "posy_" (itoa i));
+      set posz = atof getPluginInstanceParam inst (strcat "posz_" (itoa i));
+      
+      set angx = atof getPluginInstanceParam inst (strcat "angx_" (itoa i));
+      set angy = atof getPluginInstanceParam inst (strcat "angy_" (itoa i));
+      set angz = atof getPluginInstanceParam inst (strcat "angz_" (itoa i));
+      
+      set scalex = atof getPluginInstanceParam inst (strcat "scalex_" (itoa i));
+      set scaley = atof getPluginInstanceParam inst (strcat "scaley_" (itoa i));
+      set scalez = atof getPluginInstanceParam inst (strcat "scalez_" (itoa i));
+  
+      set T = atof getPluginInstanceParam inst (strcat "T_" (itoa i));
+      set C = atof getPluginInstanceParam inst (strcat "C_" (itoa i));
+      set B = atof getPluginInstanceParam inst (strcat "B_" (itoa i));
+      set D = atof getPluginInstanceParam inst (strcat "D_" (itoa i));
+    );
+    revertlist lpos;
+  );;
+
+
+fun newOb(inst)=
+  let (getPluginInstanceParam inst "sourceobject") -> sourcename in
+  let atoi (getPluginInstanceParam inst "loop") -> loop in
+  let atoi (getPluginInstanceParam inst "ping") -> ping in
+  let atoi (getPluginInstanceParam inst "target") -> target in
+  let atoi (getPluginInstanceParam inst "axis") -> axis in
+  let atoi (getPluginInstanceParam inst "init") -> init in
+  let atoi (getPluginInstanceParam inst "local") -> local in
+  let if (local == nil) then 0 else local -> local in
+  let atoi (getPluginInstanceParam inst "kps") -> kps in
+  let atoi (getPluginInstanceParam inst "nbkeys") -> nbkeys in
+  
+  let atof (getPluginInstanceParam inst "xdir") -> xdir in
+  let atof (getPluginInstanceParam inst "ydir") -> ydir in
+  let atof (getPluginInstanceParam inst "zdir") -> zdir in
+  let if xdir == nil then 0.0 else xdir -> xdir in
+  let if ydir == nil then 0.0 else ydir -> ydir in
+  let if zdir == nil then (-.1.0) else zdir -> zdir in
+
+  let V3DgetObjectByName c3dXsession sourcename -> source in
+  let V3DgetObjectTypeByName sourcename -> isourcemode in
+
+  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil] -> strobj in
+  (
+    set strobj.OBJP_tDir = [xdir ydir zdir];
+    set strobj.OBJP_kps = kps;
+    set strobj.OBJP_nbKeys = nbkeys;
+    set strobj.OBJP_inipos = [(SO3ObjectGetPosition strobj.OBJP_h3d) (SO3ObjectGetOrientation strobj.OBJP_h3d) (SO3ObjectGetScale strobj.OBJP_h3d)];
+    set strobj.OBJP_posindex = 0;
+    set strobj.OBJP_oldindex = nil;
+    set strobj.OBJP_angcoef = 0.0;
+    set strobj.OBJP_angstep = 0.0;
+    set strobj.OBJP_coef = 0.0;
+    set strobj.OBJP_bLoop = loop;
+    set strobj.OBJP_targetPos = loadPos inst;
+    set strobj.OBJP_fDirection = 1.0;
+    set strobj.OBJP_bPingPong = ping;
+    set strobj.OBJP_bToTarget = target;
+    set strobj.OBJP_iToAxis = axis;
+    set strobj.OBJP_bLocal = local;
+    set strobj.OBJP_iState = 0;
+    
+    PluginRegisterAction inst "Play" mkfun6 @cbPlayPath strobj;
+    PluginRegisterAction inst "Pause" mkfun6 @cbPausePath strobj;
+	PluginRegisterAction inst "Stop" mkfun6 @cbStopPath strobj;
+    PluginRegisterAction inst "Reverse" mkfun6 @cbPlayReversedPath strobj;
+
+		//PluginRegisterAction inst "Goto next pos" mkfun6 @cbNextPos strobj;
+		//PluginRegisterAction inst "Goto prev pos" mkfun6 @cbNextPos strobj;
+		
+		if (!init) then nil else
+		  cbPlayPath inst nil nil nil nil strobj;
+		
+    setPluginInstanceCbDel inst mkfun2 @deleteOb strobj;
+  );
+  0;;
+
+
+fun IniPlug(file)=
+  PlugRegister @newOb nil;
+  setPluginEditor @dynamicedit;
+  0;;
