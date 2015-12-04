@@ -741,6 +741,8 @@ fun showCompass(param)=
 fun createFonts(inst, pictstr) = downloadFontImages nil pictstr;;  
 
 fun cbWrite(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr 0 0 maConvert param 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
+fun cbWriteUp(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr 0 0 (substr maConvert param 0 pictstr.PICT_xMatrix) 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
+fun cbWriteDn(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr pictstr.PICT_yMatrix 0 (substr maConvert param 0 pictstr.PICT_xMatrix) 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
 fun cbWriter(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr pictstr.PICT_xMatrix-(strlen param) 0 (strcat maConvert param "   ") 0 0 nil nil 0;;//writeyr 0 (strcat maConvert param "   ") 0 0;; /*right up corner - logo, permanent until cls*/
 fun cbWriteTime(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr ((pictstr.PICT_xMatrix-(strlen param))/2) (pictstr.PICT_yMatrix/2)-1 maConvert param 0 1 nil nil 0;;//writecc maConvert param 0 1;;  /*centered and time depend*/
 fun cbWriteBlink(inst, from, action, param, reply, pictstr)=
@@ -1199,6 +1201,8 @@ fun cbNewOb(inst)=
     PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
 	
 	PluginRegisterAction inst "write" mkfun6 @cbWrite pictstr;	
+	PluginRegisterAction inst "writeUp" mkfun6 @cbWriteUp pictstr;
+	PluginRegisterAction inst "writeDn" mkfun6 @cbWriteDn pictstr;
 	PluginRegisterAction inst "writer" mkfun6 @cbWriter pictstr;	
 	PluginRegisterAction inst "writecls" mkfun6 @cbWriteCls pictstr;		
 	PluginRegisterAction inst "writetime" mkfun6 @cbWriteTime pictstr;		

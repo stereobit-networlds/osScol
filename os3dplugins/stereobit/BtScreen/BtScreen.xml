@@ -73,10 +73,9 @@
 	<EVENT name="loading" />
 	<EVENT name="started" />
     <EVENT name="echo" />	
-	<ACTION name="write">
-      <ENUM value="message" />
-      <ENUM value="test message 123" />
-    </ACTION>	
+	<ACTION name="write" />
+	<ACTION name="writeUp" />
+	<ACTION name="writeDn" />	
 	<ACTION name="writer" />
 	<ACTION name="writecls" />
 	<ACTION name="writetime" />
