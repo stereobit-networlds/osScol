@@ -1340,6 +1340,112 @@ initsession\ 40.635496\\\ 22.943427\\\ 510.0\\\ 30.48\\\ 1500000.0\\\ 0.240\\\ 0
 
 */  
   
+fun delListPoses(list)=   
+  if list==nil then nil else
+  let hd list -> posestr in  
+  (
+      while (posestr.EPOSE_lLines != nil) do
+      (
+        SO3ObjectDestroy hd posestr.EPOSE_lLines;
+        set posestr.EPOSE_lLines = tl posestr.EPOSE_lLines;
+      );
+      //set edstr.ETRACK_lPoses = remove_from_list edstr.ETRACK_lPoses posestr;
+
+      V3DshowObjectAxis (V3DgetSessionView c3dXsession) c3dXsession posestr.EPOSE_child 1 0;
+      SO3ObjectDestroy posestr.EPOSE_child;
+      set posestr.EPOSE_child = nil;
+	  
+	  delListPoses tl list;
+  );
+  0;; 
+
+fun delDots(list, ctrllist, i) =
+  if list==nil then nil else 
+  (
+    selectEdCtrlListByPos ctrllist i;
+    let getSelectedEdCtrlListExt ctrllist -> [pos sname _ _] in	
+	delEdCtrlList ctrllist sname;
+	  
+	delDots tl list ctrllist i+1;
+  );
+  0;;
+
+fun delAllList(p)= 
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] tbstr chkplaypause] in 
+  let [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] -> z in  
+  (
+    setEdToolBarCheckState tbstr chkplaypause 0;
+    setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+	
+    set edstr.ETRACK_posindex = 0;
+    set edstr.ETRACK_angcoef = 0.0;
+    set edstr.ETRACK_coef = 0.0;
+    set edstr.ETRACK_iTick = 0; 
+
+	delDots edstr.ETRACK_lDots ctrllist 0; 
+	set edstr.ETRACK_lDots = nil;
+	
+	delListPoses edstr.ETRACK_lPoses;
+	set edstr.ETRACK_lPoses = nil;	
+
+  );
+  0;;	
+ 
+fun cbAddListFromNMEA(p)=
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] tbstr chkplaypause] in
+  let ctrlpos -> [ctrlposx ctrlposy ctrlposz] in
+  let ctrlang -> [ctrlangx ctrlangy ctrlangz] in
+  let ctrlscale -> [ctrlscalex ctrlscaley ctrlscalez] in
+  let ctrltcb -> [ctrlT ctrlC ctrlB ctrlD] in
+  (
+    setEdToolBarCheckState tbstr chkplaypause 0;
+    setPluginInstanceEditorCbPreRender edstr.ETRACK_inst nil;
+    set edstr.ETRACK_posindex = 0;
+    set edstr.ETRACK_angcoef = 0.0;
+    set edstr.ETRACK_coef = 0.0;
+    set edstr.ETRACK_iTick = 0;
+    
+    let ftoa getEdCtrlFloatValue ctrlposx -> posx in
+    let ftoa getEdCtrlFloatValue ctrlposy -> posy in
+    let ftoa getEdCtrlFloatValue ctrlposz -> posz in
+    
+    let ftoa getEdCtrlFloatValue ctrlangx -> angx in
+    let ftoa getEdCtrlFloatValue ctrlangy -> angy in
+    let ftoa getEdCtrlFloatValue ctrlangz -> angz in
+
+    let ftoa getEdCtrlFloatValue ctrlscalex -> scalex in
+    let ftoa getEdCtrlFloatValue ctrlscaley -> scaley in
+    let ftoa getEdCtrlFloatValue ctrlscalez -> scalez in
+    
+    let ftoa getEdCtrlFloatValue ctrlT -> T in
+    let ftoa getEdCtrlFloatValue ctrlC -> C in
+    let ftoa getEdCtrlFloatValue ctrlB -> B in
+    
+    let nth_list edstr.ETRACK_lDots ((getEdCtrlListNbElems ctrllist) - 1) -> [_ _ _ _ pt] in
+    let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let if edstr.ETRACK_bLocal then SO3ObjectGetPosition edstr.ETRACK_child else SO3ObjectGetGlobalPosition edstr.ETRACK_child -> [px py pz] in [ftoa px ftoa py ftoa pz] else [posx posy posz] -> [posx posy posz] in
+    let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let if edstr.ETRACK_bLocal then SO3MathsQuatToEulerYXZ SO3ObjectGetOrientation edstr.ETRACK_child else SO3MathsQuatToEulerYXZ SO3ObjectGetGlobalOrientation edstr.ETRACK_child -> [ax ay az] in [ftoa (SO3MathsRadianToDegree ax) ftoa (SO3MathsRadianToDegree ay) ftoa (SO3MathsRadianToDegree az)] else [angx angy angz] -> [angx angy angz] in
+    let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let SO3ObjectGetScale edstr.ETRACK_child -> [sx sy sz] in [ftoa sx ftoa sy ftoa sz] else [scalex scaley scalez] -> [scalex scaley scalez] in
+    
+    let if (pt == nil) then 0.0 else pt +. 0.1 -> ntime in
+    let ftoa (maxf 0.0 minf 1.0 ntime) -> D in    
+    let strcatnSep posx::posy::posz::angx::angy::angz::scalex::scaley::scalez::T::C::B::D::nil "," -> nvalue in
+    (
+      addEdCtrlList ctrllist nvalue nil nil;
+      //selectEdCtrlList ctrllist nvalue;
+      
+      let (getEdCtrlListNbElems ctrllist) - 1 -> pos in
+      (
+        selectEdCtrlListByPos ctrllist pos;
+        let getSelectedEdCtrlListExt ctrllist -> [pos sname _ _] in
+          fillDotsCtrls edstr pos sname [ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]];
+        0;
+      );
+    );
+    
+    updateDots edstr getEdCtrlListElems ctrllist;
+    refreshDots [edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] (getEdCtrlListNbElems ctrllist) - 1;
+  );
+  0;; 
  
 /*NMEA GPGGA lon lat to degrees */
 /*NMEA lat  0302.78469 = 03 + (02.78469/60) = 3.046412  decimal*/	
@@ -1470,7 +1576,8 @@ fun CheckIntegrity(line) =
         nil;;  
   
 /*read data array */  
-fun readNMEA(list, ctrl, index) =
+fun readNMEA(list, ctrl, index, p) =
+  let p -> [[edstr ctrllist ctrltimeline ctrlpos ctrlang ctrlscale ctrltcb] tbstr chkplaypause] in
   if list==nil then nil
   else
     let hd list -> line in
@@ -1478,7 +1585,8 @@ fun readNMEA(list, ctrl, index) =
 	(
       if (l == nil) then
       (
-	    _fooS strcat "NMEA LINE:" itoa index;	
+	    _fooS strcat "NMEA LINE:" itoa index;
+        cbAddListFromNMEA p;		
         0;
       )
       else if (!strcmp (hd l) "$PGRME") then
@@ -1599,7 +1707,7 @@ fun readNMEA(list, ctrl, index) =
       else
         0;	  
 	  
-	  readNMEA tl list ctrl index+1;	  
+	  readNMEA tl list ctrl index+1 p;	  
 	  0
      );;  
   
@@ -1610,9 +1718,13 @@ fun readNMEA(list, ctrl, index) =
    let _getpack _checkpack tmpfile -> data in
    readNMEA lineextr data ctrl;
    0;;*/
-fun openNMEA(ctrl, file) =  
+fun openNMEA(ctrl, file, p) =  
    let _getpack _checkpack file -> data in
-   readNMEA lineextr data ctrl 0;
+   (
+     delAllList p; /* delete list if exist */
+     readNMEA lineextr data ctrl 0 p;
+	 0
+   );	 
    0;; 
  
 
@@ -1698,10 +1810,10 @@ fun cbBtnPickFile(ctrlbtn, p)=
   0;;  
   
 fun cbBtnExecFile(ctrlbtn, p)=
-  let p -> [inst winstr ctrlpath ctrlurl ctrlisurl] in
+  let p -> [inst winstr ctrlpath ctrlurl ctrlisurl [tctrl tbstr chkplaypause]] in
   let getEdCtrlTextLineValue ctrlpath -> path in
   //let getPathFile path "" -> [fpath fname] in
-  openNMEA inst path;
+  openNMEA inst path [tctrl tbstr chkplaypause];
   0;;   
   
 fun cbCheckUrl(ctrl, state, p)=
@@ -1930,7 +2042,7 @@ fun dynamicedit(ewinstr, inst, viewstr) =
 	  
 	  setEdCtrlCheckState ctrlisurl isurl;
       setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickFile [inst winstr ctrlpath ctrlurl ctrlisurl];
-	  setEdCtrlButtonCb execfilebtn mkfun2 @cbBtnExecFile [inst winstr ctrlpath ctrlurl ctrlisurl];
+	  setEdCtrlButtonCb execfilebtn mkfun2 @cbBtnExecFile [inst winstr ctrlpath ctrlurl ctrlisurl [tctrl tbstr chkplaypause]];
       setEdCtrlCheckCbState ctrlisurl mkfun3 @cbCheckUrl [ctrlurl ctrlpath pickfilebtn];
       setEdCtrlTextLineEnable ctrlpath 0;
       setEdCtrlButtonCb refreshpath mkfun2 @cbRefreshBtn [ctrlpath];
