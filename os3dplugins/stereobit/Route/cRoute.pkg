@@ -767,7 +767,7 @@ fun CheckIntegrity(line) =
         nil;;  
   
 /*read data array */  
-fun readNMEA(list, strobj, index) =
+fun readRouteFile(list, strobj, index) =
   if list==nil then nil
   else
     let hd list -> line in
@@ -896,16 +896,37 @@ fun readNMEA(list, strobj, index) =
       else
         0;	  
 	  
-	  readNMEA tl list strobj index+1;	  
+	  readRouteFile tl list strobj index+1;	  
 	  0
      );;  
 
+ 
+fun AnalyseAndFilter(l) =
+  if (l == nil) then
+    l
+  else if ((!strcmp (substr (hd l) 0 6) "$PGRME")
+        || (!strcmp (substr (hd l) 0 6) "$PGRMZ")
+        || (!strcmp (substr (hd l) 0 6) "$GPRMC")
+        || (!strcmp (substr (hd l) 0 6) "$GPGGA")
+        || (!strcmp (substr (hd l) 0 6) "cbTick")) then
+    (hd l)::(AnalyseAndFilter (tl l))
+  else
+    AnalyseAndFilter (tl l);;	 
   
+ 
 /* if GpsRec flag is on and file exist */
 /* read pre-recorded gps data files if index in 1-n read one after another*/
-fun openNMEA(strobj, index) = 
+fun openRouteFile(strobj, index) = 
    let strcatn sTmpDownloadPath::(getPluginInstanceName strobj.OBJP_inst)::".tmp"::nil -> tmpfile in       
-   _getpack _checkpack tmpfile;;
+   //_getpack _checkpack tmpfile;;
+  
+   let lineextr _getpack _checkpack tmpfile -> data in   
+   if (data!=nil) then 
+   (
+     //readRouteFile data ctrl 0 p;
+	 //readRouteFile AnalyseAndFilter data ctrl 0 p;
+	 0
+   ) else 0;;    
    
 fun cbDownloaded(file, data, strobj)=
   if data == nil then nil else

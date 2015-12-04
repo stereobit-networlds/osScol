@@ -1724,6 +1724,18 @@ fun readRouteFile(list, ctrl, index, p) =
 	  readRouteFile tl list ctrl index+1 p;	  
 	  0
      );;  
+	 
+fun AnalyseAndFilter(l) =
+  if (l == nil) then
+    l
+  else if ((!strcmp (substr (hd l) 0 6) "$PGRME")
+        || (!strcmp (substr (hd l) 0 6) "$PGRMZ")
+        || (!strcmp (substr (hd l) 0 6) "$GPRMC")
+        || (!strcmp (substr (hd l) 0 6) "$GPGGA")
+        || (!strcmp (substr (hd l) 0 6) "cbTick")) then
+    (hd l)::(AnalyseAndFilter (tl l))
+  else
+    AnalyseAndFilter (tl l);;	 
   
 /* if GpsRec flag is on and file exist */
 /* read pre-recorded gps data files if index in 1-n read one after another*/
@@ -1733,13 +1745,16 @@ fun readRouteFile(list, ctrl, index, p) =
    readNMEA lineextr data ctrl;
    0;;*/
 fun openRouteFile(ctrl, file, p) =  
-   let _getpack _checkpack file -> data in
+   let lineextr _getpack _checkpack file -> data in   
+   //let lineextr_getpack _checkpack file -> data in
+   if (data!=nil) then 
    (
      delAllList p; /* delete list if exist */
-     readRouteFile lineextr data ctrl 0 p;
+	 
+     //readRouteFile data ctrl 0 p;
+	 readRouteFile AnalyseAndFilter data ctrl 0 p;
 	 0
-   );	 
-   0;; 
+   ) else 0;; 
  
 
 fun cbDownloaded(file, data, ctrl)=
@@ -1824,10 +1839,14 @@ fun cbBtnPickFile(ctrlbtn, p)=
   0;;  
   
 fun cbBtnExecFile(ctrlbtn, p)=
-  let p -> [inst winstr ctrlpath ctrlurl ctrlisurl [tctrl tbstr chkplaypause]] in
+  let p -> [inst _ ctrlpath ctrlurl ctrlisurl z] in
   let getEdCtrlTextLineValue ctrlpath -> path in
-  //let getPathFile path "" -> [fpath fname] in
-  openRouteFile inst path [tctrl tbstr chkplaypause];
+  openRouteFile inst path z;
+  0;;   
+  
+fun cbBtnDeleFile(ctrlbtn, p)=
+  let p -> [_ _ _ _ _ z] in
+  delAllList z;
   0;;   
   
 fun cbCheckUrl(ctrl, state, p)=
@@ -1966,15 +1985,16 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     
     //let _DLGMessageBox _channel nil "debug" itoa (set ypos = ypos + 35) 0 -> _ in
 	
-    let crEdFrameWindow _channel ewinstr 0 0 iw 80 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_1006") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
+    let crEdFrameWindow _channel ewinstr 0 0 iw 80 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_1001") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
     let crEdWindow _channel winfrm 0 18 iw 60 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
     let crEdCtrlCheck winstr 10 (set ypos = 10) 100 20 (loc "OS3DOBJECTTRACK_1028") EDWIN_RESIZE_MW -> ctrlisurl in
-    let crEdCtrlTextLine winstr 180 ypos (iw - 200) 20 url nil EDWIN_RESIZE_MW -> ctrlurl in
+    let crEdCtrlTextLine winstr 85 ypos 250 20 url nil EDWIN_RESIZE_MW -> ctrlurl in
+	let crEdCtrlButton winstr 341 ypos 39 20 (loc "OS3DOBJECTTRACK_1005") nil -> execfilebtn in	
+	let crEdCtrlButton winstr 381 ypos 39 20 (loc "OS3DOBJECTTRACK_1006") nil -> delefilebtn in
     let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 160 20 (loc "OS3DOBJECTTRACK_1002") nil -> labelobj in
-    let crEdCtrlTextLine winstr 180 ypos 170 20 path nil EDWIN_RESIZE_MW -> ctrlpath in
-    let crEdCtrlButton winstr 360 ypos 25 20 "..." nil -> pickfilebtn in
-	let crEdCtrlButton winstr 390 ypos 25 20 "EXE" nil -> execfilebtn in
-    let crEdCtrlButton winstr 420 ypos 35 20 "X" nil -> refreshpath in 	
+    let crEdCtrlTextLine winstr 85 ypos 250 20 path nil EDWIN_RESIZE_MW -> ctrlpath in
+    let crEdCtrlButton winstr 341 ypos 25 20 "..." nil -> pickfilebtn in
+    let crEdCtrlButton winstr 371 ypos 49 20 "X" nil -> refreshpath in 	
     
     let crEdFrameWindow _channel ewinstr 0 0 iw 55 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_0013") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
     let crEdWindow _channel winfrm 0 18 iw 35 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in 
@@ -2057,6 +2077,7 @@ fun dynamicedit(ewinstr, inst, viewstr) =
 	  setEdCtrlCheckState ctrlisurl isurl;
       setEdCtrlButtonCb pickfilebtn mkfun2 @cbBtnPickFile [inst winstr ctrlpath ctrlurl ctrlisurl];
 	  setEdCtrlButtonCb execfilebtn mkfun2 @cbBtnExecFile [inst winstr ctrlpath ctrlurl ctrlisurl [tctrl tbstr chkplaypause]];
+	  setEdCtrlButtonCb delefilebtn mkfun2 @cbBtnDeleFile [inst winstr ctrlpath ctrlurl ctrlisurl [tctrl tbstr chkplaypause]];
       setEdCtrlCheckCbState ctrlisurl mkfun3 @cbCheckUrl [ctrlurl ctrlpath pickfilebtn];
       setEdCtrlTextLineEnable ctrlpath 0;
       setEdCtrlButtonCb refreshpath mkfun2 @cbRefreshBtn [ctrlpath];
