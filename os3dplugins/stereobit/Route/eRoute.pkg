@@ -111,7 +111,9 @@ fun getSessionData() =
    //let strcat sessionpath ses -> sesfile in
    //...fix
    
-   let "40.589226 22.964331 510.0 30.48 20000.0 0.445 0.380" -> isession in  //<<<<<<<<<<<<<<<<<<<<<<<
+   //let "40.589226 22.964331 510.0 30.48 20000.0 0.445 0.380" -> isession in  //<<<<<<<<<<<<<<<<<<<<<<<
+   //kamara filtered
+   let "40.627138 22.957114 510.0 30.48 20000.0 0.445 0.380" -> isession in
    let "0 15500 0 9 11 12" -> iparser in 
    (   
      let strcatn isession::"\n"::iparser::nil ->sesdata in //<<<fix   

@@ -88,8 +88,9 @@
     <EVENT name="Released" />
     <EVENT name="Shown" />
     <EVENT name="Hidden" />
+    <EVENT name="shownUrl" />	
     <EVENT name="Pushed move" />
     <ACTION name="ObClicked" />	
-    <ACTION name="openUrl" />		
+    <ACTION name="openUrl" />			
   </CLIENT>
 </PLUGIN>

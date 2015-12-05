@@ -341,6 +341,7 @@ fun endDownloadFontImage(file, data, x)=
   let strcatn sTmpDownloadPath::tfile::nil -> tmpfile in
   (
     _storepack data tmpfile;
+	
     let G2DloadAlphaBmp _channel tmpfile -> abmp in 
     if abmp == nil then 
 	(
@@ -360,11 +361,47 @@ fun endDownloadFontImage(file, data, x)=
 		  0
 	    );
         if (i < fsize) then nil else 
-		  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-		  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
-		  createFontMatrix pictstr nil nil [px py pw ph]
+		  SendPluginEvent pictstr.PICT_instance "endLoad" nil nil
 	);
-  );;	
+  );;		
+	
+/*    if abmp == nil then 
+	(
+      //_echo pictstr strcat "BtScreen: null request " file;	
+	  _fooS strcat "BtScreen: null request " file;	
+	  nil 
+	)  
+	else
+	(
+        //if (i < fsize) then nil else
+		let 0 -> exit in
+		let 0.1 -> m in
+		( /* holds until dnload complete - async problem when dnloading fonts from web for 1st time*/ 
+		  while (abmp==nil || exit==0) do 
+		  (
+		    let G2DloadAlphaBmp _channel tmpfile -> abmp in
+			set m = m +. 0.1;
+			SendPluginEvent pictstr.PICT_instance "loading" ftoa m nil;
+			if (m <. 1000.0) then nil else
+            let _GETalphaBitmapSize abmp -> [w h] in			
+			(
+		      let strfind ".png" file 0 -> r in  
+              let substr file 0 r -> s in
+              let searchSlash s 0 -> poslastslash in
+              let substr s poslastslash strlen s -> name in		  
+              set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;		
+			  set exit = 1;
+			  0
+			);  
+		  );
+			
+          SendPluginEvent pictstr.PICT_instance "endLoad" nil nil
+		);	
+		  /*let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+		  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
+		  createFontMatrix pictstr nil nil [px py pw ph]*/
+	//);
+  );;	*/
   
 /*** web server dnload description file (images list) ***/
 fun endDownloadFontFile(file, data, pictstr)=
@@ -385,30 +422,33 @@ fun endDownloadFontFile(file, data, pictstr)=
 	
     let strcatn sTmpDownloadPath::tfile::nil -> tmpfile in
 	let G2DloadAlphaBmp _channel tmpfile -> abmp in
-    if (abmp!=nil) then 
-	  let _GETalphaBitmapSize abmp -> [w h] in
-	  let strfind ".png" fontfile 0 -> r in		   
-      let substr fontfile 0 r -> s in
-      let searchSlash s 0 -> poslastslash in
-      let substr s poslastslash strlen s -> name in
-	  (
+	
+    if (abmp!=nil) then /*cache load*/ 
+	 let _GETalphaBitmapSize abmp -> [w h] in
+	 let strfind ".png" fontfile 0 -> r in		   
+     let substr fontfile 0 r -> s in
+     let searchSlash s 0 -> poslastslash in
+     let substr s poslastslash strlen s -> name in
+	 (
 		_fooS strcat "DnLoading cached font file:" tmpfile;
+	    SendPluginEvent pictstr.PICT_instance "loading" strcat "BtScreen loading:" fontfile nil;
+		
 		set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
         set i = i+1;
 		if (i < fsize) then nil else 
-		  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-		  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
-		  createFontMatrix pictstr nil nil [px py pw ph] 
-	  )
-	else	
-    (
-	 _fooS strcat "DnLoading font file:" file;
-	 //_echo pictstr strcatn "Download font image:"::file::nil;
+		  SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;
+	 )
+	 else /*web load */	
 	 let strcatn path::fontfile::nil -> url in
-	 downloadFile url mkfun3 @endDownloadFontImage [i fsize pictstr];
-     set i = i+1
-	); 
-	0;; 
+	 (
+	   _fooS strcat "DnLoading font file:" fontfile;
+	   //_echo pictstr strcatn "Download font image:"::fontfile::nil;
+	   SendPluginEvent pictstr.PICT_instance "loading" strcat "BtScreen loading:" url nil;
+		 
+	   downloadFile url mkfun3 @endDownloadFontImage [i fsize pictstr];
+         set i = i+1;
+	  );
+   0;; 
 	
 /** scol server version **/   	
 fun endDownloadFontImageS(file, data, x)= 
@@ -425,10 +465,11 @@ fun endDownloadFontImageS(file, data, x)=
       set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
 	  0
     );	
-	if (i < fsize) then nil else 
-	  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+	if (i < fsize) then nil else
+      SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;	
+	  /*let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
 	  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
-	  createFontMatrix pictstr nil nil [px py pw ph]
+	  createFontMatrix pictstr nil nil [px py pw ph]*/
   );;		
   
 fun downloadFontImages(files, pictstr)=
@@ -462,6 +503,8 @@ fun downloadFontImages(files, pictstr)=
 		let _GETalphaBitmapSize abmp -> [w h] in
         (   
 		   _fooS strcat "DnLoading font:" file;
+		   SendPluginEvent pictstr.PICT_instance "loading" strcat "BtScreen loading:" file nil;
+		   
            let substr file 0 r -> s in
            let searchSlash s 0 -> poslastslash in
            let substr s poslastslash strlen s -> name in
@@ -469,9 +512,10 @@ fun downloadFontImages(files, pictstr)=
              set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
              set i = i+1;
 		     if (i < fsize) then nil else 
-			   let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+			   SendPluginEvent pictstr.PICT_instance "endLoad" nil nil	
+			   /*let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
 			   let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
-			   createFontMatrix pictstr nil nil [px py pw ph] 		   
+			   createFontMatrix pictstr nil nil [px py pw ph]*/ 		   
 		   )
         );
 		//set pictstr.PICT_lfontImages = lfontImages;
@@ -657,38 +701,9 @@ fun writeFontMatrix(pictstr,x,y,s,b,t,url,issymbol,slide) =
 /*string conversions*/					   
 fun maConvert(s) = s;;  /*** DISABLED PICTSTR****/
   //let substr s 0 pictstr.PICT_xMatrix -> ss in /*not bigger than screen max x*/
-  //strlowercase ss;;	              /*lowercase */
+  //strlowercase ss;;	              /*lowercase */ 
 
-/*  
-fun showFontList(list,i,j)=
-  if list == nil then
-    nil
-  else 
-  ( let hd list -> [_ name _ _ _ _ _ _] in
-    if (strlen name) == 1 then
-      writexy i j name 0 0
-    else	 
-	  symbolxy i j name 0 0;  
-	  
-	let if (i<xMatrix-1) then i+1 else (set j=j+1; 0) -> i in	
-    (showFontList tl list i j;
-	0)
-  );;    		
-  
-
-fun fillFontMatrix(list, b, t, u)= 
-  if list == nil then
-    nil
-  else 
-  ( let hd list -> [_ x y _ _ _ _ _ _ _ _] in
-	//writexyu x y "a" b t u;
-	symbolxyu x y "enter" b t u; 
-    fillFontMatrix tl list b t u;
-	0
-  );; 
-
-*/  
-  
+ 
 fun hideFontMatrix(list) =
   if list == nil then
     nil
@@ -768,11 +783,69 @@ fun showCompass(param)=
   showFramerate param ;
   0;;
   
-*/  	
-  
-  
-fun createFonts(inst, pictstr) = downloadFontImages nil pictstr;;  
+*/  	  
 
+  
+/*alias*/	
+fun writexy(pictstr,x,y,s,b,t)= writeFontMatrix pictstr x y s b t nil nil 0;;
+fun writexd(pictstr,x,d,s,b,t)=writeFontMatrix pictstr x (pictstr.PICT_yMatrix-d) s b t nil nil 0;;
+fun writery(pictstr,r,y,s,b,t)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil nil 0;;
+fun writexyu(pictstr,x,y,s,b,t,u)=writeFontMatrix pictstr x y s b t u nil 0;;	
+fun writeyr(pictstr,y,s,b,t) = let pictstr.PICT_xMatrix-(strlen s) -> x in 
+                       writeFontMatrix pictstr x y s b t nil nil 0;;	
+fun writeyc(pictstr,y,s,b,t) = let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in 
+                       writeFontMatrix pictstr x y s b t nil nil 0;;	
+fun writecc(pictstr,s,b,t)   = let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in
+                       let (pictstr.PICT_yMatrix/2)-1 -> y in
+                       writeFontMatrix pictstr x y s b t nil nil 0;;	
+fun writeccurl(pictstr,s,b,t,u)= let ((pictstr.PICT_xMatrix-(strlen s))/2) -> x in
+                       let (pictstr.PICT_yMatrix/2)-1 -> y in
+                       writeFontMatrix pictstr x y s b t u nil 0;;	
+			
+fun symbolxy(pictstr,x,y,s,b,t)=writeFontMatrix pictstr x y s b t nil 1 0;;
+fun symbolxd(pictstr,x,d,s,b,t)=writeFontMatrix pictstr x (pictstr.PICT_yMatrix-d) s b t nil 1 0;;
+fun symbolry(pictstr,r,y,s,b,t)=writeFontMatrix pictstr (pictstr.PICT_xMatrix-r) y s b t nil 1 0;;
+fun symbolxyu(pictstr,x,y,s,b,t,u)= writeFontMatrix pictstr x y s b t u 1 0;;
+fun symbolyr(pictstr,y,s,b,t) = let pictstr.PICT_xMatrix-1 -> x in 
+                        writeFontMatrix pictstr x y s b t nil 1 0;;
+fun symbolyc(pictstr,y,s,b,t) = let (pictstr.PICT_xMatrix/2)-1 -> x in 
+                        writeFontMatrix pictstr x y s b t nil 1 0;;	
+fun symbolcc(pictstr,s,b,t)    = let (pictstr.PICT_xMatrix/2)-1 -> x in
+                        let (pictstr.PICT_yMatrix/2)-1 -> y in
+                        writeFontMatrix pictstr x y s b t nil 1 0;;	
+fun symbolccurl(pictstr,s,b,t,u)= let (pictstr.PICT_xMatrix/2)-1 -> x in
+                       let (pictstr.PICT_yMatrix/2)-1 -> y in
+                       writeFontMatrix pictstr x y s b t u 1 0;;	 
+ 
+/* utils */
+fun showFontList(list,pictstr,i,j)=
+  if list == nil then
+    nil
+  else 
+  ( let hd list -> [_ name _ _ _ _ _ _] in
+    if (strlen name) == 1 then
+      writexy pictstr i j name 0 0
+    else
+      0;//symbolxy i j name 0 0;  //<disabled 
+	  
+	let if (i<pictstr.PICT_xMatrix-1) then i+1 else (set j=j+1; 0) -> i in	
+    (showFontList tl list pictstr i j;
+	0)
+  );;    		
+  
+
+fun fillFontMatrix(list, pictstr, b, t, u)= 
+  if list == nil then
+    nil
+  else 
+  ( let hd list -> [_ x y _ _ _ _ _ _ _ _] in
+	//writexyu pictstr x y "a" b t u;
+	//symbolxyu pictstr x y "enter" b t u; 
+    fillFontMatrix tl list pictstr b t u;
+	0
+  );;  
+  
+  
 fun cbWrite(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr 0 0 maConvert param 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
 fun cbWriteUp(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr 0 0 (substr maConvert param 0 pictstr.PICT_xMatrix) 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
 fun cbWriteDn(inst, from, action, param, reply, pictstr)= writeFontMatrix pictstr pictstr.PICT_yMatrix 0 (substr maConvert param 0 pictstr.PICT_xMatrix) 0 0 nil nil 0;;//writexy 0 0 maConvert param 0 0;;  
@@ -792,8 +865,18 @@ fun cbWriteScore(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (
 fun cbShowCompass(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then nil else 0;;//showCompass param else 0;;
 fun cbShowFramerate(inst, from, action, param, reply, pictstr)= if (mEpass!=1) && (param!=nil) then nil else 0;;//showFramerate param else 0;;
   
-
-
+  
+fun cbStart(inst, from, action, param, reply, pictstr) =
+  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
+  
+  createFontMatrix pictstr nil nil [px py pw ph];
+  
+  SendPluginEvent inst "started" nil nil;
+  0;;  
+  
+fun loadFonts(inst, pictstr) = downloadFontImages nil pictstr;;  
+  
 /***********************************************************************/
 
 
@@ -1196,7 +1279,7 @@ fun cbNewOb(inst)=
     createPicture inst pictstr;
 	//_fooS "Start";
 	SendPluginEvent inst "startLoad" nil nil;
-    createFonts inst pictstr;		
+    loadFonts inst pictstr;		
     
     if pictstr.PICT_bOnMaterial then nil else
       setPluginInstanceCbResizeView inst mkfun5 @cbResizeCtrl pictstr;
@@ -1232,7 +1315,8 @@ fun cbNewOb(inst)=
     PluginRegisterAction inst "Set position" mkfun6 @cbSetPosition pictstr;
     PluginRegisterAction inst "Set size" mkfun6 @cbSetSize pictstr;
     PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
-	
+
+	PluginRegisterAction inst "start" mkfun6 @cbStart pictstr;	
 	PluginRegisterAction inst "write" mkfun6 @cbWrite pictstr;	
 	PluginRegisterAction inst "writeUp" mkfun6 @cbWriteUp pictstr;
 	PluginRegisterAction inst "writeDn" mkfun6 @cbWriteDn pictstr;
@@ -1247,10 +1331,10 @@ fun cbNewOb(inst)=
 	PluginRegisterAction inst "ShowFramerate" mkfun6 @cbShowFramerate pictstr;
 	
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
+
 	
-	SendPluginEvent inst "endLoad" nil nil;
-	
-	SendPluginEvent inst "started" nil nil;
+	//start when a link between "endLoad" and start firedup
+	//SendPluginEvent inst "started" nil nil; 
   );
   0;;
 

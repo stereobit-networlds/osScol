@@ -591,13 +591,18 @@ fun endDownloadImage(file, data, x)=
           let substr file 0 r -> s in
           let searchSlash s 0 -> poslastslash in
           let substr s poslastslash strlen s -> name in			  
-          set linfoImages = [abmp name w h 0 0 nil 0 createMXWidget viewportstr name 0 0 1 1]::linfoImages
+          set linfoImages = [abmp name w h 0 0 nil 0 createMXWidget viewportstr name 0 0 1 1]::linfoImages;
+		  SendPluginEvent pictstr.PICT_instance "loading" strcat "BtScreen loading:" file nil;
 	    );
-        //if (i < fsize) then nil else //effect during loading...
-		  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-		  let makeMatrix pictstr -> matrix in
-		  showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
-		  blitInfoImages linfoImages
+		
+		//effect during loading...(cbstart)
+        let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+		let makeMatrix pictstr -> matrix in
+		showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
+		blitInfoImages linfoImages;
+		
+        if (i < fsize) then nil else 
+		  SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;
 	);
   );;	
   
@@ -615,10 +620,12 @@ fun endDownloadFile(file, data, z)=
     let 0 -> i in  
     let (sizelist files) -> fsize in
     while i < fsize do 
+	
       let nth_list files i -> imgfile in	
       /*let getPathFile imgfile "" -> [_ tfile] in  
       let strcatn sTmpDownloadPath::tfile::nil -> tmpfile in
 	  let G2DloadAlphaBmp _channel tmpfile -> abmp in
+	  
       if (abmp!=nil) then 
 	    let _GETalphaBitmapSize abmp -> [w h] in
 		let strfind ".png" imgfile 0 -> r in		   
@@ -626,16 +633,12 @@ fun endDownloadFile(file, data, z)=
         let searchSlash s 0 -> poslastslash in
         let substr s poslastslash strlen s -> name in
 		(
-		     _echo pictstr strcat "Download cached info image:" tmpfile;
+		     //_echo pictstr strcat "Download cached info image:" tmpfile;
+			 SendPluginEvent pictstr.PICT_instance "loading" strcat "BtMatrix loading:" tmpfile nil;
              set linfoImages = [abmp name w h 0 0 nil 0 createMXWidget viewportstr name 0 0 1 1]::linfoImages;	
              set i = i+1;
 		     if (i < fsize-1) then nil else 
-			 (
-			 let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-			 let makeMatrix pictstr -> matrix in
-			 showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
-			 blitInfoImages linfoImages
-			 );
+			   SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;
 		)
 		else*/
 	    let strcat webdir imgfile -> url in
@@ -663,10 +666,12 @@ fun endDownloadImageS(file, data, x)=
 	  _echo pictstr strcat "DnLoading file: " file;
     );	
 	if (i < fsize) then nil else 
+	  SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;
+	  /*
 	  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
 	  let makeMatrix pictstr -> matrix in
 	  showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
-	  blitInfoImages linfoImages
+	  blitInfoImages linfoImages*/
   );;		
   
 fun downloadInfoImages(pictstr, param, files)=
@@ -695,7 +700,7 @@ fun downloadInfoImages(pictstr, param, files)=
   )
   else
   (
-	_fooS "(LOCAL)\n";
+	//_fooS "(LOCAL)\n";
     let getFileDirectory pictstr.PICT_imgpath -> path in
 	let strcat path param -> infopath in
     let getFilesFromDir infopath "png"::nil -> files in 
@@ -707,7 +712,8 @@ fun downloadInfoImages(pictstr, param, files)=
 		let _GETalphaBitmapSize abmp -> [w h] in
         (   
 		   //_fooS strcat "DnLoading info images:" file;
-		   _echo pictstr strcat "Download info file:" file;
+		   //_echo pictstr strcat "Download info file:" file;
+		   SendPluginEvent pictstr.PICT_instance "loading" strcat "BtMatrix loading:" file nil;
 		   
 	       let strfind ".png" file 0 -> r in		   
            let substr file 0 r -> s in
@@ -717,10 +723,7 @@ fun downloadInfoImages(pictstr, param, files)=
              set linfoImages = [abmp name w h 0 0 nil 0 createMXWidget viewportstr name 0 0 1 1]::linfoImages;	
              set i = i+1;
 		     if (i < fsize) then nil else 
-			   let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-			   let makeMatrix pictstr -> matrix in
-			   showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
-			   blitInfoImages linfoImages
+			   SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;
 		    )
         );
 		//set pictstr.PICT_linfoImages = linfoImages;
@@ -757,6 +760,8 @@ fun showInfoImages(inst, pictstr, param, files) =
   else	   
    clearInfoImages linfoImages viewportstr; //init-delete previous info images
    downloadInfoImages pictstr param files; //(lineextr param); fethced file list from scol srv (old method) now an anchor name
+   
+   SendPluginEvent inst "shownUrl" param nil;
    0;; 
 
 //fun openUrl(param) = _openbrowserhttp param;;      
@@ -790,8 +795,18 @@ fun cbOpenUrl(inst, from, action, param, reply, pictstr) =
   showInfoImages inst pictstr param nil;
   0;;
 
+/*make matrix when load */  
+fun cbStart(inst, from, action, param, reply, pictstr) =
+  let (V3DgetDefaultViewport (V3DgetSessionView c3dXsession)) -> viewportstr in
+  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+  let makeMatrix pictstr -> matrix in
   
-
+  showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
+  blitInfoImages linfoImages;
+  
+  SendPluginEvent inst "started" nil nil;
+  0;;
+  
 /***********************************************************************/
 
 /*....ANIM to be implemented into pre renders
@@ -1586,14 +1601,12 @@ fun cbNewOb(inst)=
     setPluginInstanceCbTouchPointRemove inst mkfun4 @cbRemoveCursor pictstr;
     setPluginInstanceCbTouchPointUpdate inst mkfun8 @cbUpdateCursor pictstr;
 	
+	PluginRegisterAction inst "start" mkfun6 @cbStart pictstr;	
 	PluginRegisterAction inst "ObClicked" mkfun6 @cbObClicked pictstr;	
 	PluginRegisterAction inst "openUrl" mkfun6 @cbOpenUrl pictstr;	
 	
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
-	
-	SendPluginEvent inst "endLoad" nil nil;
-	
-	SendPluginEvent inst "started" nil nil;
+
   );
   0;;
 
