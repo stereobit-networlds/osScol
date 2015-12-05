@@ -254,7 +254,7 @@ fun resetFontMatrix (pictstr, rx, ry, dim) =
   let (ScreenH/(dh+pictstr.PICT_ifsep)) -> hMatrix in
   let (wMatrix*hMatrix) -> sMatrix in
   (
-    _fooS strcat "Reset Font Matrix" "\n";
+    //_fooS strcat "Reset Font Matrix" "\n";
     resetMatrix viewportstr pictstr.PICT_fontMatrix wMatrix hMatrix dw dh pictstr.PICT_ifsep dim [0 0];
   0);; 	
   
@@ -335,17 +335,24 @@ fun clsline(pictstr, line) =
 
 /** web server version **/   
 fun endDownloadFontImage(file, data, x)= 
-  let strfind ".png" file 0 -> r in  
   let x -> [i fsize pictstr] in    
   if data == nil then nil else
-  let strcatn sTmpDownloadPath::file::".tmp"::nil -> tmpfile in
+  let getPathFile file "" -> [_ tfile] in
+  let strcatn sTmpDownloadPath::tfile::nil -> tmpfile in
   (
     _storepack data tmpfile;
     let G2DloadAlphaBmp _channel tmpfile -> abmp in 
-    if abmp == nil then nil else
+    if abmp == nil then 
+	(
+      //_echo pictstr strcat "BtScreen: null request " file;	
+	  _fooS strcat "BtScreen: null request " file;	
+	  nil 
+	)  
+	else
 	(
 	    let _GETalphaBitmapSize abmp -> [w h] in
 	    ( 
+		  let strfind ".png" file 0 -> r in  
           let substr file 0 r -> s in
           let searchSlash s 0 -> poslastslash in
           let substr s poslastslash strlen s -> name in		  
@@ -361,31 +368,57 @@ fun endDownloadFontImage(file, data, x)=
   
 /*** web server dnload description file (images list) ***/
 fun endDownloadFontFile(file, data, pictstr)=
-  if data == nil then nil else
+  if data == nil then 
+  ( 
+    //_echo pictstr strcat "BtScreen: null request " file;
+    _fooS strcat "BtScreen: null request " file;
+    nil 
+  )	   
+  else
   let lineextr data -> files in /*start dnload font files from list file readed before */
-  let getFileDirectory pictstr.PICT_fonturl -> url in
+  let getFileDirectory pictstr.PICT_fonturl -> path in
   let 0 -> i in  
   let (sizelist files) -> fsize in
   while i < fsize do 
-    let nth_list files i -> file in
+    let nth_list files i -> fontfile in
+	let getPathFile fontfile "" -> [_ tfile] in  
+	
+    let strcatn sTmpDownloadPath::tfile::nil -> tmpfile in
+	let G2DloadAlphaBmp _channel tmpfile -> abmp in
+    if (abmp!=nil) then 
+	  let _GETalphaBitmapSize abmp -> [w h] in
+	  let strfind ".png" fontfile 0 -> r in		   
+      let substr fontfile 0 r -> s in
+      let searchSlash s 0 -> poslastslash in
+      let substr s poslastslash strlen s -> name in
+	  (
+		_fooS strcat "DnLoading cached font file:" tmpfile;
+		set lfontImages = [abmp name w h 0 0 nil 0]::lfontImages;	
+        set i = i+1;
+		if (i < fsize) then nil else 
+		  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+		  let computePosSize pictstr ScreenW ScreenH -> [px py pw ph] in
+		  createFontMatrix pictstr nil nil [px py pw ph] 
+	  )
+	else	
     (
-	 //_echo strcat "Download web fonts...............:" file
-	 _fooS strcat "DnLoading web file:" file;
-	 let strcatn url::"/"::file::nil -> url in
+	 _fooS strcat "DnLoading font file:" file;
+	 //_echo pictstr strcatn "Download font image:"::file::nil;
+	 let strcatn path::fontfile::nil -> url in
 	 downloadFile url mkfun3 @endDownloadFontImage [i fsize pictstr];
      set i = i+1
 	); 
 	0;; 
 	
 /** scol server version **/   	
-fun endDownloadFontImageS(file, data, x)=
-  let strfind ".png" file 0 -> r in 
+fun endDownloadFontImageS(file, data, x)= 
   let x -> [i fsize pictstr] in
   let G2DloadAlphaBmp _channel file -> abmp in
   if abmp == nil then nil else
   (  
     let _GETalphaBitmapSize abmp -> [w h] in
-    ( 
+    (
+      let strfind ".png" file 0 -> r in	
       let substr file 0 r -> s in
       let searchSlash s 0 -> poslastslash in
       let substr s poslastslash strlen s -> name in
@@ -410,7 +443,7 @@ fun downloadFontImages(files, pictstr)=
   )
   else if pictstr.PICT_isfonturl then
   ( /* web server load */
-    _fooS "(WEB Server)\n";
+    //_fooS "(WEB Server)\n";
     downloadFile pictstr.PICT_fonturl mkfun3 @endDownloadFontFile pictstr;
 	nil
   )

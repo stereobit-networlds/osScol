@@ -1587,7 +1587,7 @@ fun CheckIntegrity(line) =
         nil;;  
   
 /*read data array */  
-fun readRouteFile(list, ctrl, index, p, saveValues) =
+fun readRouteFile(list, index, p, saveValues) =
   if list==nil then nil
   else
     let hd list -> line in
@@ -1728,7 +1728,7 @@ fun readRouteFile(list, ctrl, index, p, saveValues) =
       else
         0;	  
 	  
-	  readRouteFile tl list ctrl index+1 p saveValues;	  
+	  readRouteFile tl list index+1 p saveValues;	  
 	  0
      );;  
 	 
@@ -1744,32 +1744,34 @@ fun AnalyseAndFilter(l) =
   else
     AnalyseAndFilter (tl l);;	 
   
-/* if GpsRec flag is on and file exist */
-/* read pre-recorded gps data files if index in 1-n read one after another*/
-/*fun openFile(ctrl, index) =  
-   let strcatn sTmpDownloadPath::(getPluginInstanceName ctrl.ETRACK_inst)::".tmp"::nil -> tmpfile in       
-   let _getpack _checkpack tmpfile -> data in
-   readNMEA lineextr data ctrl;
-   0;;*/
-fun openRouteFile(ctrl, file, p) =  
+fun openRouteFile(inst, file, p) =  
    let lineextr _getpack _checkpack file -> data in   
-   //let lineextr_getpack _checkpack file -> data in
    if (data!=nil) then 
    (
      delAllList p; /* delete list if exist */
 	 
-     //readRouteFile data ctrl 0 p;
+     //readRouteFile data 0 p;
 	 
      set iErrV = 0.0;	 
      set iErrH = 0.0;	 
-	 readRouteFile AnalyseAndFilter data ctrl 0 p [0.0 0.0 0.0 0.0 0.0 0.0];
+	 readRouteFile AnalyseAndFilter data 0 p [0.0 0.0 0.0 0.0 0.0 0.0];
 	 0
    ) else 0;; 
  
 
-fun cbDownloaded(file, data, ctrl)=
-  if data == nil then nil else
-  let strcatn sTmpDownloadPath::(getPluginInstanceName ctrl.ETRACK_inst)::".tmp"::nil -> tmpfile in
+fun cbDownloaded(file, data, p)=
+  if data == nil then nil 
+  else 
+   let lineextr data -> webdata in   
+   (
+     delAllList p; /* delete list if exist */ 
+     set iErrV = 0.0;	 
+     set iErrH = 0.0;	 
+     readRouteFile AnalyseAndFilter webdata 0 p [0.0 0.0 0.0 0.0 0.0 0.0];
+   );0;;
+    
+fun cbDownloaded2(file, data, inst)=   
+  let strcatn sTmpDownloadPath::(getPluginInstanceName inst.ETRACK_inst)::".tmp"::nil -> tmpfile in
   (
     _fooS "SAVE FILE (WEB-SCOL)\n"; 
     _storepack data tmpfile;
@@ -1805,7 +1807,7 @@ fun downloadRouteFile(ctrl, file, param)=
   if (url!=nil) then
   ( 
     _fooS "(WEB Server)\n";
-    downloadFile url mkfun3 @cbDownloaded ctrl;
+    //downloadFile url mkfun3 @cbDownloaded ctrl;
 	nil
   )
   else 
@@ -1851,8 +1853,16 @@ fun cbBtnPickFile(ctrlbtn, p)=
 fun cbBtnExecFile(ctrlbtn, p)=
   let p -> [inst _ ctrlpath ctrlurl ctrlisurl z] in
   let getEdCtrlTextLineValue ctrlpath -> path in
-  openRouteFile inst path z;
-  0;;   
+  let getEdCtrlTextLineValue ctrlisurl -> isurl in
+  let getEdCtrlTextLineValue ctrlurl -> url in
+  
+  //if (!isurl) then 
+    openRouteFile inst path z; 0;;
+  /*else
+    //downloadFile url mkfun3 @cbDownloaded z; //!!!
+	downloadFile url mkfun3 @cbDownloaded2 inst; //!!!!
+    0;;
+  */	
   
 fun cbBtnDeleFile(ctrlbtn, p)=
   let p -> [_ _ _ _ _ z] in
