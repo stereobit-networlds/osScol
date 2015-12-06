@@ -59,7 +59,7 @@ var debug=0;;
 var server=0;; /*when scol server is on */	
 
 var sTmpDownloadPath = "tmp/routes/";;
-var maxDownloadSize=3145728;;
+var maxDownloadSize=33145728;;
 
 /*xyz obj calibration */				
 var iIX = -24700;;/*-24700;;    25700 pour 100% */

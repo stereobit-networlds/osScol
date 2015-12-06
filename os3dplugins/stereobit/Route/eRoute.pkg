@@ -51,13 +51,20 @@ struct ObjETrackStr = [
   ETRACK_bLoop              : I,
   ETRACK_iTick              : I,
   
-  ETRACK_iEditMode          : I
+  ETRACK_iEditMode          : I,
+  
+  ETRACK_center             : [F F F],
+  ETRACK_scale              : [F F F],
+  ETRACK_offset             : [F F F],
+  ETRACK_scaleM             : F,  
+  ETRACK_lon                : F,
+  ETRACK_lat                : F
   
   ]mkObjETrackStr;;
   
   
 var sTmpDownloadPath = "tmp/routes/";;
-var maxDownloadSize=3145728;; 
+var maxDownloadSize=33145728;; 
 
 typeof iX = F;;
 typeof iY = F;;
@@ -95,8 +102,8 @@ fun getSessionData() =
    
    //let "40.589226 22.964331 510.0 30.48 20000.0 0.445 0.380" -> isession in  //<<<<<<<<<<<<<<<<<<<<<<<
    //kamara filtered
-   let "40.627138 22.957114 510.0 30.48 20000.0 0.445 0.380" -> isession in
-   let "0 15500 0 9 11 12" -> iparser in 
+   let "40.627138 22.957114 1.0 5.0 2000000.0 60 60" -> isession in
+   let "0 0.1 0 9 11 12" -> iparser in 
    (   
      let strcatn isession::"\n"::iparser::nil ->sesdata in //<<<fix   
      strextr sesdata //_getpack _checkpack sesfile //fix
@@ -337,7 +344,7 @@ fun getDots(l)=
 
 
 fun cbCloseEdit(p)=
-  let p -> [ctrlsourcename ctrlkps ctrlnbkeys ctrlloop ctrlping ctrltarget ctrlaxis ctrldots ctrllocal ctrlinit ctrlpath ctrlisurl ctrlurl] in
+  let p -> [ctrlsourcename ctrlkps ctrlnbkeys ctrlloop ctrlping ctrltarget ctrlaxis ctrldots ctrllocal ctrlinit ctrlpath ctrlisurl ctrlurl _cx _cy _cz _sx _sy _sz _ox _oy _oz _sM _lon _lat] in
   let getEdCtrlTextLineValue ctrlsourcename -> sourcename in
   let getEdCtrlFloatValue ctrlkps -> kps in
   let getEdCtrlFloatValue ctrlnbkeys -> nbkeys in
@@ -351,6 +358,19 @@ fun cbCloseEdit(p)=
   let getEdCtrlTextLineValue ctrlpath -> path in
   let getEdCtrlCheckState ctrlisurl -> isurl in
   let getEdCtrlTextLineValue ctrlurl -> url in   
+  
+  let getEdCtrlFloatValue _cx -> cx in
+  let getEdCtrlFloatValue _cy -> cy in
+  let getEdCtrlFloatValue _cz -> cz in
+  let getEdCtrlFloatValue _sx -> sx in
+  let getEdCtrlFloatValue _sy -> sy in
+  let getEdCtrlFloatValue _sz -> sz in
+  let getEdCtrlFloatValue _ox -> ox in
+  let getEdCtrlFloatValue _oy -> oy in
+  let getEdCtrlFloatValue _oz -> oz in
+  let getEdCtrlFloatValue _sM -> sM in
+  let getEdCtrlFloatValue _lon -> lon in
+  let getEdCtrlFloatValue _lat -> lat in 
     ["sourceobject" sourcename]::
     ["kps" ftoa kps]::
     ["nbkeys" ftoa nbkeys]::
@@ -363,6 +383,18 @@ fun cbCloseEdit(p)=
     ["isurl" itoa isurl]::
     ["url" url]::
     ["path" path]::		
+    ["cx" ftoa cx]::
+    ["cy" ftoa cy]::
+    ["cz" ftoa cz]::
+    ["sx" ftoa sx]::
+    ["sy" ftoa sy]::
+    ["sz" ftoa sz]::
+    ["ox" ftoa ox]::
+    ["oy" ftoa oy]::
+    ["oz" ftoa oz]::		
+    ["sM" ftoa sM]::
+    ["lon" ftoa lon]::
+    ["lat" ftoa lat]::	
     getDots ldot;;
 
 
@@ -1624,7 +1656,7 @@ fun readRouteFile(list, index, p, saveValues) =
 			//_fooS strcatn "NMEA PGRMZ :"::(itoa index)::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;		
 			let saveValues -> [vX _ vZ aX aY aZ] in
 			cbAddListFromFile p [vX iY vZ] [aX aY aZ]; 
-	        //mutate saveValues <- [_ iY _ _ _ _];			
+	        mutate saveValues <- [_ 0.5 _ _ _ _];			//iY !!!!!!!
             0;
           );
         );
@@ -1738,7 +1770,7 @@ fun openRouteFile(inst, file, p) =
 	 
      set iErrV = 0.0;	 
      set iErrH = 0.0;	 
-	 readRouteFile AnalyseAndFilter data 0 p [0.0 0.0 0.0 0.0 0.0 0.0];
+	 readRouteFile AnalyseAndFilter data 0 p [0.0 1.0 0.0 0.0 0.0 0.0];
 	 0
    ) else 0;; 
  
@@ -1834,6 +1866,13 @@ fun cbBtnPickFile(ctrlbtn, p)=
   );
   0;;  
   
+fun cbUpdateFloats(ctrl, value, p)=
+  let p -> [edstr lon lat sM c s o] in
+  /*let ctrltcb -> [ctrlT ctrlC ctrlB ctrlD] in
+    setEdCtrlSliderValue ctrltimeline getEdCtrlFloatValue ctrlD;
+  cbSetList nil p 1;*/
+  0;;  
+  
 fun cbBtnExecFile(ctrlbtn, p)=
   let p -> [inst _ ctrlpath ctrlurl ctrlisurl z] in
   let getEdCtrlTextLineValue ctrlpath -> path in
@@ -1872,8 +1911,8 @@ fun cbCheckUrl(ctrl, state, p)=
 
 
 fun dynamicedit(ewinstr, inst, viewstr) =
-  let mkObjETrackStr [inst nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 1] -> edstr in
-  let [420 815] -> [iw ih] in
+  let mkObjETrackStr [inst nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 1 nil nil nil nil nil nil] -> edstr in
+  let [420 1030] -> [iw ih] in
   let 10 -> ypos in
   (
     setEdWindowSize ewinstr iw ih;
@@ -1897,7 +1936,20 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     let (getPluginInstanceParam inst "path") -> path in
     let atoi (getPluginInstanceParam inst "isurl") -> isurl in
     let if isurl == nil then 0 else isurl -> isurl in
-    let (getPluginInstanceParam inst "url") -> url in		
+    let (getPluginInstanceParam inst "url") -> url in
+
+    let atof (getPluginInstanceParam inst "cx") -> cx in
+    let atof (getPluginInstanceParam inst "cy") -> cy in
+    let atof (getPluginInstanceParam inst "cz") -> cz in
+    let atof (getPluginInstanceParam inst "sx") -> sx in
+    let atof (getPluginInstanceParam inst "sy") -> sy in
+    let atof (getPluginInstanceParam inst "sz") -> sz in
+    let atof (getPluginInstanceParam inst "ox") -> ox in
+    let atof (getPluginInstanceParam inst "oy") -> oy in
+    let atof (getPluginInstanceParam inst "oz") -> oz in	
+    let atof (getPluginInstanceParam inst "sM") -> sM in
+    let atof (getPluginInstanceParam inst "lon") -> lon in
+    let atof (getPluginInstanceParam inst "lat") -> lat in	
     
     let if kps == nil then 60.0 else kps -> kps in
     let if nbkeys == nil then 200.0 else nbkeys -> nbkeys in
@@ -1999,6 +2051,45 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     let crEdCtrlTextLine winstr 85 ypos 250 20 path nil EDWIN_RESIZE_MW -> ctrlpath in
     let crEdCtrlButton winstr 341 ypos 25 20 "..." nil -> pickfilebtn in
     let crEdCtrlButton winstr 371 ypos 49 20 "X" nil -> refreshpath in 	
+
+	/*read file params*/
+    let crEdFrameWindow _channel ewinstr 0 0 iw 215 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_1029") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
+    let crEdWindow _channel winfrm 0 18 iw 200 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in
+	
+	let 10 -> pypos in	
+    let crEdCtrlLabel winstr 10 pypos 60 20 (loc "OS3DOBJECTTRACK_0054") nil -> labelpx in
+    let crEdCtrlFloat winstr 35 ypos-3 90 20 lon (-.100.0) 100.0 0.001 4 nil EDWIN_RESIZE_MW -> _lon in
+    let crEdCtrlLabel winstr 140 pypos  60 20 (loc "OS3DOBJECTTRACK_0055") nil -> labelpx in
+    let crEdCtrlFloat winstr 160 ypos-3 90 20 lat (-.100.0) 100.0 0.001 4 nil EDWIN_RESIZE_MW -> _lat in
+    let crEdCtrlLabel winstr 265 pypos 60 20 (loc "OS3DOBJECTTRACK_0053") nil -> labelpx in
+    let crEdCtrlFloat winstr 285 ypos-3 90 20 sM (-.100.0) 100.0 0.001 4 nil EDWIN_RESIZE_MW -> _sM in	
+		
+    let 25 + 5 -> pypos in	
+    let crEdCtrlLabel winstr 10 ((set ypos = pypos + 25) + 2) 80 20 (loc "OS3DOBJECTTRACK_0050") nil -> labelc in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 20 20 "X" nil -> labelpx in
+    let crEdCtrlFloat winstr 35 ypos 90 20 cx (-.1000000.0) 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> _cx in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 20 20 "Y" nil -> labelpx in
+    let crEdCtrlFloat winstr 35 ypos 90 20 cy (-.1000000.0) 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> _cy in
+    let crEdCtrlLabel winstr 10 ((set ypos = ypos + 25) + 2) 20 20 "Z" nil -> labelpx in
+    let crEdCtrlFloat winstr 35 ypos 90 20 cz (-.1000000.0) 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> _cz in
+    	
+    let crEdCtrlLabel winstr 140 ((set ypos = pypos + 25) + 2) 80 20 (loc "OS3DOBJECTTRACK_0051") nil -> labels in
+    let crEdCtrlLabel winstr 140 ((set ypos = ypos + 25) + 2) 20 20 "X" nil -> labelpx in
+    let crEdCtrlFloat winstr 160 ypos 90 20 sx (-.180.0) 180.0 0.01 4 nil EDWIN_RESIZE_MW -> _sx in
+    let crEdCtrlLabel winstr 140 ((set ypos = ypos + 25) + 2) 20 20 "Y" nil -> labelpx in
+    let crEdCtrlFloat winstr 160 ypos 90 20 sy (-.180.0) 180.0 0.01 4 nil EDWIN_RESIZE_MW -> _sy in
+    let crEdCtrlLabel winstr 140 ((set ypos = ypos + 25) + 2) 20 20 "Z" nil -> labelpx in
+    let crEdCtrlFloat winstr 160 ypos 90 20 sz (-.180.0) 180.0 0.01 4 nil EDWIN_RESIZE_MW -> _sz in
+    
+    let crEdCtrlLabel winstr 265 ((set ypos = pypos + 25) + 2) 80 20 (loc "OS3DOBJECTTRACK_0052") nil -> labelo in
+    let crEdCtrlLabel winstr 265 ((set ypos = ypos + 25) + 2) 20 20 "X" nil -> labelpx in
+    let crEdCtrlFloat winstr 285 ypos 90 20 ox 0.0 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> _ox in
+    let crEdCtrlLabel winstr 265 ((set ypos = ypos + 25) + 2) 20 20 "Y" nil -> labelpx in
+    let crEdCtrlFloat winstr 285 ypos 90 20 oy 0.0 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> _oy in
+    let crEdCtrlLabel winstr 265 ((set ypos = ypos + 25) + 2) 20 20 "Z" nil -> labelpx in
+    let crEdCtrlFloat winstr 285 ypos 90 20 oz 0.0 1000000.0 0.01 4 nil EDWIN_RESIZE_MW -> _oz in
+
+	/**/
     
     let crEdFrameWindow _channel ewinstr 0 0 iw 55 EDWIN_RESIZE_MW nil (loc "OS3DOBJECTTRACK_0013") (loc "OS3DOBJECTTRACK_0012") -> winfrm in
     let crEdWindow _channel winfrm 0 18 iw 35 WN_CHILDINSIDE|WN_NOBORDER EDWIN_RESIZE_MW nil nil -> winstr in 
@@ -2006,6 +2097,8 @@ fun dynamicedit(ewinstr, inst, viewstr) =
     
 	
     let [edstr ctrldots ctrltimeline [ctrlposx ctrlposy ctrlposz] [ctrlangx ctrlangy ctrlangz] [ctrlscalex ctrlscaley ctrlscalez] [ctrlT ctrlC ctrlB ctrlD]] -> tctrl in
+    let [edstr _lon _lat _sM [_cx _cy _cz] [_sx _sy _sz] [_ox _oy _oz]] -> xctrl in
+
     (
       set edstr.ETRACK_nbKeys = nbkeys;
       set edstr.ETRACK_fKps = kps;
@@ -2021,7 +2114,14 @@ fun dynamicedit(ewinstr, inst, viewstr) =
       set edstr.ETRACK_bToTarget = target;
       set edstr.ETRACK_iToAxis = axis;
       set edstr.ETRACK_bLoop = loop;
-      set edstr.ETRACK_bLocal = local;
+      set edstr.ETRACK_bLocal = local;	  
+	  
+      set edstr.ETRACK_center = [cx cy cz];
+      set edstr.ETRACK_scale = [sx sy sz];
+      set edstr.ETRACK_offset = [ox oy oz];
+      set edstr.ETRACK_scaleM = sM;
+      set edstr.ETRACK_lon = lon;
+      set edstr.ETRACK_lat = lat; 
       
       set edstr.ETRACK_inipos = [(SO3ObjectGetPosition edstr.ETRACK_child) (SO3ObjectGetOrientation edstr.ETRACK_child) (SO3ObjectGetScale edstr.ETRACK_child)];
       
@@ -2095,8 +2195,21 @@ fun dynamicedit(ewinstr, inst, viewstr) =
       (
         setEdCtrlTextLineEnable ctrlurl 1;
         setEdCtrlButtonEnable pickfilebtn 0;
-      );		  
-      
-      [mkfun1 @cbCloseEdit [ctrlsourcename ctrlkps ctrlnbkeys ctrlloop ctrlping ctrltarget ctrlaxis ctrldots ctrllocal ctrlinit ctrlpath ctrlisurl ctrlurl] mkfun1 @cbDestroyEdit [inst edstr]];
+      );	
+
+      setEdCtrlFloatCbChange _cx mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _cy mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _cz mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _sx mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _sy mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _sz mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _ox mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _oy mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _oz mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _sM mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _lon mkfun3 @cbUpdateFloats xctrl;
+      setEdCtrlFloatCbChange _lat mkfun3 @cbUpdateFloats xctrl;	  
+     
+      [mkfun1 @cbCloseEdit [ctrlsourcename ctrlkps ctrlnbkeys ctrlloop ctrlping ctrltarget ctrlaxis ctrldots ctrllocal ctrlinit ctrlpath ctrlisurl ctrlurl _cx _cy _cz _sx _sy _sz _ox _oy _oz _sM _lon _lat] mkfun1 @cbDestroyEdit [inst edstr]];
     );
   );;

@@ -419,18 +419,18 @@ fun appendTerminal(pictstr, s, append) =
     /*effect: move background main image as cursor*/
 	//SO3WidgetSetPosition pictstr.PICT_win pictstr.PICT_iPosX (pictstr.PICT_iHeight*pictstr.PICT_tCursor)+pictstr.PICT_iPosY;
 	
-	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
-	(
-	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
+	//if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
+	//(
+	  //set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
 	  updateWidgetDrawBitmap pictstr s append;
-	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	
-	)  
+	  //set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	
+	/*)  
     else
 	( 
 	  rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
       set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
 	  updateWidgetDrawBitmap pictstr s append;
-	);  	
+	); */ 	
 	//print_r pictstr.PICT_fontMatrix;
     if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;	
 	0;;	
@@ -440,18 +440,18 @@ fun freezeTerminal(pictstr, s) =
     /*effect: move background main image as cursor*/
 	//SO3WidgetSetPosition pictstr.PICT_win pictstr.PICT_iPosX (pictstr.PICT_iHeight*pictstr.PICT_tCursor)+pictstr.PICT_iPosY;
 	
-	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
-	(
-	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
+	//if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
+	//(
+	  //set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
 	  updateWidgetDrawBitmap pictstr s nil;
-	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	
-	)  
+	  //set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	
+	/*)  
     else
 	( 
 	  rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
       set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
 	  updateWidgetDrawBitmap pictstr s nil;
-	);  	
+	); */ 	
 	//print_r pictstr.PICT_fontMatrix;
     if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;	
 	0;;		
@@ -833,30 +833,6 @@ fun deleteOb(inst, pictstr)=
     set pictstr.PICT_httpReq = nil;
   );
   0;;
-  
-  
-/**** CODDE FROM INTERFACE->BUTTON  
-fun drawLabel(abmp, btnstr)=
-  let _GETalphaBitmaps abmp -> [bmp bmp8] in
-  let _GETbitmapSize bmp -> [bw bh] in
-  
-  if (_platform != SCOL_PLATFORM_WINDOWS) then
-  (
-    _BTDRAWtextAlphaBitmap abmp btnstr.PBTN_cvfont [bw/2 bh/2] BT_TEXT_HORIZ_CENTERED|BT_TEXT_VERT_CENTER btnstr.PBTN_ifColor 255 btnstr.PBTN_sLabel;
-    0;
-  )
-  else
-  (
-    let G2DgetStringSize btnstr.PBTN_font btnstr.PBTN_sLabel -> [_ th] in
-    (
-      _DRAWtext bmp btnstr.PBTN_font (bw / 2) ((bh / 2) - (th / 2)) TD_CENTER btnstr.PBTN_ifColor btnstr.PBTN_sLabel;
-      _DRAWtext8 bmp8 btnstr.PBTN_font (bw / 2) ((bh / 2) - (th / 2)) TD_CENTER 0xffffff btnstr.PBTN_sLabel;
-    );
-    0;
-  );
-  0;;  
-  
-*/  
   
 
 fun cbNewOb(inst)=

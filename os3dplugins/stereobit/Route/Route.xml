@@ -27,6 +27,17 @@
     <PARAM name="C_" type="value" />
     <PARAM name="B_" type="value" />
     <PARAM name="D_" type="value" />
+    <PARAM name="cx_" type="value" />
+    <PARAM name="cy_" type="value" />
+    <PARAM name="cz_" type="value" />	
+    <PARAM name="sx_" type="value" />
+    <PARAM name="sy_" type="value" />
+    <PARAM name="sz_" type="value" />
+    <PARAM name="ox_" type="value" />
+    <PARAM name="oy_" type="value" />
+    <PARAM name="oz_" type="value" />
+    <PARAM name="lon_" type="value" />
+    <PARAM name="lat_" type="value" />	
   </EDITOR>
   <CLIENT minstance="true">
     <SCRIPT path="./cRoute.pkg" />
