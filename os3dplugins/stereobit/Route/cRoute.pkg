@@ -49,7 +49,8 @@ struct TObjPath = [
                     OBJP_bLocal        : I,
                     OBJP_iState        : I,
 
-                    OBJP_iLine         : I                    
+                    OBJP_iLine         : I,
+                    OBJP_routePath     : [S r1]               
 					
                   ] mkTObjPath;;
 				  
@@ -778,7 +779,8 @@ fun readRouteFile(strobj, line, saveValues) =
       )
       else if (!strcmp (hd l) "$PGRME") then
       (
-	    //_fooS strcat "NMEA PGRME:" itoa index;		
+	    //_fooS strcat "NMEA PGRME:" itoa index;
+        _echo strobj strcat "NMEA PGRME:" line;		
         0;
       )
       else if (!strcmp (hd l) "$PGRMZ") then
@@ -801,7 +803,8 @@ fun readRouteFile(strobj, line, saveValues) =
           /*else if (absf (iY -. iOldY) >. iMaxDVer *. iErrV) then //<<<<< !!!!
           (
             set iErrV = iErrV +. 1.0;
-            _fooS strcatn "NMEA Err (pos Y):"::(itoa index)::"-"::(ftoa iErrV)::"-["::(ftoa iY)::"]"::nil;			
+            _fooS strcatn "NMEA Err (pos Y):"::line::"-"::(ftoa iErrV)::"-["::(ftoa iY)::"]"::nil;
+            _echo strobj "NMEA Err (pos Y):"::line::"-"::(ftoa iErrV)::"-["::(ftoa iY)::"]"::nil; 			
             0;
           )*/
           else
@@ -814,10 +817,12 @@ fun readRouteFile(strobj, line, saveValues) =
 			else
 			   M3setObjVec session O3d [iX iY iZ]; 
 			*/  
-			//_fooS strcatn "NMEA PGRMZ :"::(itoa index)::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;		
+	
 			let saveValues -> [vX _ vZ aX aY aZ] in
 			//cbAddListFromFile p [vX iY vZ] [aX aY aZ]; 
-	        //mutate saveValues <- [_ iY _ _ _ _];			
+	        //mutate saveValues <- [_ iY _ _ _ _];	
+            //_fooS strcatn "NMEA PGRMZ :"::line::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;					
+            _echo strobj strcatn "NMEA PGRMZ :"::line::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;					
             0;
           );
         );
@@ -844,11 +849,13 @@ fun readRouteFile(strobj, line, saveValues) =
 			  M3setObjAng session O3d optAng;*/	
 			  
 			let (-.65536.0 *. (data /. 360.0)) -> rY in			
-			//_fooS strcatn "NMEA GPRMC :"::(itoa index)::"-"::(ftoa rY)::",0,0"::nil;
 			let saveValues -> [vX vY vZ aX _ aZ] in
-            //cbAddListFromFile p [vX vY vZ] [aX rY aZ];	
-            mutate saveValues <- [_ _ _ _ rX _];				
-            0;
+			(	
+              mutate saveValues <- [_ _ _ _ rX _];				
+			  //_fooS strcatn "NMEA GPRMC :"::line::"-"::(ftoa rY)::",0,0"::nil;
+			  _echo strobj strcatn "NMEA GPRMC :"::line::"-"::(ftoa rY)::",0,0"::nil;			
+              0
+			);  
           );
         );
         0;
@@ -878,7 +885,8 @@ fun readRouteFile(strobj, line, saveValues) =
           if (ss >. iMaxDHor *. iErrH) then //!!!!!!!!!!!!!
           (
             set iErrH = iErrH +. 1.0;
-			_fooS strcatn "NMEA Err (pos XZ):"::(itoa index)::(ftoa ss)::nil;
+			_fooS strcatn "NMEA Err (pos XZ):"::line::(ftoa ss)::nil;
+			_echo strobj strobj strcatn "NMEA Err (pos XZ):"::line::(ftoa ss)::nil;
             0;
           )
           else
@@ -893,10 +901,11 @@ fun readRouteFile(strobj, line, saveValues) =
 			  M3setObjVec session O3d [iX iY iZ];
 			  */
 			  	
-			//_fooS strcatn "NMEA GPGGA :"::(itoa index)::nil;
 			let saveValues -> [_ vY _ aX aY aZ] in
             //cbAddListFromFile p [iX 0.0 iZ] [aX aY aZ];
             mutate saveValues <- [iX _ iZ _ _ _];			
+			//_fooS strcatn "NMEA GPGGA :"::line::nil;
+			_echo strobj strcatn "NMEA GPGGA :"::line::nil;			
             0;
           /*); */
         );        
@@ -1043,11 +1052,15 @@ fun routeObj(sessionstr, etime, strobj, cbend, coords)=
   );
   0;;	 
 
-	 
-fun cbRouteObj(inst, sessionstr, etime, z, cbend)= 
-  let z -> [strobj data] in
-  let nth_list data strobj.OBJP_iLine -> line in
-  let readRouteFile strobj line [0.0 0.0 0.0 0.0 0.0 0.0] -> coords in 
+
+fun readRouteLine(strobj, line) =
+  let if line!=nil then line else strobj.OBJP_iLine -> l in
+  let nth_list strobj.OBJP_routePath l -> line in 
+  line;;
+  
+  
+fun cbRouteObj(inst, sessionstr, etime, strobj, cbend)= 
+  let readRouteFile strobj readRouteLine strobj nil [0.0 0.0 0.0 0.0 0.0 0.0] -> coords in 
   routeObj sessionstr etime strobj cbend coords;
   0;;	 
  
@@ -1076,7 +1089,8 @@ fun openRouteFile(file, strobj) =
   else
   (
     set iErrV = 0.0;	 
-    set iErrH = 0.0;	 
+    set iErrH = 0.0;	
+    set strobj.OBJP_routePath = adata;	
    
     let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
     if !(usePhysic strobj) then nil else
@@ -1096,7 +1110,7 @@ fun openRouteFile(file, strobj) =
     set strobj.OBJP_iTick = 0;
     set strobj.OBJP_iLine = 0;
 	
-    setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst mkfun4 mkfun5 @cbRouteObj @cbObjEnd [strobj adata];
+    setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst mkfun4 mkfun5 @cbRouteObj @cbObjEnd strobj;
   );
   0;;   
    
@@ -1151,16 +1165,15 @@ fun downloadRouteFile(strobj, file, param)=
 
 
 fun cbRoutePlay(inst, from, action, param, reply, strobj)= 
-  let atoi (getPluginInstanceParam inst "path") -> path in
+  let (getPluginInstanceParam inst "path") -> path in
   let atoi (getPluginInstanceParam inst "isurl") -> isurl in
-  let atoi (getPluginInstanceParam inst "url") -> url in
+  let (getPluginInstanceParam inst "url") -> url in
   
-  //if (!isurl) then 
-    //openRouteFile path strobj; 
-	0;;
-  //else
-    //downloadFile url mkfun3 @cbDownloaded strobj; //!!!
-    //0;;
+  if (!isurl) then 
+    openRouteFile path strobj
+  else
+    //downloadFile url mkfun3 @cbDownloaded strobj; 
+    0;;
 
 fun cbRouteStop(inst, from, action, param, reply, strobj)= 0;;
 
@@ -1237,7 +1250,7 @@ fun newOb(inst)=
   let V3DgetObjectByName c3dXsession sourcename -> source in
   let V3DgetObjectTypeByName sourcename -> isourcemode in
 
-  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0] -> strobj in 
+  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0 nil] -> strobj in 
   (
     set strobj.OBJP_tDir = [xdir ydir zdir];
     set strobj.OBJP_kps = kps;

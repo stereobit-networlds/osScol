@@ -423,10 +423,11 @@ fun appendTerminal(pictstr, s, append) =
 	(
 	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
 	  updateWidgetDrawBitmap pictstr s append;
+	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	
 	)  
     else
 	( 
-	  //rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
+	  rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
       set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
 	  updateWidgetDrawBitmap pictstr s append;
 	);  	
@@ -443,10 +444,11 @@ fun freezeTerminal(pictstr, s) =
 	(
 	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
 	  updateWidgetDrawBitmap pictstr s nil;
+	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;	
 	)  
     else
 	( 
-	  //rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
+	  rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
       set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
 	  updateWidgetDrawBitmap pictstr s nil;
 	);  	
