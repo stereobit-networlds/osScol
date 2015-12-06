@@ -352,7 +352,7 @@ fun drawLabel(abmp, pictstr, s)=
   );
   0;;	  
   
-fun updateWidgetDrawBitmap(pictstr, s)=
+fun updateWidgetDrawBitmap(pictstr, s, append)=
   if pictstr.PICT_fontMatrix == nil then
     nil
   else
@@ -363,7 +363,8 @@ fun updateWidgetDrawBitmap(pictstr, s)=
   let bw -> wpos in
   let 0 -> ypos in
   let pictstr.PICT_tCursor -> j in
-  let nth_list pictstr.PICT_fontMatrix j -> [abmp x y _ _ _ v t b _ mxwidget adraw] in
+  let nth_list pictstr.PICT_fontMatrix j -> [abmp x y _ _ c v t b _ mxwidget adraw] in
+  let if append==nil then s else strcat c s -> sa in  
   (
     set adraw = nil; //!!! must !!!!
 	
@@ -385,33 +386,73 @@ fun updateWidgetDrawBitmap(pictstr, s)=
       _CPbitmap24 colorDraw 0 0 colorLayer wpos ypos width height nil;
       _CPbitmap8 alphaDraw 0 0 alphaLayer wpos ypos width height nil;
     );
-    
-    drawLabel adraw pictstr s;
+     
+    drawLabel adraw pictstr sa;
 	
-	mutate nth_list pictstr.PICT_fontMatrix j <- [_ _ _ _ _ s 1 _ _ _ _ adraw];
+	mutate nth_list pictstr.PICT_fontMatrix j <- [_ _ _ _ _ sa 1 _ _ _ _ adraw];
 	
   );
   0;;  
 	  	  
-fun writeTerminal(pictstr, s) = 
+fun writeTerminal(pictstr, s, append) = 
 
     /*effect: move background main image as cursor*/
 	SO3WidgetSetPosition pictstr.PICT_win pictstr.PICT_iPosX (pictstr.PICT_iHeight*pictstr.PICT_tCursor)+pictstr.PICT_iPosY;
 	
 	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
 	(
-	  updateWidgetDrawBitmap pictstr s;
+	  updateWidgetDrawBitmap pictstr s append;
 	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor + 1;
 	)  
     else
 	( 
 	  rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
       set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
-	  updateWidgetDrawBitmap pictstr s;
+	  updateWidgetDrawBitmap pictstr s append;
 	);  	
 	//print_r pictstr.PICT_fontMatrix;
     if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;	
 	0;;
+	
+fun appendTerminal(pictstr, s, append) = 
+
+    /*effect: move background main image as cursor*/
+	//SO3WidgetSetPosition pictstr.PICT_win pictstr.PICT_iPosX (pictstr.PICT_iHeight*pictstr.PICT_tCursor)+pictstr.PICT_iPosY;
+	
+	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
+	(
+	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
+	  updateWidgetDrawBitmap pictstr s append;
+	)  
+    else
+	( 
+	  //rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
+      set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
+	  updateWidgetDrawBitmap pictstr s append;
+	);  	
+	//print_r pictstr.PICT_fontMatrix;
+    if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;	
+	0;;	
+	
+fun freezeTerminal(pictstr, s) = 
+
+    /*effect: move background main image as cursor*/
+	//SO3WidgetSetPosition pictstr.PICT_win pictstr.PICT_iPosX (pictstr.PICT_iHeight*pictstr.PICT_tCursor)+pictstr.PICT_iPosY;
+	
+	if  (pictstr.PICT_tCursor<pictstr.PICT_iBuffer) then 
+	(
+	  set pictstr.PICT_tCursor = pictstr.PICT_tCursor - 1;	
+	  updateWidgetDrawBitmap pictstr s nil;
+	)  
+    else
+	( 
+	  //rollTerminal revertlist pictstr.PICT_fontMatrix nil nil; //revert the list
+      set pictstr.PICT_tCursor = pictstr.PICT_iBuffer;	  	  	  	  	  
+	  updateWidgetDrawBitmap pictstr s nil;
+	);  	
+	//print_r pictstr.PICT_fontMatrix;
+    if pictstr.PICT_bShow then blitTerminal pictstr.PICT_fontMatrix pictstr else nil;	
+	0;;		
 	 
   
 fun hideTerminal(list) =
@@ -452,8 +493,16 @@ fun createTerminal(inst, pictstr) =
   0;;
   
 fun cbWriteTerminal(inst, from, action, param, reply, pictstr)= 
-  writeTerminal pictstr param;
+  writeTerminal pictstr param nil;
   0;;
+  
+fun cbAppendTerminal(inst, from, action, param, reply, pictstr)= 
+  appendTerminal pictstr param 1;
+  0;;  
+  
+fun cbFreezeTerminal(inst, from, action, param, reply, pictstr)= 
+  freezeTerminal pictstr param;
+  0;;    
 
 fun cbClsTerminal(inst, from, action, param, reply, pictstr)= 
   clsTerminal pictstr;
@@ -939,12 +988,14 @@ fun cbNewOb(inst)=
     PluginRegisterAction inst "Set opacity" mkfun6 @cbSetOpacity pictstr;
 	
 	PluginRegisterAction inst "writeTerminal" mkfun6 @cbWriteTerminal pictstr;	
+	PluginRegisterAction inst "appendTerminal" mkfun6 @cbAppendTerminal pictstr;
+	PluginRegisterAction inst "freezeTerminal" mkfun6 @cbFreezeTerminal pictstr;	
 	PluginRegisterAction inst "clsTerminal" mkfun6 @cbClsTerminal pictstr;		
 	
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
 	
 	
-	writeTerminal pictstr "Starting...";
+	writeTerminal pictstr "Starting..." nil;
 	SendPluginEvent inst "started" nil nil;
   );
   0;;

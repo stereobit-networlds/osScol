@@ -99,7 +99,7 @@ typeof linfoImages = [[AlphaBitmap S I I I I S I SO3_WIDGET] r1];;
 var log=1;;
 var debug=0;;
 
-var MXWidgetLayer=300;;
+var MXWidgetLayer = 200;;
 var sHandCursor = "os3dlib/res/link_cursor.bmp";;
 typeof cHandCursor = ObjCursor;;
 typeof cPrevCursor = ObjCursor;;
@@ -575,12 +575,13 @@ fun endDownloadImage(file, data, x)=
   if data == nil then nil 
   else
   (
-    _storepack data tmpfile;
+    let _storepack data tmpfile -> status in
+	//_storepack data tmpfile;
 	
     let G2DloadAlphaBmp _channel tmpfile -> abmp in 
     if abmp == nil then
     (
-      _echo pictstr strcat "BtMatrix: null request " file;	
+      _echo pictstr strcatn "BtMatrix: null request "::file::(itoa status)::nil;	
 	  nil 
 	)  
 	else
@@ -595,11 +596,14 @@ fun endDownloadImage(file, data, x)=
 		  SendPluginEvent pictstr.PICT_instance "loading" strcat "BtScreen loading:" file nil;
 	    );
 		
-		//effect during loading...(cbstart)
-        let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
+		//!! mismatching calc when mini size at h
+        /*
+		//effect during loading...
+		let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
 		let makeMatrix pictstr -> matrix in
 		showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
 		blitInfoImages linfoImages;
+		*/
 		
         if (i < fsize) then nil else 
 		  SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;
@@ -667,11 +671,6 @@ fun endDownloadImageS(file, data, x)=
     );	
 	if (i < fsize) then nil else 
 	  SendPluginEvent pictstr.PICT_instance "endLoad" nil nil;
-	  /*
-	  let V3DgetViewSize (V3DgetSessionView c3dXsession) -> [ScreenW ScreenH] in
-	  let makeMatrix pictstr -> matrix in
-	  showInfoImagesMatrix pictstr matrix 0 linfoImages [pictstr.PICT_iPosX pictstr.PICT_iPosY ScreenW ScreenH] viewportstr;
-	  blitInfoImages linfoImages*/
   );;		
   
 fun downloadInfoImages(pictstr, param, files)=
@@ -1606,7 +1605,9 @@ fun cbNewOb(inst)=
 	PluginRegisterAction inst "openUrl" mkfun6 @cbOpenUrl pictstr;	
 	
   	setPluginInstanceCbDel inst mkfun2 @deleteOb pictstr;   
-
+	
+	//start when a link between "endLoad" and start firedup
+	//SendPluginEvent inst "started" nil nil; 	
   );
   0;;
 

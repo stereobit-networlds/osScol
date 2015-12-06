@@ -91,6 +91,7 @@
     <EVENT name="shownUrl" />	
     <EVENT name="Pushed move" />
     <ACTION name="ObClicked" />	
-    <ACTION name="openUrl" />			
+    <ACTION name="openUrl" />	
+	<ACTION name="start" />	
   </CLIENT>
 </PLUGIN>

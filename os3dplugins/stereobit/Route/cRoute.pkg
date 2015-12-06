@@ -47,11 +47,10 @@ struct TObjPath = [
                     OBJP_bPingPong     : I,
                     OBJP_bToTarget     : I,
                     OBJP_bLocal        : I,
-                    OBJP_iState        : I
+                    OBJP_iState        : I,
+
+                    OBJP_iLine         : I                    
 					
-					//OBJP_urlRouteFile  : S,
-					//OBJP_routeFile     : S
-                    
                   ] mkTObjPath;;
 				  
 var log=1;;
@@ -79,18 +78,18 @@ var sMScale = "25000.0";; /*xy delta */
 var sWScale = "0.204";; /* x delta */
 var sHScale = "0.135";; /* z delta */
 
-typeof iX = I;;
-typeof iY = I;;
-typeof iZ = I;;
-typeof rX = I;;
+typeof iX = F;;
+typeof iY = F;;
+typeof iZ = F;;
+typeof rX = F;;
 
-typeof iOldX = I;;
-typeof iOldY = I;;
-typeof iOldZ = I;;
-var iMaxDHor = 500;;
-var iMaxDVer = 500;;
-typeof iErrH = I;;
-typeof iErrV = I;;
+typeof iOldX = F;;
+typeof iOldY = F;;
+typeof iOldZ = F;;
+var iMaxDHor = 0.500;;
+var iMaxDVer = 0.500;;
+typeof iErrH = F;;
+typeof iErrV = F;; 
 
 typeof sno = I;;	   
 typeof nsno = S;;
@@ -101,9 +100,9 @@ var isession = "40.589226 22.964331 510.0 30.48 1500000.0 0.445 0.380";;
 var iparser = "0 15500 0 9 11 12";;
 
 
-fun _echo(objstr,s)= 
+fun _echo(strobj,s)= 
  if (log==1) then
-	SendPluginEvent objstr.OBJP_inst "echo" s nil
+	SendPluginEvent strobj.OBJP_inst "echo" s nil
  else
      nil;;
 
@@ -121,7 +120,9 @@ fun getSessionData() =
    //let strcat sessionpath ses -> sesfile in
    //...fix
    
-   let "40.589226 22.964331 510.0 30.48 1500000.0 0.445 0.380" -> isession in
+   //let "40.589226 22.964331 510.0 30.48 20000.0 0.445 0.380" -> isession in  //<<<<<<<<<<<<<<<<<<<<<<<
+   //kamara filtered
+   let "40.627138 22.957114 510.0 30.48 20000.0 0.445 0.380" -> isession in
    let "0 15500 0 9 11 12" -> iparser in 
    (   
      let strcatn isession::"\n"::iparser::nil ->sesdata in //<<<fix   
@@ -767,48 +768,45 @@ fun CheckIntegrity(line) =
         nil;;  
   
 /*read data array */  
-fun readRouteFile(list, strobj, index) =
-  if list==nil then nil
-  else
-    let hd list -> line in
+fun readRouteFile(strobj, line, saveValues) =
+    _echo strobj strcat "readNMEA:" line;
 	let CheckIntegrity line -> l in
 	(
       if (l == nil) then
-      (
-	    _fooS strcat "NMEA LINE:" itoa index;	
+      (		
         0;
       )
       else if (!strcmp (hd l) "$PGRME") then
       (
-	    _fooS strcat "NMEA PGRME:" itoa index;		
+	    //_fooS strcat "NMEA PGRME:" itoa index;		
         0;
       )
       else if (!strcmp (hd l) "$PGRMZ") then
 	  (
-	    let getSessionParam 1 3 -> ssIY in
-		let getSessionParam 1 4 -> ssFoot in
-        let (hd tl l) -> data in
-        let ftoi (((itof atoi data) -. (atof ssIY)) *. (atof ssFoot)) -> delta in
+	    let atof getSessionParam 1 3 -> ssIY in
+		let atof getSessionParam 1 4 -> ssFoot in
+        let atof (hd tl l) -> data in
+        let ((data -. ssIY) *. ssFoot) -> delta in
         (
-		  set iY = (atoi getSessionParam 2 2) + delta;
+		  set iY = (atof getSessionParam 2 2) +. delta;
 		  
 		  //let GetObjPosition O3d -> [iX Oy iZ] in
+		  //SO3ObjectGetScale edstr.ETRACK_child
 		  
-          if ((atoi data) == nil) then
+          if (data==nil) then
           (
-            set iErrV = iErrV + 1;
+            set iErrV = iErrV +. 1.0;
             0;
           )
-          else if ((iOldY != nil) && ((abs (iY - iOldY)) > (iMaxDVer * iErrV))) then
-		  /*else if ((Oy != 0) && ((abs (iY - Oy)) > (iMaxDVer * iErrV))) then */
+          /*else if (absf (iY -. iOldY) >. iMaxDVer *. iErrV) then //<<<<< !!!!
           (
-            set iErrV = iErrV + 1;
-            _fooS strcatn "NMEA Err (pos Y):"::(itoa index)::"-"::(itoa iErrV)::"-["::(itoa iY)::"]"::nil;			
+            set iErrV = iErrV +. 1.0;
+            _fooS strcatn "NMEA Err (pos Y):"::(itoa index)::"-"::(ftoa iErrV)::"-["::(ftoa iY)::"]"::nil;			
             0;
-          )
+          )*/
           else
           (
-            set iErrV = 1;
+            set iErrV = 1.0;
             /*set iOldY = Oy; 
 			
 			if interpolateFlag then
@@ -816,7 +814,10 @@ fun readRouteFile(list, strobj, index) =
 			else
 			   M3setObjVec session O3d [iX iY iZ]; 
 			*/  
-			_fooS strcatn "NMEA PGRMZ :"::(itoa index)::nil; //(itoa iX)::","::(itoa iY)::","::(itoa iZ)::nil;		
+			//_fooS strcatn "NMEA PGRMZ :"::(itoa index)::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;		
+			let saveValues -> [vX _ vZ aX aY aZ] in
+			//cbAddListFromFile p [vX iY vZ] [aX aY aZ]; 
+	        //mutate saveValues <- [_ iY _ _ _ _];			
             0;
           );
         );
@@ -824,9 +825,9 @@ fun readRouteFile(list, strobj, index) =
       )
       else if (!strcmp (hd l) "$GPRMC") then
       (
-        let (hd tl l) -> data in
+        let atof (hd tl l) -> data in
         (
-          if ((atof data) == nil) then
+          if (data==nil) then
 		  (
 		    /*set rY = 0; */
 			/*set rY = Ory;*/ /*current ang */
@@ -842,8 +843,11 @@ fun readRouteFile(list, strobj, index) =
 			else		  
 			  M3setObjAng session O3d optAng;*/	
 			  
-			let (ftoi (-.65536.0 *. ((atof data) /. 360.0))) -> rY in			
-			_fooS strcatn "NMEA GPRMC :"::(itoa index)::"-"::(itoa rY)::",0,0"::nil;					
+			let (-.65536.0 *. (data /. 360.0)) -> rY in			
+			//_fooS strcatn "NMEA GPRMC :"::(itoa index)::"-"::(ftoa rY)::",0,0"::nil;
+			let saveValues -> [vX vY vZ aX _ aZ] in
+            //cbAddListFromFile p [vX vY vZ] [aX rY aZ];	
+            mutate saveValues <- [_ _ _ _ rX _];				
             0;
           );
         );
@@ -851,33 +855,35 @@ fun readRouteFile(list, strobj, index) =
       )
       else if (!strcmp (hd l) "$GPGGA") then
       (
-		let getSessionParam 1 2 -> centerX in	  
-		let getSessionParam 1 1 -> centerZ in
-		let getSessionParam 1 5 -> MScale in	  
-		let getSessionParam 1 6 -> XScale in
-		let getSessionParam 1 7 -> ZScale in	
-        let atoi getSessionParam 2 1 -> offsetX in /* 0 when in map center*/
-		let atoi getSessionParam 2 3 -> offsetZ	in /* 0 when in map center*/
+		let atof getSessionParam 1 2 -> centerX in	  
+		let atof getSessionParam 1 1 -> centerZ in
+		let atof getSessionParam 1 5 -> MScale in	  
+		let atof getSessionParam 1 6 -> XScale in
+		let atof getSessionParam 1 7 -> ZScale in	
+        let atof getSessionParam 2 1 -> offsetX in /* 0 when in map center*/
+		let atof getSessionParam 2 3 -> offsetZ	in /* 0 when in map center*/
         let NMEA2dec (hd tl l) 1 -> latitude in
   		let NMEA2dec (hd tl tl l) 0 -> longitude in
 
 		/*40.589226, 22.964331 center of map */
 		/*40.591616, 22.972312 allatini offset  = 27000, 10000 */
         ( 
-		  set iX = (ftoi ((longitude -. (atof centerX)) *. ((atof MScale) /. (atof XScale)))) + offsetX;
-          set iZ = (ftoi ((latitude -. (atof centerZ)) *. ((atof MScale) /. (atof ZScale)))) + offsetZ;		  
+		  set iX = ((longitude -. centerX) *. (MScale /. XScale)) +. offsetX;
+          set iZ = ((latitude -. centerZ) *. (MScale /. ZScale)) +. offsetZ;		  
 
 		  //let GetObjPosition O3d -> [Ox iY Oz] in
+		  //SO3ObjectGetScale edstr.ETRACK_child
 		  
-          if (((iOldX != nil) && (iOldZ != nil)) && ((ftoi sqrt (sqr itof (iX - iOldX)) +. (sqr itof (iZ - iOldZ))) > (iMaxDHor * iErrH))) then
+		  /*let sqrt (sqr (iX -. iOldX)) +. (sqr (iZ -. iOldZ)) -> ss in
+          if (ss >. iMaxDHor *. iErrH) then //!!!!!!!!!!!!!
           (
-            set iErrH = iErrH + 1;
-			_fooS strcatn "NMEA Err (pos XZ):"::(itoa index)::nil;
+            set iErrH = iErrH +. 1.0;
+			_fooS strcatn "NMEA Err (pos XZ):"::(itoa index)::(ftoa ss)::nil;
             0;
           )
           else
-          (
-            set iErrH = 1;
+          (*/
+            set iErrH = 1.0;
             /*set iOldX = Ox; */
             /*set iOldZ = Oz; */
 			
@@ -887,19 +893,163 @@ fun readRouteFile(list, strobj, index) =
 			  M3setObjVec session O3d [iX iY iZ];
 			  */
 			  	
-			_fooS strcatn "NMEA GPGGA :"::(itoa index)::nil; 
+			//_fooS strcatn "NMEA GPGGA :"::(itoa index)::nil;
+			let saveValues -> [_ vY _ aX aY aZ] in
+            //cbAddListFromFile p [iX 0.0 iZ] [aX aY aZ];
+            mutate saveValues <- [iX _ iZ _ _ _];			
             0;
-          );
+          /*); */
         );        
         0;
 	  )
       else
         0;	  
 	  
-	  readRouteFile tl list strobj index+1;	  
-	  0
-     );;  
+	  //readRouteFile tl list index+1 strobj saveValues;
+      set strobj.OBJP_iLine = strobj.OBJP_iLine + 1;	  
+	  saveValues
+     );;   
+	 
+fun routeObj(sessionstr, etime, strobj, cbend, coords)=
+  let coords -> [cX cY cZ rX rY rZ] in
+  let [cX cY cZ] -> tvec in
+  let [0.0 0.0 0.0] -> tang in
+  let (strobj.OBJP_kps * (set strobj.OBJP_iTick = strobj.OBJP_iTick + etime)) / 1000 -> rtick in
+  if (rtick < 1) then nil else
+  (
+    let (1000.0 /. (itof SO3WorldGetFPS sessionstr.V3D_session)) -> nbsec in
+    let [nbsec nbsec nbsec] -> vnbsec in
+    (
+      if ((strobj.OBJP_coef >=. 1.0) && (strobj.OBJP_fDirection == 1.0)) || ((strobj.OBJP_coef <=. 0.0) && (strobj.OBJP_fDirection == (-.1.0))) then
+      (
+        if (strobj.OBJP_iState != 1) then nil else
+        (
+          set strobj.OBJP_iTick = 0;
+          
+          // event
+          if (!strobj.OBJP_bLoop) then
+          (
+            if ((!strobj.OBJP_bPingPong) || ((strobj.OBJP_bPingPong && (strobj.OBJP_fDirection == (-.1.0))))) then
+            (
+              set strobj.OBJP_posindex = 0;
+              set strobj.OBJP_iState = 0;
+              set strobj.OBJP_fDirection = 1.0;
+              setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst nil;
+              
+              let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+              if !(usePhysic strobj) then nil else
+              (
+                SO3BodySetVelocity body [0.0 0.0 0.0];
+                SO3BodySetOmega body [0.0 0.0 0.0];
+              );
+              
+              exec cbend with [strobj];
+              0;
+            )
+            else
+            (
+              set strobj.OBJP_fDirection = strobj.OBJP_fDirection *. (-.1.0);
+              0;
+            );
+          )
+          else if (!strobj.OBJP_bPingPong) then
+          (
+            set strobj.OBJP_posindex = 0;
+            set strobj.OBJP_angcoef = 0.0;
+            set strobj.OBJP_coef = 0.0;
+            set strobj.OBJP_fDirection = 1.0;
+            0;
+          )
+          else
+          (
+            set strobj.OBJP_fDirection = strobj.OBJP_fDirection *. (-.1.0);
+            0;
+          );
+        );
+      )
+      else
+      (
+        let (itof rtick) *. (1.0 /. (itof strobj.OBJP_nbKeys)) *. strobj.OBJP_fDirection -> nstep in
+          set strobj.OBJP_coef = if (strobj.OBJP_coef +. nstep) >. 1.0 then 1.0 else if (strobj.OBJP_coef +. nstep) <=. 0.0 then 0.0 else strobj.OBJP_coef +. nstep;
+        
+        let getInterpolateTCB strobj.OBJP_targetPos strobj.OBJP_coef -> [index tvec] in
+        let nth_list strobj.OBJP_targetPos (index - 1) -> [spos sang sscale _ t1] in
+        let nth_list strobj.OBJP_targetPos index -> [dpos dang dscale _ t2] in      
+        let (SO3ObjectGetGlobalPosition strobj.OBJP_h3d) -> ovec in
+        let (SO3ObjectGetGlobalOrientation strobj.OBJP_h3d) -> oang in
+        (
+          if strobj.OBJP_oldindex != index then
+          (
+            let (if t1 == nil then 0.0 else t1) -> t1 in
+            let (if t2 == nil then 1.0 else t2) -> t2 in
+            let t2 -. t1 -> lenght in
+            let if lenght == 0.0 then 1.0 else lenght -> lenght in
+            let lenght /. (1.0 /. (itof strobj.OBJP_nbKeys)) -> nbk in
+              set strobj.OBJP_angstep = (1.0 /. nbk);
+  
+            set strobj.OBJP_angcoef = if (strobj.OBJP_fDirection == 1.0) then 0.0 else 1.0;
+            set strobj.OBJP_oldindex = index;
+          )
+          else nil;
+         
+          let (itof rtick) *. strobj.OBJP_angstep *. strobj.OBJP_fDirection -> nangstep in
+            set strobj.OBJP_angcoef = if (strobj.OBJP_angcoef +. nangstep) >. 1.0 then 1.0 else if (strobj.OBJP_angcoef +. nangstep) <. 0.0 then 0.0 else strobj.OBJP_angcoef +. nangstep;
 
+          let if strobj.OBJP_bToTarget then getViewDirection strobj ovec oang tvec else SO3MathsQuatInterpolate sang dang strobj.OBJP_angcoef 1 -> tang in
+          let vecLerpF sscale dscale strobj.OBJP_angcoef -> tscale in
+          (
+            let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+            if !(usePhysic strobj) then
+            (
+              if strobj.OBJP_bLocal then
+              (
+                SO3ObjectSetPosition strobj.OBJP_h3d tvec;
+                SO3ObjectSetOrientation strobj.OBJP_h3d tang;
+              )
+              else
+              (
+                SO3ObjectSetGlobalPosition strobj.OBJP_h3d tvec;
+                SO3ObjectSetGlobalOrientation strobj.OBJP_h3d tang;
+              );
+              SO3ObjectSetScale strobj.OBJP_h3d tscale;
+              0;
+            )
+            else
+            let subVectorF (if strobj.OBJP_bLocal then addVectorF (SO3ObjectGetGlobalPosition SO3ObjectGetParent strobj.OBJP_h3d) (SO3MathsQuatGetDirection (SO3ObjectGetGlobalOrientation SO3ObjectGetParent strobj.OBJP_h3d) multiplyVectorF (SO3ObjectGetGlobalScale SO3ObjectGetParent strobj.OBJP_h3d) tvec) else tvec) ovec  -> nvec in
+            let multiplyVectorF nvec vnbsec -> vel in
+            let SO3MathsQuatDiff (if strobj.OBJP_bLocal then SO3MathsQuatAdd tang (SO3ObjectGetGlobalOrientation SO3ObjectGetParent strobj.OBJP_h3d) else tang) oang -> qdiff in
+            let SO3MathsQuatToEulerPYR qdiff -> vang in
+            /*
+            let if ((absf (SO3MathsRadianToDegree vtx)) >=. 180.0) then (-.vtx +. (SO3MathsDegreeToRadian 180.0)) else vtx -> vtx in 
+            let if ((absf (SO3MathsRadianToDegree vty)) >=. 180.0) then (-.vty +. (SO3MathsDegreeToRadian 180.0)) else vty -> vty in
+            let if ((absf (SO3MathsRadianToDegree vtz)) >=. 180.0) then (-.vtz +. (SO3MathsDegreeToRadian 180.0)) else vtz -> vtz in
+            */
+            let multiplyVectorF vang vnbsec -> omega in
+            (
+              SO3BodySetFreeze body 0;
+              SO3ObjectSetScale strobj.OBJP_h3d tscale;
+              //SO3BodyMoveTo body tvec 0.3;
+              //SO3BodyRotateTo body tang 1.0;
+              SO3BodySetVelocity body vel;
+              SO3BodySetOmega body omega;
+              0;
+            );
+          );
+          0;
+        );
+        set strobj.OBJP_iTick = 0;
+      );
+    );
+  );
+  0;;	 
+
+	 
+fun cbRouteObj(inst, sessionstr, etime, z, cbend)= 
+  let z -> [strobj data] in
+  let nth_list data strobj.OBJP_iLine -> line in
+  let readRouteFile strobj line [0.0 0.0 0.0 0.0 0.0 0.0] -> coords in 
+  routeObj sessionstr etime strobj cbend coords;
+  0;;	 
  
 fun AnalyseAndFilter(l) =
   if (l == nil) then
@@ -916,23 +1066,45 @@ fun AnalyseAndFilter(l) =
  
 /* if GpsRec flag is on and file exist */
 /* read pre-recorded gps data files if index in 1-n read one after another*/
-fun openRouteFile(strobj, index) = 
-   let strcatn sTmpDownloadPath::(getPluginInstanceName strobj.OBJP_inst)::".tmp"::nil -> tmpfile in       
-   //_getpack _checkpack tmpfile;;
+fun openRouteFile(file, strobj) =  
+  let lineextr _getpack _checkpack file -> data in   
+  //readRouteFile AnalyseAndFilter data 0 strobj [0.0 0.0 0.0 0.0 0.0 0.0];
+  let AnalyseAndFilter data -> adata in
   
-   let lineextr _getpack _checkpack tmpfile -> data in   
-   if (data!=nil) then 
-   (
-     //readRouteFile data ctrl 0 p;
-	 //readRouteFile AnalyseAndFilter data ctrl 0 p;
-	 0
-   ) else 0;;    
+  //if ((strobj.OBJP_iState == 1) || ((sizelist strobj.OBJP_targetPos) < 2)) then nil else
+  if (adata==nil) then nil
+  else
+  (
+    set iErrV = 0.0;	 
+    set iErrH = 0.0;	 
+   
+    let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
+    if !(usePhysic strobj) then nil else
+    (
+      SO3BodySetVelocity body [0.0 0.0 0.0];
+      SO3BodySetOmega body [0.0 0.0 0.0];
+    );
+    
+    if (strobj.OBJP_iState != 0) then nil else
+    (
+      SendPluginEvent strobj.OBJP_inst "Started" nil nil;
+      set strobj.OBJP_angcoef = 0.0;
+      set strobj.OBJP_coef = 0.0;
+    );       
+    
+    set strobj.OBJP_iState = 1;
+    set strobj.OBJP_iTick = 0;
+    set strobj.OBJP_iLine = 0;
+	
+    setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst mkfun4 mkfun5 @cbRouteObj @cbObjEnd [strobj adata];
+  );
+  0;;   
    
 fun cbDownloaded(file, data, strobj)=
   if data == nil then nil else
-  let strcatn sTmpDownloadPath::(getPluginInstanceName strobj.OBJP_inst)::".tmp"::nil -> tmpfile in
+  let strcatn sTmpDownloadPath::(getPluginInstanceName strobj.OBJP_inst)::".route"::nil -> tmpfile in
   (
-    _fooS "SAVE FILE (WEB-SCOL)\n";
+    //_fooS "SAVE FILE (WEB-SCOL)\n";
     _storepack data tmpfile;
   );
   0;;
@@ -975,7 +1147,24 @@ fun downloadRouteFile(strobj, file, param)=
 	  _fooS "SAVE FILE (LOCAL)\n";	
 	  _storepack data tmpfile;
       0
-	);;  	
+	);;  
+
+
+fun cbRoutePlay(inst, from, action, param, reply, strobj)= 
+  let atoi (getPluginInstanceParam inst "path") -> path in
+  let atoi (getPluginInstanceParam inst "isurl") -> isurl in
+  let atoi (getPluginInstanceParam inst "url") -> url in
+  
+  //if (!isurl) then 
+    //openRouteFile path strobj; 
+	0;;
+  //else
+    //downloadFile url mkfun3 @cbDownloaded strobj; //!!!
+    //0;;
+
+fun cbRouteStop(inst, from, action, param, reply, strobj)= 0;;
+
+fun cbRoutePause(inst, from, action, param, reply, strobj)=	0;;
 
   
 
@@ -1036,19 +1225,19 @@ fun newOb(inst)=
   let atoi (getPluginInstanceParam inst "local") -> local in
   let if (local == nil) then 0 else local -> local in
   let atoi (getPluginInstanceParam inst "kps") -> kps in
-  let atoi (getPluginInstanceParam inst "nbkeys") -> nbkeys in
+  let atoi (getPluginInstanceParam inst "nbkeys") -> nbkeys in  
   
   let atof (getPluginInstanceParam inst "xdir") -> xdir in
   let atof (getPluginInstanceParam inst "ydir") -> ydir in
   let atof (getPluginInstanceParam inst "zdir") -> zdir in
   let if xdir == nil then 0.0 else xdir -> xdir in
   let if ydir == nil then 0.0 else ydir -> ydir in
-  let if zdir == nil then (-.1.0) else zdir -> zdir in  
+  let if zdir == nil then (-.1.0) else zdir -> zdir in    
 
   let V3DgetObjectByName c3dXsession sourcename -> source in
   let V3DgetObjectTypeByName sourcename -> isourcemode in
 
-  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil] -> strobj in 
+  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0] -> strobj in 
   (
     set strobj.OBJP_tDir = [xdir ydir zdir];
     set strobj.OBJP_kps = kps;
@@ -1075,6 +1264,10 @@ fun newOb(inst)=
 
 	//PluginRegisterAction inst "Goto next pos" mkfun6 @cbNextPos strobj;
 	//PluginRegisterAction inst "Goto prev pos" mkfun6 @cbNextPos strobj;
+	
+    PluginRegisterAction inst "rPlay" mkfun6 @cbRoutePlay strobj;
+    PluginRegisterAction inst "rPause" mkfun6 @cbRoutePause strobj;
+	PluginRegisterAction inst "rStop" mkfun6 @cbRouteStop strobj;	
 		
 	if (!init) then nil else
 	  cbPlayPath inst nil nil nil nil strobj;

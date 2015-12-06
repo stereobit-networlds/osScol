@@ -37,5 +37,8 @@
     <EVENT name="End" />
     <EVENT name="Started" />
     <EVENT name="echo" />	
+    <ACTION name="rPlay" />
+    <ACTION name="rPause" />
+    <ACTION name="rStop" />	
   </CLIENT>
 </PLUGIN>

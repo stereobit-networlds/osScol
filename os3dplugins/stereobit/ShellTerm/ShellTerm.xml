@@ -67,6 +67,8 @@
     <EVENT name="echo" />
 	<EVENT name="started" />	
 	<ACTION name="writeTerminal" />
+	<ACTION name="appendTerminal" />	
+	<ACTION name="freezeTerminal" />	
 	<ACTION name="clsTerminal" />
 	<ACTION name="start" />
   </CLIENT>

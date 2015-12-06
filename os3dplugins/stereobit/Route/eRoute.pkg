@@ -59,24 +59,6 @@ struct ObjETrackStr = [
 var sTmpDownloadPath = "tmp/routes/";;
 var maxDownloadSize=3145728;; 
 
-/*xyz obj calibration */				
-var iIX = -24700;;/*-24700;;    25700 pour 100% */
-var iIY = 15500;;/*1600;;15500;;  120% 1500, 110% 1600 */
-var iIZ = 1300;;/*3300;;*/
-
-/*NMEA float precision */
-var NMEAline = [6 9 10];; 
-
-/* delta computation static point dif*/
-var sIX = "00202.5776";; /*lon*/
-var sIY = "510.0";;      /*alt*/
-var sIZ = "4846.0024";; /*lat*/
-
-var sFoot   = "30.48";; /*Y delta */
-var sMScale = "25000.0";; /*xy delta */
-var sWScale = "0.204";; /* x delta */
-var sHScale = "0.135";; /* z delta */
-
 typeof iX = F;;
 typeof iY = F;;
 typeof iZ = F;;
