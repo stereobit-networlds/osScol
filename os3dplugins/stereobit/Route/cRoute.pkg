@@ -50,7 +50,14 @@ struct TObjPath = [
                     OBJP_iState        : I,
 
                     OBJP_iLine         : I,
-                    OBJP_routePath     : [S r1]               
+                    OBJP_routePath     : [S r1],
+
+                    OBJP_center        : [F F F],
+                    OBJP_scale         : [F F F],
+                    OBJP_offset        : [F F F],
+                    OBJP_scaleM        : F,  
+                    OBJP_yfix          : F,
+                    OBJP_lastpos       : S					
 					
                   ] mkTObjPath;;
 				  
@@ -1245,12 +1252,25 @@ fun newOb(inst)=
   let atof (getPluginInstanceParam inst "zdir") -> zdir in
   let if xdir == nil then 0.0 else xdir -> xdir in
   let if ydir == nil then 0.0 else ydir -> ydir in
-  let if zdir == nil then (-.1.0) else zdir -> zdir in    
+  let if zdir == nil then (-.1.0) else zdir -> zdir in 
+
+  let atof (getPluginInstanceParam inst "cx") -> cx in
+  let atof (getPluginInstanceParam inst "cy") -> cy in
+  let atof (getPluginInstanceParam inst "cz") -> cz in
+  let atof (getPluginInstanceParam inst "sx") -> sx in
+  let atof (getPluginInstanceParam inst "sy") -> sy in
+  let atof (getPluginInstanceParam inst "sz") -> sz in
+  let atof (getPluginInstanceParam inst "ox") -> ox in
+  let atof (getPluginInstanceParam inst "oy") -> oy in
+  let atof (getPluginInstanceParam inst "oz") -> oz in	
+  let atof (getPluginInstanceParam inst "sM") -> sM in
+  let atof (getPluginInstanceParam inst "yfix") -> yfix in
+  let (getPluginInstanceParam inst "lastpos") -> lastpos in  
 
   let V3DgetObjectByName c3dXsession sourcename -> source in
   let V3DgetObjectTypeByName sourcename -> isourcemode in
 
-  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0 nil] -> strobj in 
+  let mkTObjPath [inst source isourcemode nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil 0 nil nil nil nil nil nil nil] -> strobj in 
   (
     set strobj.OBJP_tDir = [xdir ydir zdir];
     set strobj.OBJP_kps = kps;
@@ -1269,6 +1289,13 @@ fun newOb(inst)=
     set strobj.OBJP_iToAxis = axis;
     set strobj.OBJP_bLocal = local;
     set strobj.OBJP_iState = 0;
+	
+    set strobj.OBJP_center = [cx cy cz];
+    set strobj.OBJP_scale = [sx sy sz];
+    set strobj.OBJP_offset = [ox oy oz];
+    set strobj.OBJP_scaleM = sM;
+    set strobj.OBJP_yfix = yfix;
+    set strobj.OBJP_lastpos = lastpos; 	
     
     PluginRegisterAction inst "Play" mkfun6 @cbPlayPath strobj;
     PluginRegisterAction inst "Pause" mkfun6 @cbPausePath strobj;
