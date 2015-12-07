@@ -1,0 +1,35 @@
+LANGUAGE french
+OS3DOBJECTTRACK_DESC Animation de déplacement entre plusieurs positions, rotations ou échelles
+OS3DOBJECTTRACK_HELP http://www.openspace3d.com/documentation/fr/plugits/object/objtrackplugit.html
+OS3DOBJECTTRACK_0001 Ajouter une clé
+OS3DOBJECTTRACK_0002 Courbe de l'animation
+OS3DOBJECTTRACK_0003 Réglage de l'animation
+OS3DOBJECTTRACK_0004 Cible automatique sur :
+OS3DOBJECTTRACK_0005 Biais
+OS3DOBJECTTRACK_0006 Continuité
+OS3DOBJECTTRACK_0009 Supprimer la clé
+OS3DOBJECTTRACK_0010 Clés par seconde
+OS3DOBJECTTRACK_0011 Boucler
+OS3DOBJECTTRACK_0012 Minimiser / restaurer
+OS3DOBJECTTRACK_0013 Réglages divers
+OS3DOBJECTTRACK_0014 Déplacer (Tab pour basculer)
+OS3DOBJECTTRACK_0015 X négatif
+OS3DOBJECTTRACK_0016 Y négative
+OS3DOBJECTTRACK_0017 Z négatif
+OS3DOBJECTTRACK_0018 Nombre de clés
+OS3DOBJECTTRACK_0019 Paramètre de l'objet
+OS3DOBJECTTRACK_0020 Orientation
+OS3DOBJECTTRACK_0021 Mode ping pong
+OS3DOBJECTTRACK_0022 Lecture / Pause
+OS3DOBJECTTRACK_0023 Jouer au démarrage
+OS3DOBJECTTRACK_0024 Position sur le chemin
+OS3DOBJECTTRACK_0025 Position
+OS3DOBJECTTRACK_0026 Positions dans l'espace objet (locale)
+OS3DOBJECTTRACK_0027 Postes
+OS3DOBJECTTRACK_0028 Faire pivoter (Tab pour basculer)
+OS3DOBJECTTRACK_0029 Échelle (Tab pour basculer)
+OS3DOBJECTTRACK_0030 Échelle
+OS3DOBJECTTRACK_0031 Nom de l'objet source
+OS3DOBJECTTRACK_0032 Arrêt
+OS3DOBJECTTRACK_0033 Tension
+OS3DOBJECTTRACK_0034 Temps

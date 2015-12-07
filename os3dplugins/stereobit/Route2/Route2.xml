@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<PLUGIN name="Route2" version="1.0" type="stereobit">
+  <DESCRIPTION loc="OS3DOBJECTTRACK_DESC">Gps Route2</DESCRIPTION>
+  <HELP loc="OS3DOBJECTTRACK_HELP">http://scol.stereobit.gr/plugits/object/route2plugit.html</HELP>
+  <RESOURCE></RESOURCE>
+  <EDITOR>
+    <SCRIPT path="./eRoute2.pkg" />
+    <PARAM name="sourceobject" type="node" />
+    <PARAM name="kps" type="value" />
+    <PARAM name="nbkeys" type="value" />
+    <PARAM name="loop" type="value" />
+    <PARAM name="local" type="value" />
+    <PARAM name="ping" type="value" />
+    <PARAM name="target" type="value" />
+    <PARAM name="axis" type="value" />
+    <PARAM name="init" type="value" />
+    <PARAM name="posx_" type="value" />
+    <PARAM name="posy_" type="value" />
+    <PARAM name="posz_" type="value" />
+    <PARAM name="angx_" type="value" />
+    <PARAM name="angy_" type="value" />
+    <PARAM name="angz_" type="value" />
+    <PARAM name="scalex_" type="value" />
+    <PARAM name="scaley_" type="value" />
+    <PARAM name="scalez_" type="value" />
+    <PARAM name="T_" type="value" />
+    <PARAM name="C_" type="value" />
+    <PARAM name="B_" type="value" />
+    <PARAM name="D_" type="value" />
+    <PARAM name="cx_" type="value" />
+    <PARAM name="cy_" type="value" />
+    <PARAM name="cz_" type="value" />	
+    <PARAM name="sx_" type="value" />
+    <PARAM name="sy_" type="value" />
+    <PARAM name="sz_" type="value" />
+    <PARAM name="ox_" type="value" />
+    <PARAM name="oy_" type="value" />
+    <PARAM name="oz_" type="value" />
+    <PARAM name="lon_" type="value" />
+    <PARAM name="lat_" type="value" />	
+  </EDITOR>
+  <CLIENT minstance="true">
+    <SCRIPT path="./cRoute2.pkg" />
+    <ACTION name="Play" />
+    <ACTION name="Pause" />
+    <ACTION name="Stop" />
+    <ACTION name="Reverse" />
+    <EVENT name="End" />
+    <EVENT name="Started" />
+    <EVENT name="echo" />	
+    <ACTION name="rPlay" />
+    <ACTION name="rPause" />
+    <ACTION name="rStop" />	
+  </CLIENT>
+</PLUGIN>

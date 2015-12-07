@@ -1,0 +1,36 @@
+LANGUAGE italian
+LANGCODE it
+OS3DOBJECTTRACK_DESC Traslazione animata fra più posizioni con rotazione e scala
+OS3DOBJECTTRACK_HELP http://www.openspace3d.com/documentation/en/plugits/Object/objtrackplugit.html
+OS3DOBJECTTRACK_0001 Aggiungi chiave
+OS3DOBJECTTRACK_0002 Curva di animazione
+OS3DOBJECTTRACK_0003 Impostazioni animazione
+OS3DOBJECTTRACK_0004 Target automatico su:
+OS3DOBJECTTRACK_0005 Inclinazione
+OS3DOBJECTTRACK_0006 Continuità
+OS3DOBJECTTRACK_0009 Tasto CANC
+OS3DOBJECTTRACK_0010 Chiavi al secondo
+OS3DOBJECTTRACK_0011 Loop
+OS3DOBJECTTRACK_0012 Minimizza / Ripristina
+OS3DOBJECTTRACK_0013 Impostazioni varie
+OS3DOBJECTTRACK_0014 Sposta (Tab per passare)
+OS3DOBJECTTRACK_0015 X negativo
+OS3DOBJECTTRACK_0016 Y negativo
+OS3DOBJECTTRACK_0017 Z negativo
+OS3DOBJECTTRACK_0018 Numero delle chiavi
+OS3DOBJECTTRACK_0019 Impostazioni oggetto
+OS3DOBJECTTRACK_0020 Orientamento
+OS3DOBJECTTRACK_0021 Modalità ping pong
+OS3DOBJECTTRACK_0022 Riproduci / Pausa
+OS3DOBJECTTRACK_0023 Riproduci all'inizializzazione
+OS3DOBJECTTRACK_0024 Posizione sul percorso
+OS3DOBJECTTRACK_0025 Posizione
+OS3DOBJECTTRACK_0026 Posizioni nello spazio dell'oggetto (locale)
+OS3DOBJECTTRACK_0027 Posizioni
+OS3DOBJECTTRACK_0028 Ruotare (Tab per passare)
+OS3DOBJECTTRACK_0029 Scala (Tab per passare)
+OS3DOBJECTTRACK_0030 Scala
+OS3DOBJECTTRACK_0031 Nome oggetto di origine
+OS3DOBJECTTRACK_0032 Stop
+OS3DOBJECTTRACK_0033 Tensione
+OS3DOBJECTTRACK_0034 Tempo
