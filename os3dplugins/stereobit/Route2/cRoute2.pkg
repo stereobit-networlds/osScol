@@ -1053,11 +1053,9 @@ fun readRouteLine(strobj, line) =
   
   
 fun cbRouteObj(inst, sessionstr, etime, strobj, cbend)= 
-  let nil -> lpos in
   let readRouteFile strobj readRouteLine strobj nil [0.0 0.0 0.0 0.0 0.0 0.0] -> [posx posy posz angx angy angz] in
   (
-    set lpos = [[posx posy posz] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian angx SO3MathsDegreeToRadian angy SO3MathsDegreeToRadian angz] [1.0 1.0 1.0] [0.0 0.0 0.0] 0.1]::lpos;      
-	set strobj.OBJP_targetPos = lpos;
+    set strobj.OBJP_targetPos = [[posx posy posz] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian angx SO3MathsDegreeToRadian angy SO3MathsDegreeToRadian angz] [1.0 1.0 1.0] [0.0 0.0 0.0] 0.1]::strobj.OBJP_targetPos;      
 	
     routeObj sessionstr etime strobj cbend;
   );	
