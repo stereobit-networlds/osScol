@@ -65,6 +65,7 @@ var log=1;;
 var debug=0;;
 var server=0;; /*when scol server is on */	
 
+var coefMax = 1.0;; //default
 
 fun _echo(strobj,s)= 
  if (log==1) then
@@ -264,7 +265,7 @@ fun cbMoveObj(inst, sessionstr, etime, strobj, cbend)=
     let (1000.0 /. (itof SO3WorldGetFPS sessionstr.V3D_session)) -> nbsec in
     let [nbsec nbsec nbsec] -> vnbsec in
     (
-      if ((strobj.OBJP_coef >=. 1.0) && (strobj.OBJP_fDirection == 1.0)) || ((strobj.OBJP_coef <=. 0.0) && (strobj.OBJP_fDirection == (-.1.0))) then
+      if ((strobj.OBJP_coef >=. coefMax) && (strobj.OBJP_fDirection == 1.0)) || ((strobj.OBJP_coef <=. 0.0) && (strobj.OBJP_fDirection == (-.1.0))) then
       (
         if (strobj.OBJP_iState != 1) then nil else
         (
@@ -314,7 +315,7 @@ fun cbMoveObj(inst, sessionstr, etime, strobj, cbend)=
       else
       (
         let (itof rtick) *. (1.0 /. (itof strobj.OBJP_nbKeys)) *. strobj.OBJP_fDirection -> nstep in
-          set strobj.OBJP_coef = if (strobj.OBJP_coef +. nstep) >. 1.0 then 1.0 else if (strobj.OBJP_coef +. nstep) <=. 0.0 then 0.0 else strobj.OBJP_coef +. nstep;
+          set strobj.OBJP_coef = if (strobj.OBJP_coef +. nstep) >. coefMax then coefMax else if (strobj.OBJP_coef +. nstep) <=. 0.0 then 0.0 else strobj.OBJP_coef +. nstep;
         
         let getInterpolateTCB strobj.OBJP_targetPos strobj.OBJP_coef -> [index tvec] in
         let nth_list strobj.OBJP_targetPos (index - 1) -> [spos sang sscale _ t1] in
@@ -625,6 +626,10 @@ fun newOb(inst)=
     set strobj.OBJP_scaleM = sM;
     set strobj.OBJP_yfix = yfix;
     set strobj.OBJP_lastpos = lastpos; 	
+	
+	/* update coefMax after loading */
+	let sizelist strobj.OBJP_targetPos -> size in
+	set coefMax = (itof size)  /. 10.0;		
     
     PluginRegisterAction inst "Play" mkfun6 @cbPlayPath strobj;
     PluginRegisterAction inst "Pause" mkfun6 @cbPausePath strobj;
