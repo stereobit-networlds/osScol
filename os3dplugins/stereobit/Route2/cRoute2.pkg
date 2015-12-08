@@ -914,10 +914,7 @@ fun readRouteFile(strobj, line, saveValues) =
      );;   
 	 	 
 	 
-fun routeObj(sessionstr, etime, strobj, cbend, coords)=
-  let coords -> [cX cY cZ rX rY rZ] in
-  let [cX cY cZ] -> tvec in
-  let [0.0 0.0 0.0] -> tang in
+fun routeObj(sessionstr, etime, strobj, cbend)=
   let (strobj.OBJP_kps * (set strobj.OBJP_iTick = strobj.OBJP_iTick + etime)) / 1000 -> rtick in
   if (rtick < 1) then nil else
   (
@@ -1056,8 +1053,14 @@ fun readRouteLine(strobj, line) =
   
   
 fun cbRouteObj(inst, sessionstr, etime, strobj, cbend)= 
-  let readRouteFile strobj readRouteLine strobj nil [0.0 0.0 0.0 0.0 0.0 0.0] -> coords in 
-  routeObj sessionstr etime strobj cbend coords;
+  let nil -> lpos in
+  let readRouteFile strobj readRouteLine strobj nil [0.0 0.0 0.0 0.0 0.0 0.0] -> [posx posy posz angx angy angz] in
+  (
+    set lpos = [[posx posy posz] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian angx SO3MathsDegreeToRadian angy SO3MathsDegreeToRadian angz] [1.0 1.0 1.0] [0.0 0.0 0.0] 0.1]::lpos;      
+	set strobj.OBJP_targetPos = lpos;
+	
+    routeObj sessionstr etime strobj cbend;
+  );	
   0;;	 
  
 fun AnalyseAndFilter(l) =
@@ -1072,9 +1075,6 @@ fun AnalyseAndFilter(l) =
   else
     AnalyseAndFilter (tl l);;	 
   
- 
-/* if GpsRec flag is on and file exist */
-/* read pre-recorded gps data files if index in 1-n read one after another*/
 fun openRouteFile(file, strobj) =  
   let lineextr _getpack _checkpack file -> data in   
   //readRouteFile AnalyseAndFilter data 0 strobj [0.0 0.0 0.0 0.0 0.0 0.0];
@@ -1087,6 +1087,7 @@ fun openRouteFile(file, strobj) =
     set iErrV = 0.0;	 
     set iErrH = 0.0;	
     set strobj.OBJP_routePath = adata;	
+	set strobj.OBJP_iLine = 0;
    
     let SO3SceneNodeGetBody strobj.OBJP_h3d -> body in
     if !(usePhysic strobj) then nil else
@@ -1104,7 +1105,6 @@ fun openRouteFile(file, strobj) =
     
     set strobj.OBJP_iState = 1;
     set strobj.OBJP_iTick = 0;
-    set strobj.OBJP_iLine = 0;
 	
     setPluginInstanceCbScenePreRenderPhysic strobj.OBJP_inst mkfun4 mkfun5 @cbRouteObj @cbObjEnd strobj;
   );
@@ -1427,7 +1427,7 @@ fun newOb(inst)=
 	if (!init) then nil else
 	  cbPlayPath inst nil nil nil nil strobj;
 	  
-	_echo strobj "Route: Started";  
+	_echo strobj "Route2: Started";  
 		
     setPluginInstanceCbDel inst mkfun2 @deleteOb strobj;
   );
