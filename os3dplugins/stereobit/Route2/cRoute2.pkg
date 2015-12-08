@@ -647,13 +647,18 @@ initsession\ 40.635496\\\ 22.943427\\\ 510.0\\\ 30.48\\\ 1500000.0\\\ 0.240\\\ 0
 */  
   
  
+fun getNParam(param, word) =
+  let strextr param -> sesdata in 
+  let nth_list sesdata 0 -> l in 
+  nth_list l (word-1);;    
+ 
 /*NMEA GPGGA lon lat to degrees */
 /*NMEA lat  0302.78469 = 03 + (02.78469/60) = 3.046412  decimal*/	
 /*NMEA lon 10141.82531 = 101 + 41.82531/60) = 101.6971  decimal*/	
-fun NMEA2dec(n, islat) = 
+fun NMEA2dec(strobj, n, islat) = 
   //_echo "NMEA2dec:"::n::nil 
-  let atoi getSessionParam 2 5 -> c2 in
-  let atoi getSessionParam 2 6 -> c3 in		
+  let atoi getNParam strobj.OBJP_lastpos 2 -> c2 in
+  let atoi getNParam strobj.OBJP_lastpos 3 -> c3 in		
   let (c2-2) -> lenLat in
   let (c3-3) -> lenLon in  
   
@@ -698,10 +703,14 @@ fun GetData(line, n) =
     substr line ind1 (ind2 - ind1);
   );;   
   
-fun CheckIntegrity(line) =
+fun CheckIntegrity(strobj, line) =
 
       /* SAVE OBJECT ROUTE LOG IN SESSION DIR */
       //saveLog "backroute.txt" strcat line "\n";
+	  
+	  let atoi getNParam strobj.OBJP_lastpos 1 -> c1 in
+	  let atoi getNParam strobj.OBJP_lastpos 2 -> c2 in
+	  let atoi getNParam strobj.OBJP_lastpos 3 -> c3 in	  
 
       if (!strcmp (substr line 0 6) "$PGRME") then
       (
@@ -726,10 +735,6 @@ fun CheckIntegrity(line) =
         let GetData line 7 -> dataRun in
         let GetData line 8 -> dataAng in
 		
-		let atoi getSessionParam 2 4 -> c1 in
-		let atoi getSessionParam 2 5 -> c2 in
-		let atoi getSessionParam 2 6 -> c3 in
-		
         let if ((strlen dataTim) == c1) then 0 else 1 -> errTim in
         let if !strcmp dataVal "A" then 0 else 1 -> errVal in
         let if (((strlen dataLat) == c2) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
@@ -752,10 +757,6 @@ fun CheckIntegrity(line) =
         let GetData line 3 -> dataNor in
         let GetData line 4 -> dataLon in
         let GetData line 5 -> dataEas in
-			
-		let atoi getSessionParam 2 4 -> c1 in
-		let atoi getSessionParam 2 5 -> c2 in
-		let atoi getSessionParam 2 6 -> c3 in
 
         let if ((strlen dataTim) == c1) then 0 else 1 -> errTim in
         let if (((strlen dataLat) == c2) && (dataLat != nil) && (strcmp dataLat nil) && (strcmp dataLat "")) then 0 else 1 -> errLat in
@@ -778,7 +779,13 @@ fun CheckIntegrity(line) =
 /*read data array */  
 fun readRouteFile(strobj, line, saveValues) =
     _echo strobj strcat "readNMEA:" line;
-	let CheckIntegrity line -> l in
+	let saveValues -> [vX vY vZ aX aY aZ] in
+	let strobj.OBJP_center -> [cX cY cZ] in
+	let strobj.OBJP_scale -> [sX sY sZ] in
+	let strobj.OBJP_offset -> [oX oY oZ] in
+	let strobj.OBJP_scaleM -> sM in
+	let strobj.OBJP_yfix -> yF in	
+	let CheckIntegrity strobj line -> l in
 	(
       if (l == nil) then
       (		
@@ -792,12 +799,11 @@ fun readRouteFile(strobj, line, saveValues) =
       )
       else if (!strcmp (hd l) "$PGRMZ") then
 	  (
-	    let atof getSessionParam 1 3 -> ssIY in
-		let atof getSessionParam 1 4 -> ssFoot in
-        let atof (hd tl l) -> data in
-        let ((data -. ssIY) *. ssFoot) -> delta in
+	    let atof (hd tl l) -> data in
+        let if (yF >. 0.0) then yF 
+		    else ((data -. cY) *. sY) -> delta in
         (
-		  set iY = (atof getSessionParam 2 2) +. delta;
+		  set iY = oY +. delta;
 		  
 		  //let GetObjPosition O3d -> [iX Oy iZ] in
 		  //SO3ObjectGetScale edstr.ETRACK_child
@@ -825,9 +831,8 @@ fun readRouteFile(strobj, line, saveValues) =
 			   M3setObjVec session O3d [iX iY iZ]; 
 			*/  
 	
-			let saveValues -> [vX _ vZ aX aY aZ] in
 			//cbAddListFromFile p [vX iY vZ] [aX aY aZ]; 
-	        //mutate saveValues <- [_ iY _ _ _ _];	
+	        mutate saveValues <- [_ iY _ _ _ _];	
             //_fooS strcatn "NMEA PGRMZ :"::line::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;					
             _echo strobj strcatn "NMEA PGRMZ :"::line::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;					
             0;
@@ -839,13 +844,9 @@ fun readRouteFile(strobj, line, saveValues) =
       (
         let atof (hd tl l) -> data in
         (
-          if (data==nil) then
-		  (
-		    /*set rY = 0; */
-			/*set rY = Ory;*/ /*current ang */
-            0;
-		  )	
+          if (data==nil) then 0
           else
+		  let if (data >.180.0) then (180.0 -. data) else data -> rY in
           (
 			/*let GetObjAngle O3d -> [Ory Orx Orz] in
 			let OptimizeDestOrientation [Ory Orx Orz] [(ftoi (-.65536.0 *. ((atof data) /. 360.0))) 0 0] -> optAng in 	
@@ -854,36 +855,23 @@ fun readRouteFile(strobj, line, saveValues) =
 			  InterpolateAng O3d [Ory Orx Orz] optAng
 			else		  
 			  M3setObjAng session O3d optAng;*/	
-			  
-			let (-.65536.0 *. (data /. 360.0)) -> rY in			
-			let saveValues -> [vX vY vZ aX _ aZ] in
-			(	
-              mutate saveValues <- [_ _ _ _ rX _];				
-			  //_fooS strcatn "NMEA GPRMC :"::line::"-"::(ftoa rY)::",0,0"::nil;
-			  _echo strobj strcatn "NMEA GPRMC :"::line::"-"::(ftoa rY)::",0,0"::nil;			
-              0
-			);  
+			  			
+				
+            mutate saveValues <- [_ _ _ _ rX _];				
+			//_fooS strcatn "NMEA GPRMC :"::line::"-"::(ftoa rY)::",0,0"::nil;
+			_echo strobj strcatn "NMEA GPRMC :"::line::"-"::(ftoa rY)::",0,0"::nil;			
+            0  
           );
         );
         0;
       )
       else if (!strcmp (hd l) "$GPGGA") then
       (
-		let atof getSessionParam 1 2 -> centerX in	  
-		let atof getSessionParam 1 1 -> centerZ in
-		let atof getSessionParam 1 5 -> MScale in	  
-		let atof getSessionParam 1 6 -> XScale in
-		let atof getSessionParam 1 7 -> ZScale in	
-        let atof getSessionParam 2 1 -> offsetX in /* 0 when in map center*/
-		let atof getSessionParam 2 3 -> offsetZ	in /* 0 when in map center*/
-        let NMEA2dec (hd tl l) 1 -> latitude in
-  		let NMEA2dec (hd tl tl l) 0 -> longitude in
-
-		/*40.589226, 22.964331 center of map */
-		/*40.591616, 22.972312 allatini offset  = 27000, 10000 */
+        let NMEA2dec strobj (hd tl l) 1 -> latitude in
+  		let NMEA2dec strobj (hd tl tl l) 0 -> longitude in
         ( 
-		  set iX = ((longitude -. centerX) *. (MScale /. XScale)) +. offsetX;
-          set iZ = ((latitude -. centerZ) *. (MScale /. ZScale)) +. offsetZ;		  
+		  set iX = ((longitude -. cX) *. (sM /. sX)) +. oX;
+          set iZ = ((latitude -. cZ) *. (sM /. sZ)) +. oZ;			  
 
 		  //let GetObjPosition O3d -> [Ox iY Oz] in
 		  //SO3ObjectGetScale edstr.ETRACK_child
@@ -908,7 +896,6 @@ fun readRouteFile(strobj, line, saveValues) =
 			  M3setObjVec session O3d [iX iY iZ];
 			  */
 			  	
-			let saveValues -> [_ vY _ aX aY aZ] in
             //cbAddListFromFile p [iX 0.0 iZ] [aX aY aZ];
             mutate saveValues <- [iX _ iZ _ _ _];			
 			//_fooS strcatn "NMEA GPGGA :"::line::nil;
@@ -925,6 +912,7 @@ fun readRouteFile(strobj, line, saveValues) =
       set strobj.OBJP_iLine = strobj.OBJP_iLine + 1;	  
 	  saveValues
      );;   
+	 	 
 	 
 fun routeObj(sessionstr, etime, strobj, cbend, coords)=
   let coords -> [cX cY cZ rX rY rZ] in
@@ -1058,7 +1046,8 @@ fun routeObj(sessionstr, etime, strobj, cbend, coords)=
     );
   );
   0;;	 
-
+  
+  
 
 fun readRouteLine(strobj, line) =
   let if line!=nil then line else strobj.OBJP_iLine -> l in
@@ -1182,12 +1171,138 @@ fun cbRoutePlay(inst, from, action, param, reply, strobj)=
     //downloadFile url mkfun3 @cbDownloaded strobj; 
     0;;
 
+
 fun cbRouteStop(inst, from, action, param, reply, strobj)= 0;;
 
-fun cbRoutePause(inst, from, action, param, reply, strobj)=	0;;
+fun cbRoutePause(inst, from, action, param, reply, strobj)=	0;;  
 
   
+  
+/*** load data array (prerender method...) *****/  
+fun exeRouteFile(list, index, strobj, saveValues) =  
+  if list==nil then nil
+  else
+	let saveValues -> [vX vY vZ aX aY aZ] in
+	let strobj.OBJP_center -> [cX cY cZ] in
+	let strobj.OBJP_scale -> [sX sY sZ] in
+	let strobj.OBJP_offset -> [oX oY oZ] in
+	let strobj.OBJP_scaleM -> sM in
+	let strobj.OBJP_yfix -> yF in
+    let hd list -> line in
+	let CheckIntegrity strobj line -> l in
+	(
+      if (l == nil) then
+      (
+	    //_fooS strcat "NMEA LINE:" itoa index;
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRME") then
+      (
+	    //_fooS strcat "NMEA PGRME:" itoa index;		
+        0;
+      )
+      else if (!strcmp (hd l) "$PGRMZ") then
+	  (
+        let atof (hd tl l) -> data in
+        let if (yF >. 0.0) then yF 
+		    else ((data -. cY) *. sY) -> delta in
+        (
+		  set iY = oY +. delta;
+		 
+          if (data==nil) then
+          (
+            set iErrV = iErrV +. 1.0;
+            0;
+          )
+          /*else if (absf (iY -. vY) >. iMaxDVer *. iErrV) then //<<<<< !!!!
+          (
+            set iErrV = iErrV +. 1.0;
+            _fooS strcatn "NMEA Err (pos Y):"::(itoa index)::"-"::(ftoa iErrV)::"-["::(ftoa iY)::"]"::nil;			
+            0;
+          )*/
+          else
+          (
+            set iErrV = 1.0;
 
+			//_fooS strcatn "NMEA PGRMZ :"::(itoa index)::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;		
+			//cbAddListFromFile p [vX iY vZ] [aX aY aZ]; 
+	        mutate saveValues <- [_ iY _ _ _ _];			//iY !!!!!!!
+            0;
+          );
+        );
+        0;		
+      )
+      else if (!strcmp (hd l) "$GPRMC") then
+      (
+        let atof (hd tl l) -> data in
+        (
+          if (data==nil) then 0
+          else
+		  let if (data >.180.0) then (180.0 -. data) else data -> rY in
+          (			  
+			//let (-.65536.0 *. (data /. 360.0)) -> rY in
+			//_fooS strcatn "NMEA GPRMC :"::(itoa index)::"-"::(ftoa rY)::",0,0"::nil;
+            //cbAddListFromFile p [vX vY vZ] [aX rY aZ];	
+            mutate saveValues <- [_ _ _ _ rY _];				 //!!!
+            0;
+          );
+        );
+        0;
+      )
+      else if (!strcmp (hd l) "$GPGGA") then
+      (
+        let NMEA2dec strobj (hd tl l) 1 -> latitude in
+  		let NMEA2dec strobj (hd tl tl l) 0 -> longitude in
+        ( 
+		  set iX = ((longitude -. cX) *. (sM /. sX)) +. oX;
+          set iZ = ((latitude -. cZ) *. (sM /. sZ)) +. oZ;		  
+
+		  /*let sqrt (sqr (iX -. vX)) +. (sqr (iZ -. vZ)) -> ss in
+          if (ss >. iMaxDHor *. iErrH) then //!!!!!!!!!!!!!
+          (
+            set iErrH = iErrH +. 1.0;
+			_fooS strcatn "NMEA Err (pos XZ):"::(itoa index)::(ftoa ss)::nil;
+            0;
+          )
+          else
+          (*/
+            set iErrH = 1.0;			
+			//_fooS strcatn "NMEA GPGGA :"::(itoa index)::nil;
+            //cbAddListFromFile p [iX vY iZ] [aX aY aZ];
+            mutate saveValues <- [iX _ iZ _ _ _];			
+            0;
+          /*); */
+        );        
+        0;
+	  )
+      else
+        0;	  
+	  
+	  exeRouteFile tl list index+1 strobj saveValues;	  
+	  0
+     );; 
+
+fun loadPos2(inst, strobj) =
+  let (getPluginInstanceParam inst "path") -> path in
+  let atoi (getPluginInstanceParam inst "isurl") -> isurl in
+  let (getPluginInstanceParam inst "url") -> url in
+  
+  if (!isurl) then 
+  (
+    let lineextr _getpack _checkpack path -> data in   
+    let AnalyseAndFilter data -> adata in
+    let exeRouteFile adata 0 strobj [0.0 0.0 0.0 0.0 0.0 0.0] -> coords in 
+    (
+	    set iErrV = 0.0;	 
+        set iErrH = 0.0;	
+        //set strobj.OBJP_routePath = adata;
+        set strobj.OBJP_iLine = 0;	
+        //....		
+	)	
+  )	
+  else
+    //downloadFile url mkfun3 @cbDownloaded strobj; 
+    0;;
 
 fun loadPos(inst)=
   let nil -> lpos in
