@@ -1592,19 +1592,11 @@ fun readRouteFile(list, index, p, saveValues) =
             set iErrV = iErrV +. 1.0;
             0;
           )
-          /*else if (absf (iY -. vY) >. iMaxDVer *. iErrV) then //<<<<< !!!!
-          (
-            set iErrV = iErrV +. 1.0;
-            _fooS strcatn "NMEA Err (pos Y):"::(itoa index)::"-"::(ftoa iErrV)::"-["::(ftoa iY)::"]"::nil;			
-            0;
-          )*/
           else
           (
-            set iErrV = 1.0;
-
 			//_fooS strcatn "NMEA PGRMZ :"::(itoa index)::nil; //(ftoa iX)::","::(ftoa iY)::","::(ftoa iZ)::nil;		
 			cbAddListFromFile p [vX iY vZ] [aX aY aZ]; 
-	        mutate saveValues <- [_ iY _ _ _ _];			//iY !!!!!!!
+	        mutate saveValues <- [_ iY _ _ _ _];			
             0;
           );
         );
@@ -1618,10 +1610,9 @@ fun readRouteFile(list, index, p, saveValues) =
           else
 		  let if (data >.180.0) then (180.0 -. data) else data -> rY in
           (			  
-			//let (-.65536.0 *. (data /. 360.0)) -> rY in
 			//_fooS strcatn "NMEA GPRMC :"::(itoa index)::"-"::(ftoa rY)::",0,0"::nil;
             cbAddListFromFile p [vX vY vZ] [aX rY aZ];	
-            mutate saveValues <- [_ _ _ _ rY _];				 //!!!
+            mutate saveValues <- [_ _ _ _ rY _];			
             0;
           );
         );
@@ -1635,21 +1626,11 @@ fun readRouteFile(list, index, p, saveValues) =
 		  set iX = ((longitude -. cX) *. (sM /. sX)) +. oX;
           set iZ = ((latitude -. cZ) *. (sM /. sZ)) +. oZ;		  
 
-		  /*let sqrt (sqr (iX -. vX)) +. (sqr (iZ -. vZ)) -> ss in
-          if (ss >. iMaxDHor *. iErrH) then //!!!!!!!!!!!!!
-          (
-            set iErrH = iErrH +. 1.0;
-			_fooS strcatn "NMEA Err (pos XZ):"::(itoa index)::(ftoa ss)::nil;
-            0;
-          )
-          else
-          (*/
-            set iErrH = 1.0;			
-			//_fooS strcatn "NMEA GPGGA :"::(itoa index)::nil;
-            cbAddListFromFile p [iX vY iZ] [aX aY aZ];
-            mutate saveValues <- [iX _ iZ _ _ _];			
-            0;
-          /*); */
+          set iErrH = 1.0;			
+ 		  //_fooS strcatn "NMEA GPGGA :"::(itoa index)::nil;
+          cbAddListFromFile p [iX vY iZ] [aX aY aZ];
+          mutate saveValues <- [iX _ iZ _ _ _];			
+          0;
         );        
         0;
 	  )
