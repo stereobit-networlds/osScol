@@ -64,7 +64,9 @@ struct ObjETrackStr = [
   
   
 var sTmpDownloadPath = "tmp/routes/";;
-var maxDownloadSize=33145728;; 
+var maxDownloadSize=33145728;;
+
+var coefMax = 1.0;; //default 
 
 typeof iX = F;;
 typeof iY = F;;
@@ -734,7 +736,7 @@ fun cbEditorPreRender(inst, viewstr, p)=
   let (edstr.ETRACK_fKps *. (itof (tick - edstr.ETRACK_iTick))) /. 1000.0 -> rtick in
   if (rtick <. 1.0) then nil else
   (
-    if ((edstr.ETRACK_coef >=. 1.0) && (edstr.ETRACK_fDirection == 1.0)) || ((edstr.ETRACK_coef <=. 0.0) && (edstr.ETRACK_fDirection == (-.1.0))) then
+    if ((edstr.ETRACK_coef >=. coefMax) && (edstr.ETRACK_fDirection == 1.0)) || ((edstr.ETRACK_coef <=. 0.0) && (edstr.ETRACK_fDirection == (-.1.0))) then
     (
       set edstr.ETRACK_iTick = 0;
       
@@ -777,7 +779,7 @@ fun cbEditorPreRender(inst, viewstr, p)=
     else
     (
       let rtick *. (1.0 /. edstr.ETRACK_nbKeys) *. edstr.ETRACK_fDirection -> nstep in
-        set edstr.ETRACK_coef = if (edstr.ETRACK_coef +. nstep) >. 1.0 then 1.0 else if (edstr.ETRACK_coef +. nstep) <. 0.0 then 0.0 else edstr.ETRACK_coef +. nstep;
+        set edstr.ETRACK_coef = if (edstr.ETRACK_coef +. nstep) >. coefMax then coefMax else if (edstr.ETRACK_coef +. nstep) <. 0.0 then 0.0 else edstr.ETRACK_coef +. nstep;
       
       setEdCtrlSliderValue ctrltimeline edstr.ETRACK_coef;
       
@@ -807,7 +809,7 @@ fun cbEditorPreRender(inst, viewstr, p)=
         else nil;
           
         let rtick *. edstr.ETRACK_angstep *. edstr.ETRACK_fDirection -> nangstep in
-          set edstr.ETRACK_angcoef = if (edstr.ETRACK_angcoef +. nangstep) >. 1.0 then 1.0 else if (edstr.ETRACK_angcoef +. nangstep) <. 0.0 then 0.0 else edstr.ETRACK_angcoef +. nangstep;
+          set edstr.ETRACK_angcoef = if (edstr.ETRACK_angcoef +. nangstep) >. coefMax then coefMax else if (edstr.ETRACK_angcoef +. nangstep) <. 0.0 then 0.0 else edstr.ETRACK_angcoef +. nangstep;
         
         let if edstr.ETRACK_bToTarget then getViewDirection edstr ovec oang tvec else SO3MathsQuatInterpolate sang dang edstr.ETRACK_angcoef 1 -> tang in
         let vecLerpF sscale dscale edstr.ETRACK_angcoef -> tscale in
@@ -972,7 +974,7 @@ fun fillDotsCtrls(edstr, pos, value, p)=
     let nth_list edstr.ETRACK_lDots (pos - 1) -> [_ _ _ _ pt] in
     let nth_list edstr.ETRACK_lDots (pos + 1) -> [_ _ _ _ nt] in
     let if (pt == nil) then 0.0 else pt +. 0.00001 -> mintime in
-    let if (nt == nil) && (pos != 0) then 1.0 else if (pos == 0) then 0.0 else nt -. 0.00001 -> maxtime in
+    let if (nt == nil) && (pos != 0) then coefMax else if (pos == 0) then 0.0 else nt -. 0.00001 -> maxtime in
     let maxf 0.0 minf 1.0 mintime -> mintime in
     let maxf 0.0 minf 1.0 maxtime -> maxtime in
     (
@@ -1023,8 +1025,8 @@ fun cbAddList(tbstr, check, btn, mask, p)=
     let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let if edstr.ETRACK_bLocal then SO3MathsQuatToEulerYXZ SO3ObjectGetOrientation edstr.ETRACK_child else SO3MathsQuatToEulerYXZ SO3ObjectGetGlobalOrientation edstr.ETRACK_child -> [ax ay az] in [ftoa (SO3MathsRadianToDegree ax) ftoa (SO3MathsRadianToDegree ay) ftoa (SO3MathsRadianToDegree az)] else [angx angy angz] -> [angx angy angz] in
     let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let SO3ObjectGetScale edstr.ETRACK_child -> [sx sy sz] in [ftoa sx ftoa sy ftoa sz] else [scalex scaley scalez] -> [scalex scaley scalez] in
     
-    let if (pt == nil) then 0.0 else pt +. 0.1 -> ntime in //<<<<<<<<<<<<<<<<<<<<<<< 0.1 ???
-    let ftoa (maxf 0.0 minf 1.0 ntime) -> D in    
+    let if (pt == nil) then 0.0 else pt +. 0.1 -> ntime in 
+    let ftoa (maxf 0.0 minf coefMax ntime) -> D in    
     let strcatnSep posx::posy::posz::angx::angy::angz::scalex::scaley::scalez::T::C::B::D::nil "," -> nvalue in
     (
       addEdCtrlList ctrllist nvalue nil nil;
@@ -1407,7 +1409,7 @@ fun cbAddListFromFile(p, fpos, fang)=
     let if ((pt == nil) && (edstr.ETRACK_child != nil)) then let SO3ObjectGetScale edstr.ETRACK_child -> [sx sy sz] in [ftoa sx ftoa sy ftoa sz] else [scalex scaley scalez] -> [scalex scaley scalez] in
     
     let if (pt == nil) then 0.0 else pt +. 0.1 -> ntime in
-    let ftoa (maxf 0.0 minf 1.0 ntime) -> D in    
+    let ftoa (maxf 0.0 minf coefMax ntime) -> D in    
     let strcatnSep posx::posy::posz::angx::angy::angz::scalex::scaley::scalez::T::C::B::D::nil "," -> nvalue in
     (
       addEdCtrlList ctrllist nvalue nil nil;
@@ -1653,17 +1655,20 @@ fun AnalyseAndFilter(l) =
   else
     AnalyseAndFilter (tl l);;	 
   
-fun openRouteFile(inst, file, p) =  
+fun openRouteFile(inst, file, p) = 
+   let p -> [[edstr _ _ _ _ _ _] _ _] in 
    let lineextr _getpack _checkpack file -> data in   
    if (data!=nil) then 
    (
      delAllList p; /* delete list if exist */
 	 
-     //readRouteFile data 0 p;
-	 
      set iErrV = 0.0;	 
-     set iErrH = 0.0;	 
-	 readRouteFile AnalyseAndFilter data 0 p [0.0 1.0 0.0 0.0 0.0 0.0];
+     set iErrH = 0.0;	
+	 
+	 let sizelist data -> size in
+	 set coefMax = (itof size)  /. 10.0;	 
+	 
+	 readRouteFile AnalyseAndFilter data 0 p [0.0 1.0 0.0 0.0 0.0 0.0];	 
 	 0
    ) else 0;; 
  
@@ -2101,7 +2106,11 @@ fun dynamicedit(ewinstr, inst, viewstr) =
       setEdCtrlFloatCbChange _oz mkfun3 @cbUpdateFloats xctrl;
       setEdCtrlFloatCbChange _sM mkfun3 @cbUpdateFloats xctrl;
       setEdCtrlFloatCbChange _yfix mkfun3 @cbUpdateFloats xctrl;
-      //setEdCtrlFloatCbChange _lastpos mkfun3 @cbUpdateFloats xctrl;	  
+      //setEdCtrlFloatCbChange _lastpos mkfun3 @cbUpdateFloats xctrl;	 
+
+	  /* update coefMax after loading */
+	  let sizelist edstr.ETRACK_lDots -> size in
+	  set coefMax = (itof size)  /. 10.0;	  
      
       [mkfun1 @cbCloseEdit [ctrlsourcename ctrlkps ctrlnbkeys ctrlloop ctrlping ctrltarget ctrlaxis ctrldots ctrllocal ctrlinit ctrlpath ctrlisurl ctrlurl _cx _cy _cz _sx _sy _sz _ox _oy _oz _sM _yfix _lastpos] mkfun1 @cbDestroyEdit [inst edstr]];
     );

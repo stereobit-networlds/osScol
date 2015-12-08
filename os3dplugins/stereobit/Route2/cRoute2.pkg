@@ -69,6 +69,8 @@ var server=0;; /*when scol server is on */
 var sTmpDownloadPath = "tmp/routes/";;
 var maxDownloadSize=33145728;;
 
+var coefMax = 1.0;; //default
+
 /*xyz obj calibration */				
 var iIX = -24700;;/*-24700;;    25700 pour 100% */
 var iIY = 15500;;/*1600;;15500;;  120% 1500, 110% 1600 */
@@ -914,14 +916,14 @@ fun getInterpolateTCB2(lpos, t)=
   );;	 
 	 	 
 	 
-fun routeObj(sessionstr, etime, strobj, cbend)=
+fun routeObj(sessionstr, etime, strobj, cbend, pPos)=
   let (strobj.OBJP_kps * (set strobj.OBJP_iTick = strobj.OBJP_iTick + etime)) / 1000 -> rtick in
   if (rtick < 1) then nil else
   (
     let (1000.0 /. (itof SO3WorldGetFPS sessionstr.V3D_session)) -> nbsec in
     let [nbsec nbsec nbsec] -> vnbsec in
     (
-      if ((strobj.OBJP_coef >=. 1.0) && (strobj.OBJP_fDirection == 1.0)) || ((strobj.OBJP_coef <=. 0.0) && (strobj.OBJP_fDirection == (-.1.0))) then
+      if ((strobj.OBJP_coef >=. coefMax) && (strobj.OBJP_fDirection == 1.0)) || ((strobj.OBJP_coef <=. 0.0) && (strobj.OBJP_fDirection == (-.1.0))) then
       (
         if (strobj.OBJP_iState != 1) then nil else
         (
@@ -971,9 +973,12 @@ fun routeObj(sessionstr, etime, strobj, cbend)=
       else
       (
         let (itof rtick) *. (1.0 /. (itof strobj.OBJP_nbKeys)) *. strobj.OBJP_fDirection -> nstep in
-          set strobj.OBJP_coef = if (strobj.OBJP_coef +. nstep) >. 1.0 then 1.0 else if (strobj.OBJP_coef +. nstep) <=. 0.0 then 0.0 else strobj.OBJP_coef +. nstep;
+          set strobj.OBJP_coef = if (strobj.OBJP_coef +. nstep) >. coefMax then coefMax else if (strobj.OBJP_coef +. nstep) <=. 0.0 then 0.0 else strobj.OBJP_coef +. nstep;
         
         let getInterpolateTCB2 strobj.OBJP_targetPos strobj.OBJP_coef -> [index tvec] in
+		//let getInterpolateCurve (getPosXYZ pPos) (getPosXYZ tl strobj.OBJP_targetPos) [tancurposx tancurposy tancurposz] [tannextposx tannextposy tannextposz] coef -> [x y z] in
+        //set outvec = [i [x y z]];
+			
         let nth_list strobj.OBJP_targetPos (index - 1) -> [spos sang sscale _ t1] in
         let nth_list strobj.OBJP_targetPos index -> [dpos dang dscale _ t2] in      
         let (SO3ObjectGetGlobalPosition strobj.OBJP_h3d) -> ovec in
@@ -1046,19 +1051,29 @@ fun routeObj(sessionstr, etime, strobj, cbend)=
   
   
 fun cbRouteObj(inst, sessionstr, etime, strobj, cbend)= 
+  let nil -> previous_pos in
   let nth_list strobj.OBJP_routePath strobj.OBJP_iLine -> line in 
   let readRouteLine strobj line strobj.OBJP_coords -> coords in
  
   if (coords==nil) then nil else
   let coords -> [posx posy posz angx angy angz] in
   let 0.1 *. (itof strobj.OBJP_iLine) -> D in  
+  let if (D -. 0.1 <. 0.0) then 0.0 else 0.1 -> pD in
   (	
     if (posx!=nil) then 
 	(
       set strobj.OBJP_targetPos = [[posx posy posz] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian angx SO3MathsDegreeToRadian angy SO3MathsDegreeToRadian angz] [1.0 1.0 1.0] [0.0 0.0 0.0] D]::strobj.OBJP_targetPos;      	
-      routeObj sessionstr etime strobj cbend;
-	
-	  set strobj.OBJP_coords = coords; //update coords after obj set position
+	  
+	  //calc stored prev pos 
+	  let strobj.OBJP_coords -> [posx posy posz angx angy angz] in
+	  
+	  set previous_pos = [[posx posy posz] SO3MathsEulerPYRToQuat [SO3MathsDegreeToRadian angx SO3MathsDegreeToRadian angy SO3MathsDegreeToRadian angz] [1.0 1.0 1.0] [0.0 0.0 0.0] pD];      	
+	  
+      //exec route with current pos and prev pos as calc for interpolate 	  
+      routeObj sessionstr etime strobj cbend previous_pos;
+	  
+	  //update coords arg  after obj sets its position 
+	  set strobj.OBJP_coords = coords;	  
 	
 	  _echo strobj strcatn "Route2 pos:"::(itoa strobj.OBJP_iLine)::","::(ftoa posx)::","::(ftoa posy)::","::(ftoa posz)::nil;		
     ) 
@@ -1087,6 +1102,10 @@ fun openRouteFile(file, strobj) =
   if (adata==nil) || (strobj.OBJP_iState == 1) then nil
   else
   (
+	/* update coefMax after loading */
+	let sizelist adata -> size in
+	set coefMax = (itof size)  /. 10.0;  
+  
     set iErrV = 0.0;	 
     set iErrH = 0.0;	
     set strobj.OBJP_routePath = adata;	
@@ -1417,7 +1436,11 @@ fun newOb(inst)=
     set strobj.OBJP_offset = [ox oy oz];
     set strobj.OBJP_scaleM = sM;
     set strobj.OBJP_yfix = yfix;
-    set strobj.OBJP_lastpos = lastpos; 	
+    set strobj.OBJP_lastpos = lastpos;
+
+	/* update coefMax after loading */
+	let sizelist strobj.OBJP_targetPos -> size in
+	set coefMax = (itof size)  /. 10.0;		 	
     
     PluginRegisterAction inst "Play" mkfun6 @cbPlayPath strobj;
     PluginRegisterAction inst "Pause" mkfun6 @cbPausePath strobj;
