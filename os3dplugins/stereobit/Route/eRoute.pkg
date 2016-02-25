@@ -1556,7 +1556,7 @@ fun CheckIntegrity(edstr, line) =
         nil;;  
   
 /*read data array */  
-fun readRouteFile(list, index, p, saveValues) =
+fun readRouteFile(list, index, p, xmir, zmir, saveValues) =
   if list==nil then nil
   else
     let p -> [[edstr _ _ _ _ _ _] _ _] in
@@ -1624,8 +1624,8 @@ fun readRouteFile(list, index, p, saveValues) =
         let NMEA2dec edstr (hd tl l) 1 -> latitude in
   		let NMEA2dec edstr (hd tl tl l) 0 -> longitude in
         ( 
-		  set iX = ((longitude -. cX) *. (sM /. sX)) +. oX;
-          set iZ = ((latitude -. cZ) *. (sM /. sZ)) +. oZ;		  
+		  set iX = (((longitude -. cX) *. (sM /. sX)) +. oX) *. itof xmir;
+          set iZ = (((latitude -. cZ) *. (sM /. sZ)) +. oZ) *. itof zmir;		  
 		
   		  //_fooS strcatn "NMEA GPGGA :"::(itoa index)::nil;
           cbAddListFromFile p [iX vY iZ] [aX aY aZ];
@@ -1637,24 +1637,35 @@ fun readRouteFile(list, index, p, saveValues) =
       else
         0;	  
 	  
-	  readRouteFile tl list index+1 p saveValues;	  
+	  readRouteFile tl list index+1 p xmir zmir saveValues;	  
 	  index;
      );;  
 	 
-fun AnalyseAndFilter(l) =
+fun AnalyseAndFilter(l, step, limit) =
   if (l == nil) then
     l
-  else if ((!strcmp (substr (hd l) 0 6) "$PGRME")
+  else if (step==limit) && /* read line everytime step = limit */
+       ((!strcmp (substr (hd l) 0 6) "$PGRME")
         || (!strcmp (substr (hd l) 0 6) "$PGRMZ")
         || (!strcmp (substr (hd l) 0 6) "$GPRMC")
         || (!strcmp (substr (hd l) 0 6) "$GPGGA")
         || (!strcmp (substr (hd l) 0 6) "cbTick")) then
-    (hd l)::(AnalyseAndFilter (tl l))
+    (hd l)::(AnalyseAndFilter (tl l) 0 limit)
   else
-    AnalyseAndFilter (tl l);;	 
+    AnalyseAndFilter (tl l) step+1 limit;;	 
   
 fun openRouteFile(inst, file, p) = 
    let p -> [[edstr _ _ _ _ _ _] _ _] in 
+   
+   let atoi getNParam edstr.ETRACK_lastpos 4 -> sl in
+   let if (sl != nil) then sl else 0 -> slimit in
+   
+   let atoi getNParam edstr.ETRACK_lastpos 5 -> xrm in
+   let if (xrm != nil) then xrm else 1 -> xmir in   
+   
+   let atoi getNParam edstr.ETRACK_lastpos 6 -> zrm in
+   let if (zrm != nil) then zrm else 1 -> zmir in   
+   
    let lineextr _getpack _checkpack file -> data in   
    if (data!=nil) then 
    (
@@ -1666,7 +1677,7 @@ fun openRouteFile(inst, file, p) =
 	 set coefMax = (itof size)  /. 10.0;
 	 //_fooS strcat "CoefMax::::::::::::::::::::::::" ftoa coefMax;	 
 	 
-	 readRouteFile AnalyseAndFilter data 0 p [0.0 1.0 0.0 0.0 0.0 0.0];
+	 readRouteFile (AnalyseAndFilter data 0 slimit) 0 p xmir zmir [0.0 1.0 0.0 0.0 0.0 0.0];
 	 0
    ) else 0;; 
  
@@ -1679,7 +1690,7 @@ fun cbDownloaded(file, data, p)=
      delAllList p; /* delete list if exist */ 
      set iErrV = 0.0;	 
      set iErrH = 0.0;	 
-     readRouteFile AnalyseAndFilter webdata 0 p [0.0 0.0 0.0 0.0 0.0 0.0];
+     readRouteFile (AnalyseAndFilter webdata 0 0) 0 p 1 1 [0.0 0.0 0.0 0.0 0.0 0.0];
    );0;;
     
 fun cbDownloaded2(file, data, inst)=   
